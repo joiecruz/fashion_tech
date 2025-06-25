@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "186239521512",
+    "project_id": "fashion-tech-2fdb3",
+    "storage_bucket": "fashion-tech-2fdb3.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:186239521512:android:ebb19f90674ce0ab572f5d",
+        "android_client_info": {
+          "package_name": "com.example.fashion_tech"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBMfNhkeOnO2un3nIpsgg9MyEtv-GbuHgk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
