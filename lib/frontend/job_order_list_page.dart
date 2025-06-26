@@ -12,6 +12,42 @@ class _JobOrderListPageState extends State<JobOrderListPage> {
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
 
+  // Caches
+  Map<String, String> userNames = {};
+  Map<String, String> productNames = {};
+  Map<String, int> productQuantities = {};
+  bool _dataLoaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _preloadData();
+  }
+
+  Future<void> _preloadData() async {
+    // Fetch all users
+    final usersSnap = await FirebaseFirestore.instance.collection('users').get();
+    userNames = {
+      for (var doc in usersSnap.docs)
+        doc.id: (doc.data()['fullName'] ?? '') as String
+    };
+
+    // Fetch all products
+    final productsSnap = await FirebaseFirestore.instance.collection('products').get();
+    productNames = {
+      for (var doc in productsSnap.docs)
+        doc.id: (doc.data()['name'] ?? '') as String
+    };
+    productQuantities = {
+      for (var doc in productsSnap.docs)
+        doc.id: (doc.data()['quantity'] ?? 0) as int
+    };
+
+    setState(() {
+      _dataLoaded = true;
+    });
+  }
+
   @override
   void dispose() {
     _searchController.dispose();
@@ -20,7 +56,10 @@ class _JobOrderListPageState extends State<JobOrderListPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Remove the inner Scaffold and return the body content directly
+    if (!_dataLoaded) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
     return Stack(
       children: [
         Container(
@@ -90,7 +129,10 @@ class _JobOrderListPageState extends State<JobOrderListPage> {
               ),
               Expanded(
                 child: StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance.collection('jobOrders').orderBy('createdAt', descending: true).snapshots(),
+                  stream: FirebaseFirestore.instance
+                      .collection('jobOrders')
+                      .orderBy('createdAt', descending: true)
+                      .snapshots(),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Center(child: CircularProgressIndicator());
@@ -104,33 +146,39 @@ class _JobOrderListPageState extends State<JobOrderListPage> {
                         (doc.data() as Map<String, dynamic>)['status'] == _selectedStatus
                       ).toList();
                     }
-                    if (_searchQuery.isNotEmpty) {
-                      jobOrders = jobOrders.where((doc) {
-                        final data = doc.data() as Map<String, dynamic>;
-                        final productName = (data['productName'] ?? '').toString().toLowerCase();
-                        final assignedTo = (data['assignedTo'] ?? '').toString().toLowerCase();
-                        return productName.contains(_searchQuery) || assignedTo.contains(_searchQuery);
-                      }).toList();
-                    }
+
                     return ListView.builder(
                       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
                       itemCount: jobOrders.length,
                       itemBuilder: (context, index) {
                         final data = jobOrders[index].data() as Map<String, dynamic>;
-                        // NOTE: The following fields are hardcoded for demo purposes.
-                        // Replace 'productName', 'assignedTo', 'status', 'isUpcycled', 'createdAt', 'dueDate', and 'quantity'
-                        // with the correct field names from your Firebase jobOrders collection once your schema is finalized.
-                        final productName = data['productName'] ?? 'Untitled'; // <-- Hardcoded field
-                        final assignedTo = data['assignedTo'] ?? ''; // <-- Hardcoded field
-                        final status = data['status'] ?? 'Open'; // <-- Hardcoded field
-                        final isUpcycled = data['isUpcycled'] ?? false; // <-- Hardcoded field
-                        final orderDate = (data['createdAt'] as Timestamp?)?.toDate(); // <-- Hardcoded field
-                        final dueDate = (data['dueDate'] as Timestamp?)?.toDate(); // <-- Hardcoded field
-                        final totalQty = data['quantity'] ?? 0; // <-- Hardcoded field
-                        // END NOTE
+                        final productID = data['productID'] ?? '';
+                        final status = data['status'] ?? 'Open';
+                        final createdAt = (data['createdAt'] as Timestamp?)?.toDate();
+                        final dueDate = (data['dueDate'] as Timestamp?)?.toDate();
+                        final assignedTo = data['assignedTo'] ?? '';
+
                         final overdue = dueDate != null && dueDate.isBefore(DateTime.now())
                             ? 'Overdue (${DateTime.now().difference(dueDate).inDays} days)'
                             : null;
+
+                        // Get names from cache
+                        final productName = productNames[productID] ?? '';
+                        final assignedToName = userNames[assignedTo] ?? '';
+                        final productQuantity = productQuantities[productID] ?? 0;
+
+                        // --- SEARCH FILTER: Only show if matches search query ---
+                        if (_searchQuery.isNotEmpty) {
+                          final searchLower = _searchQuery.toLowerCase();
+                          final matchesProductName = productName.toLowerCase().contains(searchLower);
+                          final matchesProductID = productID.toString().toLowerCase().contains(searchLower);
+                          final matchesAssignedTo = assignedToName.toLowerCase().contains(searchLower);
+                          if (!(matchesProductName || matchesProductID || matchesAssignedTo)) {
+                            return const SizedBox.shrink();
+                          }
+                        }
+                        // --------------------------------------------------------
+
                         return Card(
                           margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -150,28 +198,21 @@ class _JobOrderListPageState extends State<JobOrderListPage> {
                                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
                                       ),
                                     ),
-                                    if (isUpcycled)
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                        decoration: BoxDecoration(
-                                          color: Colors.blue[100],
-                                          borderRadius: BorderRadius.circular(12),
-                                        ),
-                                        child: const Text('Upcycled', style: TextStyle(color: Colors.blue)),
-                                      ),
                                   ],
                                 ),
                                 const SizedBox(height: 10),
                                 Row(
                                   children: [
-                                    // The image below is a hardcoded placeholder. Replace with dynamic user images when available.
                                     const CircleAvatar(
                                       radius: 16,
                                       backgroundImage: NetworkImage('https://randomuser.me/api/portraits/men/32.jpg'), // Placeholder
                                     ),
                                     const SizedBox(width: 8),
                                     Expanded(
-                                      child: Text('Assigned to: $assignedTo', style: const TextStyle(color: Colors.black54)),
+                                      child: Text(
+                                        assignedToName.isNotEmpty ? 'Assigned to: $assignedToName' : '',
+                                        style: const TextStyle(color: Colors.black54),
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -184,7 +225,7 @@ class _JobOrderListPageState extends State<JobOrderListPage> {
                                         children: [
                                           const Text('Order Date:', style: TextStyle(color: Colors.black54)),
                                           Text(
-                                            orderDate != null ? _formatDate(orderDate) : '-',
+                                            createdAt != null ? _formatDate(createdAt) : '-',
                                             style: const TextStyle(fontWeight: FontWeight.bold),
                                           ),
                                         ],
@@ -230,7 +271,7 @@ class _JobOrderListPageState extends State<JobOrderListPage> {
                                       ),
                                     ),
                                     const SizedBox(width: 16),
-                                    Text('Qty: $totalQty', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                    Text('Qty: $productQuantity', style: const TextStyle(fontWeight: FontWeight.bold)),
                                     const Spacer(),
                                     OutlinedButton(
                                       onPressed: () {
