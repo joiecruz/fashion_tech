@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'fabric_logbook_page.dart';
 
 
 class HomeDashboard extends StatelessWidget {
@@ -177,17 +176,8 @@ class HomeDashboard extends StatelessWidget {
           // Fabric List Section (Fabric Insights)
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Fabric Insights', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const FabricLogbookPage()),
-                  );
-                },
-                child: const Text('View Fabric Logbook'),
-              ),
+            children: const [
+              Text('Fabric Insights', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             ],
           ),
           const SizedBox(height: 4),
@@ -351,7 +341,7 @@ String _timeAgo(Timestamp? timestamp) {
 class SummaryTile extends StatelessWidget {
   final String label;
   final String value;
-  const SummaryTile({required this.label, required this.value, super.key});
+  const SummaryTile({required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {

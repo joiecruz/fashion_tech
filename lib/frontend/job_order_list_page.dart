@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'add_job_order_modal.dart';
 
 class JobOrderListPage extends StatefulWidget {
   const JobOrderListPage({super.key});
@@ -269,8 +270,20 @@ class _JobOrderListPageState extends State<JobOrderListPage> {
           bottom: 24,
           right: 24,
           child: FloatingActionButton.extended(
-            onPressed: () {
-              // TODO: Implement add job order functionality
+            onPressed: () async {
+              await showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (context) => Container(
+                  margin: const EdgeInsets.only(top: 100), // Add space from the top (below notch/appbar)
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                  ),
+                  child: AddJobOrderModal(),
+                ),
+              );
             },
             icon: const Icon(Icons.add),
             label: const Text('Add Job Order'),
