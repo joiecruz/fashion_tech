@@ -48,8 +48,20 @@ class _AddFabricModalState extends State<AddFabricModal> {
 
   void _submitForm() async {
     if (_swatchImageUrl == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please upload a fabric swatch image.')),
+      FocusScope.of(context).unfocus(); // Dismiss keyboard if open
+      await Future.delayed(const Duration(milliseconds: 100)); // Ensure dialog is visible
+      await showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Missing Swatch Image'),
+          content: const Text('Please upload a fabric swatch image.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
       );
       return;
     }
@@ -67,9 +79,19 @@ class _AddFabricModalState extends State<AddFabricModal> {
         'updatedAt': Timestamp.now(),
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Fabric added successfully!'),
-      ));
+      await showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Success'),
+          content: const Text('Fabric added successfully!'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
 
       Navigator.pop(context); // Go back after adding
     }
@@ -94,7 +116,7 @@ class _AddFabricModalState extends State<AddFabricModal> {
             ],
           ),
           const SizedBox(height: 16),
-          Expanded(
+          Flexible(
             child: ListView(
               shrinkWrap: true,
               children: [

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'home_dashboard.dart';
-import 'fabric_logbook_page.dart';
-import 'job_order_list_page.dart';
+import 'fabrics/fabric_logbook_page.dart';
+import 'job_orders/job_order_list_page.dart';
 
 // main_scaffold.dart
 class MainScaffold extends StatefulWidget {
