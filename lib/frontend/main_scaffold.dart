@@ -22,14 +22,30 @@ class _MainScaffoldState extends State<MainScaffold> {
 
   final List<String> _titles = [
     'Dashboard',
-    'Fabric Logbook',
-    'Job Orders',
+    'Inventory',
+    'Orders',
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(_titles[_selectedIndex])),
+      appBar: AppBar(
+        title: Text(_titles[_selectedIndex], style: const TextStyle(fontWeight: FontWeight.bold)),
+        centerTitle: true,
+        elevation: 0,
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        actions: [
+          IconButton(icon: const Icon(Icons.notifications_none), onPressed: () {}),
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: CircleAvatar(
+              backgroundColor: Colors.teal,
+              child: Text('FL', style: TextStyle(color: Colors.white)),
+            ),
+          ),
+        ],
+      ),
       body: IndexedStack(
         index: _selectedIndex,
         children: _pages,
