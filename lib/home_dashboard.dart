@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'add_fabric_page.dart';
 import 'fabric_logbook_page.dart';
 
 class HomeDashboard extends StatelessWidget {
