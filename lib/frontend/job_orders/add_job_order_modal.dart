@@ -2,13 +2,19 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 // ==========================
-// AddJobOrderModal
+// AddJobOrderModal - Updated for New Schema
 // ==========================
 // This modal allows users to create a new job order, add product variants, assign fabrics, and view a dynamic summary.
+// Updated to work with the new database schema:
+// - PRODUCT: productID, name, price, category, isUpcycled, isMade, createdAt, updatedAt
+// - PRODUCTVARIANT: variantID, productID, size, color, quantityInStock
+// - FABRIC: fabricID, name, type, color, qualityGrade, quantity, expensePerYard, swatchImageURL, createdAt, updatedAt
+// - JOBORDER: jobOrderID, productID, quantity, customerName, status, createdAt, updatedAt, dueDate, acceptedBy, assignedTo, createdBy
+// - JOBORDERDETAIL: jobOrderDetailID, jobOrderID, fabricID, yardageUsed, size, color
 //
 // Main sections:
 // 1. Order Details Card
-// 2. Product Variants Section
+// 2. Product Variants Section  
 // 3. Supplier Details Section
 // 4. Variant Breakdown Summary Section
 // 5. Save Button
@@ -48,14 +54,20 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
     _fetchUserFabrics();
   }
 
+  // Fetches the user's actual fabrics from Firestore using the new schema
   Future<void> _fetchUserFabrics() async {
     final snapshot = await FirebaseFirestore.instance.collection('fabrics').get();
     setState(() {
       _userFabrics = snapshot.docs.map((doc) => {
-        'id': doc.id,
+        'id': doc.id, // This will be fabricID in the new schema
+        'fabricID': doc.id,
         'name': doc['name'] ?? 'Unnamed',
-        'quantity': (doc['quantity'] ?? 0) as num, // Add quantity for availability
-        'color': doc['color'] ?? '#FF0000', // Store color as hex string
+        'type': doc['type'] ?? 'Unknown',
+        'quantity': (doc['quantity'] ?? 0) as num,
+        'color': doc['color'] ?? '#FF0000',
+        'qualityGrade': doc['qualityGrade'] ?? 'Standard',
+        'expensePerYard': (doc['expensePerYard'] ?? 0.0) as num,
+        'swatchImageURL': doc['swatchImageURL'] ?? '',
       }).toList();
       _loadingFabrics = false;
     });
@@ -97,7 +109,71 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
     }
   }
 
-  // Helper to parse color from hex string or color name
+  // Helper method to save job order according to new schema
+  Future<void> _saveJobOrder() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    try {
+      // 1. Create or get Product
+      final productRef = FirebaseFirestore.instance.collection('products').doc();
+      await productRef.set({
+        'name': _productNameController.text,
+        'price': double.tryParse(_priceController.text) ?? 0.0,
+        'category': 'Custom', // Default category
+        'isUpcycled': _isUpcycled,
+        'isMade': false, // New orders are not made yet
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      // 2. Create JobOrder
+      final jobOrderRef = FirebaseFirestore.instance.collection('joborders').doc();
+      await jobOrderRef.set({
+        'productID': productRef.id,
+        'quantity': int.tryParse(_quantityController.text) ?? 0,
+        'customerName': _assignedToController.text, // Using assigned field as customer for now
+        'status': _jobStatus,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+        'dueDate': _dueDateController.text.isNotEmpty ? 
+          DateTime.parse(_dueDateController.text) : DateTime.now().add(const Duration(days: 7)),
+        'assignedTo': _assignedToController.text,
+        'createdBy': 'current_user_id', // Replace with actual user ID
+      });
+
+      // 3. Create ProductVariants and JobOrderDetails
+      for (int i = 0; i < _variants.length; i++) {
+        final variant = _variants[i];
+        
+        // Create ProductVariant
+        final variantRef = FirebaseFirestore.instance.collection('productvariants').doc();
+        await variantRef.set({
+          'productID': productRef.id,
+          'size': variant.size,
+          'color': variant.color,
+          'quantityInStock': variant.quantityInStock,
+        });
+
+        // Create JobOrderDetails for each fabric used in this variant
+        for (final fabric in variant.fabrics) {
+          final jobOrderDetailRef = FirebaseFirestore.instance.collection('joborderdetails').doc();
+          await jobOrderDetailRef.set({
+            'jobOrderID': jobOrderRef.id,
+            'fabricID': fabric.fabricId,
+            'yardageUsed': fabric.yardsRequired,
+            'size': variant.size,
+            'color': variant.color,
+          });
+        }
+      }
+
+      Navigator.of(context).pop();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error saving job order: $e')),
+      );
+    }
+  }
   Color _parseColor(String colorValue) {
     // If it's already a hex color, parse it
     if (colorValue.startsWith('#') || RegExp(r'^[0-9A-Fa-f]{6,8}$').hasMatch(colorValue)) {
@@ -307,10 +383,11 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                                 onPressed: () {
                                   setState(() {
                                     _variants.add(ProductVariant(
+                                      variantID: 'temp_${DateTime.now().millisecondsSinceEpoch}', // Temporary ID for new variants
+                                      productID: 'temp_product', // Will be set when saving
                                       size: 'Small',
-                                      colorName: '',
-                                      color: Colors.red,
-                                      quantity: 0,
+                                      color: 'Red',
+                                      quantityInStock: 0,
                                       fabrics: [],
                                     ));
                                   });
@@ -1100,11 +1177,8 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                   ),
                   const SizedBox(height: 24),
                   ElevatedButton(
-                    onPressed: () {
-                      if (_formKey.currentState!.validate()) {
-                        // TODO: Save job order to Firestore
-                        Navigator.of(context).pop();
-                      }
+                    onPressed: () async {
+                      await _saveJobOrder();
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green,
@@ -1123,30 +1197,247 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
   }
 }
 
-// Data model for a fabric selection in a variant
+// ==========================
+// DATA MODELS - Updated to match new schema
+// ==========================
+
+// PRODUCT model
+class Product {
+  final String productID;
+  final String name;
+  final double price;
+  final String category;
+  final bool isUpcycled;
+  final bool isMade;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  Product({
+    required this.productID,
+    required this.name,
+    required this.price,
+    required this.category,
+    required this.isUpcycled,
+    required this.isMade,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+}
+
+// PRODUCTVARIANT model - Updated for UI compatibility
+class ProductVariant {
+  final String variantID;
+  final String productID;
+  String size;
+  String color;
+  int quantityInStock;
+  
+  // For UI purposes in the modal
+  int get quantity => quantityInStock; // Getter for backward compatibility
+  set quantity(int value) => quantityInStock = value; // Setter for backward compatibility
+  
+  List<VariantFabric> fabrics;
+
+  ProductVariant({
+    required this.variantID,
+    required this.productID,
+    required this.size,
+    required this.color,
+    required this.quantityInStock,
+    this.fabrics = const [],
+  });
+}
+
+// FABRIC model
+class Fabric {
+  final String fabricID;
+  final String name;
+  final String type;
+  final String color;
+  final String qualityGrade;
+  final double quantity;
+  final double expensePerYard;
+  final String swatchImageURL;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  Fabric({
+    required this.fabricID,
+    required this.name,
+    required this.type,
+    required this.color,
+    required this.qualityGrade,
+    required this.quantity,
+    required this.expensePerYard,
+    required this.swatchImageURL,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+}
+
+// JOBORDER model
+class JobOrder {
+  final String jobOrderID;
+  final String productID;
+  final int quantity;
+  final String customerName;
+  final String status;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final DateTime dueDate;
+  final String? acceptedBy;
+  final String? assignedTo;
+  final String createdBy;
+
+  JobOrder({
+    required this.jobOrderID,
+    required this.productID,
+    required this.quantity,
+    required this.customerName,
+    required this.status,
+    required this.createdAt,
+    required this.updatedAt,
+    required this.dueDate,
+    this.acceptedBy,
+    this.assignedTo,
+    required this.createdBy,
+  });
+}
+
+// JOBORDERDETAIL model
+class JobOrderDetail {
+  final String jobOrderDetailID;
+  final String jobOrderID;
+  final String fabricID;
+  final double yardageUsed;
+  final String size;
+  final String color;
+
+  JobOrderDetail({
+    required this.jobOrderDetailID,
+    required this.jobOrderID,
+    required this.fabricID,
+    required this.yardageUsed,
+    required this.size,
+    required this.color,
+  });
+}
+
+// USERS model
+class Users {
+  final String userID;
+  final String fullName;
+  final String username;
+  final String password;
+  final String role;
+  final bool canAccessInventory;
+
+  Users({
+    required this.userID,
+    required this.fullName,
+    required this.username,
+    required this.password,
+    required this.role,
+    required this.canAccessInventory,
+  });
+}
+
+// SUPPLIER model
+class Supplier {
+  final String supplierID;
+  final String supplierName;
+  final String contactNum;
+  final String location;
+
+  Supplier({
+    required this.supplierID,
+    required this.supplierName,
+    required this.contactNum,
+    required this.location,
+  });
+}
+
+// SUPPLIERPRODUCT model
+class SupplierProduct {
+  final String supplierProductID;
+  final String supplierID;
+  final String productID;
+  final double supplyPrice;
+  final int? minOrderQty;
+  final int? leadTimeDays;
+
+  SupplierProduct({
+    required this.supplierProductID,
+    required this.supplierID,
+    required this.productID,
+    required this.supplyPrice,
+    this.minOrderQty,
+    this.leadTimeDays,
+  });
+}
+
+// INVENTORYLOG model
+class InventoryLog {
+  final String inventoryID;
+  final String productID;
+  final String supplierID;
+  final String createdBy;
+
+  InventoryLog({
+    required this.inventoryID,
+    required this.productID,
+    required this.supplierID,
+    required this.createdBy,
+  });
+}
+
+// FABRICLOG model
+class FabricLog {
+  final String fabricLogID;
+  final String fabricID;
+  final String changeType;
+  final double totalAmount;
+  final DateTime logDate;
+  final String createdBy;
+
+  FabricLog({
+    required this.fabricLogID,
+    required this.fabricID,
+    required this.changeType,
+    required this.totalAmount,
+    required this.logDate,
+    required this.createdBy,
+  });
+}
+
+// SALESLOG model
+class SalesLog {
+  final String salesLogID;
+  final String productID;
+  final String variantID;
+  final int qtySold;
+  final double sellingPrice;
+  final DateTime dateSold;
+
+  SalesLog({
+    required this.salesLogID,
+    required this.productID,
+    required this.variantID,
+    required this.qtySold,
+    required this.sellingPrice,
+    required this.dateSold,
+  });
+}
+
+// Helper class for UI - fabric selection in variant (for the modal only)
 class VariantFabric {
-  final String fabricId; // Firestore doc ID or unique identifier
+  final String fabricId;
   final String fabricName;
   final double yardsRequired;
+
   VariantFabric({
     required this.fabricId,
     required this.fabricName,
     required this.yardsRequired,
-  });
-}
-
-// Variant data model for the modal
-class ProductVariant {
-  String size;
-  String colorName;
-  Color color;
-  int quantity;
-  List<VariantFabric> fabrics; // Now supports multiple fabrics per variant
-  ProductVariant({
-    required this.size,
-    required this.colorName,
-    required this.color,
-    required this.quantity,
-    required this.fabrics,
   });
 }
