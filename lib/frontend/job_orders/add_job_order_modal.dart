@@ -4,23 +4,7 @@ import 'package:flutter/material.dart';
 // ==========================
 // AddJobOrderModal - Updated for New Schema
 // ==========================
-// This modal allows users to create a new job order, add product variants, assign fabrics, and view a dynamic summary.
-// Updated to work with the new database schema:
-// - PRODUCT: productID, name, price, category, isUpcycled, isMade, createdAt, updatedAt
-// - PRODUCTVARIANT: variantID, productID, size, color, quantityInStock
-// - FABRIC: fabricID, name, type, color, qualityGrade, quantity, expensePerYard, swatchImageURL, createdAt, updatedAt
-// - JOBORDER: jobOrderID, productID, quantity, customerName, status, createdAt, updatedAt, dueDate, acceptedBy, assignedTo, createdBy
-// - JOBORDERDETAIL: jobOrderDetailID, jobOrderID, fabricID, yardageUsed, size, color
-//
-// Main sections:
-// 1. Order Details Card
-// 2. Product Variants Section  
-// 3. Supplier Details Section
-// 4. Variant Breakdown Summary Section
-// 5. Save Button
-// ==========================
 
-// AddJobOrderModal: A modal bottom sheet for adding a new job order, based on the provided UI reference.
 class AddJobOrderModal extends StatefulWidget {
   const AddJobOrderModal({Key? key}) : super(key: key);
 
@@ -41,25 +25,26 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
   String _jobStatus = 'In Progress';
   List<ProductVariant> _variants = [];
 
-  // Fetches the user's actual fabrics from Firestore in initState and uses them for the fabric dropdowns in product variants. Shows a loading spinner while fetching.
   List<Map<String, dynamic>> _userFabrics = [];
   bool _loadingFabrics = true;
 
-  // Remove unused _recalculateFabricAllocated and call logic directly in _onFabricYardageChanged
+  Map<String, dynamic>? _supplier;
+  bool _loadingSupplier = true;
+
   Map<String, double> _fabricAllocated = {};
 
   @override
   void initState() {
     super.initState();
     _fetchUserFabrics();
+    _fetchSupplier();
   }
 
-  // Fetches the user's actual fabrics from Firestore using the new schema
   Future<void> _fetchUserFabrics() async {
     final snapshot = await FirebaseFirestore.instance.collection('fabrics').get();
     setState(() {
       _userFabrics = snapshot.docs.map((doc) => {
-        'id': doc.id, // This will be fabricID in the new schema
+        'id': doc.id,
         'fabricID': doc.id,
         'name': doc['name'] ?? 'Unnamed',
         'type': doc['type'] ?? 'Unknown',
@@ -71,6 +56,21 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
       }).toList();
       _loadingFabrics = false;
     });
+  }
+
+  Future<void> _fetchSupplier() async {
+    final snapshot = await FirebaseFirestore.instance.collection('suppliers').limit(1).get();
+    if (snapshot.docs.isNotEmpty) {
+      setState(() {
+        _supplier = snapshot.docs.first.data();
+        _loadingSupplier = false;
+      });
+    } else {
+      setState(() {
+        _supplier = null;
+        _loadingSupplier = false;
+      });
+    }
   }
 
   void _onFabricYardageChanged() {
@@ -109,43 +109,53 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
     }
   }
 
-  // Helper method to save job order according to new schema
   Future<void> _saveJobOrder() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (_formKey.currentState == null || !_formKey.currentState!.validate()) return;
+    if (_variants.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please add at least one product variant.')),
+      );
+      return;
+    }
+    for (final variant in _variants) {
+      if (variant.fabrics.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Each variant must have at least one fabric.')),
+        );
+        return;
+      }
+    }
 
     try {
-      // 1. Create or get Product
       final productRef = FirebaseFirestore.instance.collection('products').doc();
       await productRef.set({
         'name': _productNameController.text,
         'price': double.tryParse(_priceController.text) ?? 0.0,
-        'category': 'Custom', // Default category
+        'category': 'Custom',
         'isUpcycled': _isUpcycled,
-        'isMade': false, // New orders are not made yet
+        'isMade': false,
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
-      // 2. Create JobOrder
       final jobOrderRef = FirebaseFirestore.instance.collection('joborders').doc();
       await jobOrderRef.set({
         'productID': productRef.id,
         'quantity': int.tryParse(_quantityController.text) ?? 0,
-        'customerName': _assignedToController.text, // Using assigned field as customer for now
+        'customerName': _assignedToController.text,
         'status': _jobStatus,
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
-        'dueDate': _dueDateController.text.isNotEmpty ? 
-          DateTime.parse(_dueDateController.text) : DateTime.now().add(const Duration(days: 7)),
+        'dueDate': _dueDateController.text.isNotEmpty
+            ? Timestamp.fromDate(DateTime.parse(_dueDateController.text))
+            : FieldValue.serverTimestamp(),
         'assignedTo': _assignedToController.text,
         'createdBy': 'current_user_id', // Replace with actual user ID
+        'supplierID': _supplier?['supplierID'] ?? '',
       });
 
-      // 3. Create ProductVariants and JobOrderDetails
       for (int i = 0; i < _variants.length; i++) {
         final variant = _variants[i];
-        
-        // Create ProductVariant
         final variantRef = FirebaseFirestore.instance.collection('productvariants').doc();
         await variantRef.set({
           'productID': productRef.id,
@@ -154,7 +164,6 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
           'quantityInStock': variant.quantityInStock,
         });
 
-        // Create JobOrderDetails for each fabric used in this variant
         for (final fabric in variant.fabrics) {
           final jobOrderDetailRef = FirebaseFirestore.instance.collection('joborderdetails').doc();
           await jobOrderDetailRef.set({
@@ -167,27 +176,31 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
         }
       }
 
-      Navigator.of(context).pop();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Job order saved!')),
+        );
+        Navigator.of(context).pop();
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error saving job order: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error saving job order: $e')),
+        );
+      }
     }
   }
+
   Color _parseColor(String colorValue) {
-    // If it's already a hex color, parse it
     if (colorValue.startsWith('#') || RegExp(r'^[0-9A-Fa-f]{6,8}$').hasMatch(colorValue)) {
       try {
         String hex = colorValue.replaceAll('#', '');
         if (hex.length == 6) hex = 'FF$hex';
         return Color(int.parse(hex, radix: 16));
       } catch (e) {
-        // Fallback to default color if parsing fails
         return Colors.grey;
       }
     }
-    
-    // Handle color names
     final Map<String, Color> colorNames = {
       'red': Colors.red,
       'green': Colors.green,
@@ -214,15 +227,13 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
       'silver': const Color(0xFFC0C0C0),
       'gold': const Color(0xFFFFD700),
     };
-    
-    // Try to find the color by name (case insensitive)
     final colorName = colorValue.toLowerCase().trim();
     return colorNames[colorName] ?? Colors.grey;
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_loadingFabrics) {
+    if (_loadingFabrics || _loadingSupplier) {
       return const Center(child: CircularProgressIndicator());
     }
     return DraggableScrollableSheet(
@@ -233,7 +244,6 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
       builder: (context, scrollController) {
         return Column(
           children: [
-            // --- Fixed Header ---
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
               child: Row(
@@ -247,14 +257,12 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                 ],
               ),
             ),
-            // --- Scrollable Content ---
             Expanded(
               child: ListView(
                 controller: scrollController,
                 padding: const EdgeInsets.all(20),
                 children: [
                   // --- Order Details Card ---
-                  // Contains product name, order/due date, assigned to, quantity, price, special instructions, upcycled switch, and job status.
                   Card(
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                     elevation: 1,
@@ -364,8 +372,6 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                     ),
                   ),
                   // --- Product Variants Section ---
-                  // Inline editable cards for each product variant. Each card allows editing size, quantity, fabrics, and shows color/fabric indicators and inventory status.
-                  // Users can add/remove variants and fabrics per variant.
                   const SizedBox(height: 24),
                   Card(
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -383,8 +389,8 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                                 onPressed: () {
                                   setState(() {
                                     _variants.add(ProductVariant(
-                                      variantID: 'temp_${DateTime.now().millisecondsSinceEpoch}', // Temporary ID for new variants
-                                      productID: 'temp_product', // Will be set when saving
+                                      variantID: 'temp_${DateTime.now().millisecondsSinceEpoch}',
+                                      productID: 'temp_product',
                                       size: 'Small',
                                       color: 'Red',
                                       quantityInStock: 0,
@@ -411,8 +417,6 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                                   children: _variants.asMap().entries.map((entry) {
                                     int idx = entry.key;
                                     ProductVariant variant = entry.value;
-                                    
-                                    // Generate a subtle color for each variant
                                     final List<Color> variantColors = [
                                       Colors.blue.shade50,
                                       Colors.green.shade50,
@@ -424,7 +428,6 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                                       Colors.amber.shade50,
                                     ];
                                     final variantColor = variantColors[idx % variantColors.length];
-                                    
                                     return Card(
                                       margin: const EdgeInsets.symmetric(vertical: 6),
                                       color: variantColor,
@@ -433,7 +436,6 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                                         child: Column(
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
-                                            // Variant header with label
                                             Container(
                                               margin: const EdgeInsets.only(bottom: 12),
                                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -467,7 +469,6 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                                             ),
                                             Row(
                                               children: [
-                                                // Size dropdown
                                                 Expanded(
                                                   child: DropdownButtonFormField<String>(
                                                     value: variant.size,
@@ -485,7 +486,6 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                                                   ),
                                                 ),
                                                 const SizedBox(width: 12),
-                                                // Quantity field right beside size
                                                 SizedBox(
                                                   width: 100,
                                                   child: TextFormField(
@@ -502,7 +502,6 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                                               ],
                                             ),
                                             const SizedBox(height: 8),
-                                            // Color picker row (now below size/quantity) - only show if fabrics exist
                                             if (variant.fabrics.isNotEmpty) ...[
                                               Row(
                                                 children: [
@@ -575,7 +574,6 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                                               return Column(
                                                 crossAxisAlignment: CrossAxisAlignment.start,
                                                 children: [
-                                                  // Fabric label
                                                   Padding(
                                                     padding: const EdgeInsets.only(bottom: 8.0, top: 8.0),
                                                     child: Text(
@@ -589,7 +587,6 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                                                   ),
                                                   Row(
                                                     children: [
-                                                      // Enhanced Color indicator
                                                       Builder(
                                                         builder: (context) {
                                                           final fabricData = _userFabrics.firstWhere(
@@ -619,7 +616,6 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                                                           );
                                                         },
                                                       ),
-                                                      // Fabric dropdown
                                                       Expanded(
                                                         child: DropdownButtonFormField<String>(
                                                           value: fabric.fabricId,
@@ -675,18 +671,17 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                                                     ],
                                                   ),
                                                   const SizedBox(height: 12),
-                                                  // --- Enhanced Availability Indicator ---
                                                   Container(
                                                     padding: const EdgeInsets.all(12),
                                                     decoration: BoxDecoration(
-                                                      color: overAllocated 
-                                                        ? Colors.red.shade50
-                                                        : Colors.green.shade50,
+                                                      color: overAllocated
+                                                          ? Colors.red.shade50
+                                                          : Colors.green.shade50,
                                                       borderRadius: BorderRadius.circular(8),
                                                       border: Border.all(
-                                                        color: overAllocated 
-                                                          ? Colors.red.shade200
-                                                          : Colors.green.shade200,
+                                                        color: overAllocated
+                                                            ? Colors.red.shade200
+                                                            : Colors.green.shade200,
                                                         width: 1,
                                                       ),
                                                     ),
@@ -696,13 +691,13 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                                                         Row(
                                                           children: [
                                                             Icon(
-                                                              overAllocated 
-                                                                ? Icons.warning_rounded
-                                                                : Icons.inventory_rounded,
+                                                              overAllocated
+                                                                  ? Icons.warning_rounded
+                                                                  : Icons.inventory_rounded,
                                                               size: 16,
-                                                              color: overAllocated 
-                                                                ? Colors.red.shade600
-                                                                : Colors.green.shade600,
+                                                              color: overAllocated
+                                                                  ? Colors.red.shade600
+                                                                  : Colors.green.shade600,
                                                             ),
                                                             const SizedBox(width: 6),
                                                             Text(
@@ -710,18 +705,18 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                                                               style: TextStyle(
                                                                 fontSize: 12,
                                                                 fontWeight: FontWeight.w600,
-                                                                color: overAllocated 
-                                                                  ? Colors.red.shade800
-                                                                  : Colors.green.shade800,
+                                                                color: overAllocated
+                                                                    ? Colors.red.shade800
+                                                                    : Colors.green.shade800,
                                                               ),
                                                             ),
                                                             const Spacer(),
                                                             Container(
                                                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                                               decoration: BoxDecoration(
-                                                                color: overAllocated 
-                                                                  ? Colors.red.shade100
-                                                                  : Colors.green.shade100,
+                                                                color: overAllocated
+                                                                    ? Colors.red.shade100
+                                                                    : Colors.green.shade100,
                                                                 borderRadius: BorderRadius.circular(12),
                                                               ),
                                                               child: Text(
@@ -729,9 +724,9 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                                                                 style: TextStyle(
                                                                   fontSize: 11,
                                                                   fontWeight: FontWeight.w600,
-                                                                  color: overAllocated 
-                                                                    ? Colors.red.shade700
-                                                                    : Colors.green.shade700,
+                                                                  color: overAllocated
+                                                                      ? Colors.red.shade700
+                                                                      : Colors.green.shade700,
                                                                 ),
                                                               ),
                                                             ),
@@ -745,22 +740,22 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                                                             minHeight: 6,
                                                             backgroundColor: Colors.grey.shade200,
                                                             valueColor: AlwaysStoppedAnimation<Color>(
-                                                              overAllocated 
-                                                                ? Colors.red.shade400
-                                                                : Colors.green.shade400,
+                                                              overAllocated
+                                                                  ? Colors.red.shade400
+                                                                  : Colors.green.shade400,
                                                             ),
                                                           ),
                                                         ),
                                                         const SizedBox(height: 6),
                                                         Text(
                                                           overAllocated
-                                                            ? 'Over-allocated by ${(allocated - available).toStringAsFixed(1)} yards'
-                                                            : '${(available - allocated).toStringAsFixed(1)} yards remaining',
+                                                              ? 'Over-allocated by ${(allocated - available).toStringAsFixed(1)} yards'
+                                                              : '${(available - allocated).toStringAsFixed(1)} yards remaining',
                                                           style: TextStyle(
                                                             fontSize: 11,
-                                                            color: overAllocated 
-                                                              ? Colors.red.shade600
-                                                              : Colors.green.shade600,
+                                                            color: overAllocated
+                                                                ? Colors.red.shade600
+                                                                : Colors.green.shade600,
                                                             fontWeight: FontWeight.w500,
                                                           ),
                                                         ),
@@ -795,18 +790,15 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                                             ),
                                           ],
                                         ),
-                                      )
+                                      ),
                                     );
-                                    }).toList(),
+                                  }).toList(),
                                 ),
                         ],
                       ),
                     ),
                   ),
-
                   // --- Supplier Details Section ---
-                  // (Currently hardcoded) Shows supplier info. Intended for future dynamic supplier selection.
-                  // Not connected to Firestore yet.
                   const SizedBox(height: 24),
                   Card(
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -818,28 +810,32 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                         children: [
                           const Text('Supplier Details', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
                           const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              CircleAvatar(
-                                backgroundColor: Colors.grey.shade200,
-                                child: const Icon(Icons.business, color: Colors.blue),
-                              ),
-                              const SizedBox(width: 12),
-                              const Text('Global Fabrics Inc.', style: TextStyle(fontWeight: FontWeight.bold)), // TODO: Hardcoded
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          const Text('contact@globalfabrics.com'), // TODO: Hardcoded
-                          const Text('+1 (555) 123-4567'), // TODO: Hardcoded
-                          const Text('123 Textile Road, Weave City, TX'), // TODO: Hardcoded
+                          if (_supplier != null) ...[
+                            Row(
+                              children: [
+                                CircleAvatar(
+                                  backgroundColor: Colors.grey.shade200,
+                                  child: const Icon(Icons.business, color: Colors.blue),
+                                ),
+                                const SizedBox(width: 12),
+                                Text(
+                                  _supplier!['supplierName'] ?? 'Unknown Supplier',
+                                  style: const TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Text(_supplier!['email'] ?? 'No email'),
+                            Text(_supplier!['contactNum'] ?? 'No contact'),
+                            Text(_supplier!['location'] ?? 'No address'),
+                          ] else ...[
+                            const Text('No supplier found.'),
+                          ],
                         ],
                       ),
                     ),
                   ),
-
                   // --- Variant Breakdown Summary Section ---
-                  // Shows a dynamic bar chart of variant quantities (with variant labels), and summary cards for each variant.
-                  // Each summary card displays variant number, size, all fabrics, and quantity.
                   const SizedBox(height: 24),
                   Card(
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -851,11 +847,10 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                         children: [
                           const Text('Variant Breakdown Summary', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
                           const SizedBox(height: 16),
-                          // Dynamic bar chart for variant quantities
                           if (_variants.isNotEmpty) ...[
                             Container(
-                              height: 120, // Reduced height to better fit the smaller bars
-                              padding: const EdgeInsets.all(12), // Balanced padding
+                              height: 120,
+                              padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
                                 color: Colors.grey.shade50,
                                 borderRadius: BorderRadius.circular(12),
@@ -882,13 +877,13 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                                     ];
                                     final barColor = barColors[idx % barColors.length];
                                     return Container(
-                                      margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 4), // Reduced margins to fit better
+                                      margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                                       child: Column(
                                         mainAxisAlignment: MainAxisAlignment.end,
                                         children: [
                                           Container(
-                                            margin: const EdgeInsets.only(bottom: 2), // Reduced space
-                                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1), // Smaller padding
+                                            margin: const EdgeInsets.only(bottom: 2),
+                                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                                             decoration: BoxDecoration(
                                               color: barColor.withOpacity(0.1),
                                               borderRadius: BorderRadius.circular(4),
@@ -898,14 +893,14 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                                               style: TextStyle(
                                                 color: barColor,
                                                 fontWeight: FontWeight.bold,
-                                                fontSize: 9, // Smaller font to fit better
+                                                fontSize: 9,
                                               ),
                                             ),
                                           ),
                                           AnimatedContainer(
                                             duration: const Duration(milliseconds: 600),
-                                            height: (percent * 40 + 12).clamp(12.0, 52.0), // Much smaller height range to fit in container
-                                            width: 24, // Narrower bars to fit more
+                                            height: (percent * 40 + 12).clamp(12.0, 52.0),
+                                            width: 24,
                                             decoration: BoxDecoration(
                                               gradient: LinearGradient(
                                                 begin: Alignment.bottomCenter,
@@ -919,22 +914,22 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                                               boxShadow: [
                                                 BoxShadow(
                                                   color: barColor.withOpacity(0.2),
-                                                  blurRadius: 2, // Reduced shadow
+                                                  blurRadius: 2,
                                                   offset: const Offset(0, 1),
                                                 ),
                                               ],
                                             ),
                                           ),
-                                          const SizedBox(height: 3), // Minimal space between bar and label
+                                          const SizedBox(height: 3),
                                           SizedBox(
-                                            width: 36, // Narrower text area but still readable
+                                            width: 36,
                                             child: Text(
-                                              'V${idx + 1}', // Use variant number instead of size
+                                              'V${idx + 1}',
                                               textAlign: TextAlign.center,
                                               overflow: TextOverflow.ellipsis,
                                               style: TextStyle(
                                                 fontWeight: FontWeight.w600,
-                                                fontSize: 9, // Smaller font to fit better
+                                                fontSize: 9,
                                                 color: barColor,
                                               ),
                                             ),
@@ -947,14 +942,12 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                               ),
                             ),
                             const SizedBox(height: 16),
-                            // Enhanced summary cards
                             SingleChildScrollView(
                               scrollDirection: Axis.horizontal,
                               child: Row(
                                 children: _variants.asMap().entries.map((entry) {
                                   int idx = entry.key;
                                   ProductVariant variant = entry.value;
-                                  
                                   final List<Color> cardColors = [
                                     Colors.blue.shade600,
                                     Colors.green.shade600,
@@ -966,10 +959,9 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                                     Colors.amber.shade600,
                                   ];
                                   final cardColor = cardColors[idx % cardColors.length];
-                                  
                                   return Container(
                                     margin: const EdgeInsets.only(right: 12),
-                                    width: 220, // Slightly wider to accommodate multi-fabric display
+                                    width: 220,
                                     child: Card(
                                       elevation: 2,
                                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -1028,10 +1020,8 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                                               ],
                                             ),
                                             const SizedBox(height: 8),
-                                            // Display all fabrics in a compact way
                                             if (variant.fabrics.isNotEmpty) ...[
                                               if (variant.fabrics.length == 1) ...[
-                                                // Single fabric - show in row
                                                 Row(
                                                   children: [
                                                     Builder(
@@ -1075,7 +1065,6 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                                                   ],
                                                 ),
                                               ] else ...[
-                                                // Multiple fabrics - show as chips
                                                 Wrap(
                                                   spacing: 4,
                                                   runSpacing: 4,
@@ -1086,7 +1075,6 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                                                     );
                                                     final fabricColor = _parseColor(fabricData['color'] as String);
                                                     final fabricName = fabricData['name'] ?? 'Unknown';
-                                                    
                                                     return Container(
                                                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                                       decoration: BoxDecoration(
@@ -1159,9 +1147,9 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                                           ],
                                         ),
                                       ),
-                                    )
+                                    ),
                                   );
-                                  }).toList(),
+                                }).toList(),
                               ),
                             ),
                           ] else ...[
@@ -1201,7 +1189,6 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
 // DATA MODELS - Updated to match new schema
 // ==========================
 
-// PRODUCT model
 class Product {
   final String productID;
   final String name;
@@ -1224,18 +1211,16 @@ class Product {
   });
 }
 
-// PRODUCTVARIANT model - Updated for UI compatibility
 class ProductVariant {
   final String variantID;
   final String productID;
   String size;
   String color;
   int quantityInStock;
-  
-  // For UI purposes in the modal
-  int get quantity => quantityInStock; // Getter for backward compatibility
-  set quantity(int value) => quantityInStock = value; // Setter for backward compatibility
-  
+
+  int get quantity => quantityInStock;
+  set quantity(int value) => quantityInStock = value;
+
   List<VariantFabric> fabrics;
 
   ProductVariant({
@@ -1248,7 +1233,6 @@ class ProductVariant {
   });
 }
 
-// FABRIC model
 class Fabric {
   final String fabricID;
   final String name;
@@ -1275,7 +1259,6 @@ class Fabric {
   });
 }
 
-// JOBORDER model
 class JobOrder {
   final String jobOrderID;
   final String productID;
@@ -1304,7 +1287,6 @@ class JobOrder {
   });
 }
 
-// JOBORDERDETAIL model
 class JobOrderDetail {
   final String jobOrderDetailID;
   final String jobOrderID;
@@ -1323,7 +1305,6 @@ class JobOrderDetail {
   });
 }
 
-// USERS model
 class Users {
   final String userID;
   final String fullName;
@@ -1342,7 +1323,6 @@ class Users {
   });
 }
 
-// SUPPLIER model
 class Supplier {
   final String supplierID;
   final String supplierName;
@@ -1357,7 +1337,6 @@ class Supplier {
   });
 }
 
-// SUPPLIERPRODUCT model
 class SupplierProduct {
   final String supplierProductID;
   final String supplierID;
@@ -1376,7 +1355,6 @@ class SupplierProduct {
   });
 }
 
-// INVENTORYLOG model
 class InventoryLog {
   final String inventoryID;
   final String productID;
@@ -1391,7 +1369,6 @@ class InventoryLog {
   });
 }
 
-// FABRICLOG model
 class FabricLog {
   final String fabricLogID;
   final String fabricID;
@@ -1410,7 +1387,6 @@ class FabricLog {
   });
 }
 
-// SALESLOG model
 class SalesLog {
   final String salesLogID;
   final String productID;
@@ -1429,13 +1405,12 @@ class SalesLog {
   });
 }
 
-// Helper class for UI - fabric selection in variant (for the modal only)
 class VariantFabric {
   final String fabricId;
   final String fabricName;
   final double yardsRequired;
 
-  VariantFabric({
+   VariantFabric({
     required this.fabricId,
     required this.fabricName,
     required this.yardsRequired,
