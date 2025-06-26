@@ -1,10 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'add_fabric_modal.dart'; // Import the AddFabricModal widget
-
+import 'dart:convert';
 
 class FabricLogbookPage extends StatelessWidget {
   const FabricLogbookPage({super.key});
+
+  bool _isBase64Image(String str) {
+    return str.startsWith('data:image/') || (str.isNotEmpty && !str.startsWith('http'));
+  }
+
+  ImageProvider _getSwatchImageProvider(String swatchUrl) {
+    if (_isBase64Image(swatchUrl)) {
+      final base64Str = swatchUrl.startsWith('data:image/')
+          ? swatchUrl.split(',').last
+          : swatchUrl;
+      return MemoryImage(base64Decode(base64Str));
+    } else {
+      return NetworkImage(swatchUrl);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -95,8 +110,8 @@ class FabricLogbookPage extends StatelessWidget {
                           ClipRRect(
                             borderRadius: BorderRadius.circular(8),
                             child: swatchUrl.isNotEmpty
-                                ? Image.network(
-                                    swatchUrl,
+                                ? Image(
+                                    image: _getSwatchImageProvider(swatchUrl),
                                     width: 80,
                                     height: 80,
                                     errorBuilder: (context, error, stackTrace) =>
