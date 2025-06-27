@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:fashion_tech/models/product_variant.dart';
+import 'package:fashion_tech/models/variant_fabric.dart';
 
 // ==========================
 // AddJobOrderModal - Updated for New Schema
@@ -38,6 +40,9 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
     super.initState();
     _fetchUserFabrics();
     _fetchSupplier();
+    _quantityController.addListener(() {
+      setState(() {});
+    });
   }
 
   Future<void> _fetchUserFabrics() async {
@@ -124,6 +129,15 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
         );
         return;
       }
+    }
+    // --- Quantity sum validation ---
+    int globalQty = int.tryParse(_quantityController.text) ?? 0;
+    int sumVariants = _variants.fold(0, (sum, v) => sum + v.quantity);
+    if (globalQty != sumVariants) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Sum of variant quantities ($sumVariants) must equal global quantity ($globalQty).')),
+      );
+      return;
     }
 
     try {
@@ -389,7 +403,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                                 onPressed: () {
                                   setState(() {
                                     _variants.add(ProductVariant(
-                                      variantID: 'temp_${DateTime.now().millisecondsSinceEpoch}',
+                                      id: 'temp_${DateTime.now().millisecondsSinceEpoch}',
                                       productID: 'temp_product',
                                       size: 'Small',
                                       color: 'Red',
@@ -402,6 +416,23 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                                 label: const Text('Add New', style: TextStyle(color: Colors.green)),
                               ),
                             ],
+                          ),
+                          // --- Quantity sum warning ---
+                          Builder(
+                            builder: (context) {
+                              int globalQty = int.tryParse(_quantityController.text) ?? 0;
+                              int sumVariants = _variants.fold(0, (sum, v) => sum + v.quantity);
+                              if (_variants.isNotEmpty && globalQty != sumVariants) {
+                                return Padding(
+                                  padding: const EdgeInsets.only(top: 8, bottom: 8),
+                                  child: Text(
+                                    'Sum of variant quantities ($sumVariants) must equal global quantity ($globalQty).',
+                                    style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                                  ),
+                                );
+                              }
+                              return const SizedBox.shrink();
+                            },
                           ),
                           const SizedBox(height: 12),
                           _variants.isEmpty
@@ -467,27 +498,26 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                                                 ],
                                               ),
                                             ),
-                                            Row(
+                                            Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
                                               children: [
-                                                Expanded(
-                                                  child: DropdownButtonFormField<String>(
-                                                    value: variant.size,
-                                                    items: const [
-                                                      DropdownMenuItem(value: 'Small', child: Text('Small')),
-                                                      DropdownMenuItem(value: 'Medium', child: Text('Medium')),
-                                                      DropdownMenuItem(value: 'Large', child: Text('Large')),
-                                                    ],
-                                                    onChanged: (val) {
-                                                      setState(() {
-                                                        _variants[idx].size = val ?? 'Small';
-                                                      });
-                                                    },
-                                                    decoration: const InputDecoration(labelText: 'Size'),
-                                                  ),
+                                                DropdownButtonFormField<String>(
+                                                  value: variant.size,
+                                                  items: const [
+                                                    DropdownMenuItem(value: 'Small', child: Text('Small')),
+                                                    DropdownMenuItem(value: 'Medium', child: Text('Medium')),
+                                                    DropdownMenuItem(value: 'Large', child: Text('Large')),
+                                                  ],
+                                                  onChanged: (val) {
+                                                    setState(() {
+                                                      _variants[idx].size = val ?? 'Small';
+                                                    });
+                                                  },
+                                                  decoration: const InputDecoration(labelText: 'Size'),
                                                 ),
-                                                const SizedBox(width: 12),
+                                                const SizedBox(height: 12),
                                                 SizedBox(
-                                                  width: 100,
+                                                    width: double.infinity,
                                                   child: TextFormField(
                                                     initialValue: variant.quantity == 0 ? '' : variant.quantity.toString(),
                                                     decoration: const InputDecoration(labelText: 'Quantity'),
@@ -498,6 +528,126 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                                                       });
                                                     },
                                                   ),
+                                                ),
+                                                const SizedBox(height: 12),
+                                                // Variant Quantity Allocation Progress Card
+                                                Builder(
+                                                  builder: (context) {
+                                                    int globalQty = int.tryParse(_quantityController.text) ?? 0;
+                                                    int variantQty = variant.quantity;
+                                                    int sumVariants = _variants.fold(0, (sum, v) => sum + v.quantity);
+                                                    double progress = globalQty > 0 ? (variantQty / globalQty).clamp(0.0, 1.0) : 0.0;
+                                                    bool isOverAllocated = sumVariants > globalQty;
+                                                    bool isUnderAllocated = sumVariants < globalQty;
+                                                    
+                                                    return Container(
+                                                      padding: const EdgeInsets.all(12),
+                                                      decoration: BoxDecoration(
+                                                        color: isOverAllocated
+                                                            ? Colors.red.shade50
+                                                            : isUnderAllocated
+                                                                ? Colors.orange.shade50
+                                                                : Colors.green.shade50,
+                                                        borderRadius: BorderRadius.circular(8),
+                                                        border: Border.all(
+                                                          color: isOverAllocated
+                                                              ? Colors.red.shade200
+                                                              : isUnderAllocated
+                                                                  ? Colors.orange.shade200
+                                                                  : Colors.green.shade200,
+                                                          width: 1,
+                                                        ),
+                                                      ),
+                                                      child: Column(
+                                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                                        children: [
+                                                          Row(
+                                                            children: [
+                                                              Icon(
+                                                                isOverAllocated
+                                                                    ? Icons.warning_rounded
+                                                                    : isUnderAllocated
+                                                                        ? Icons.info_rounded
+                                                                        : Icons.check_circle_rounded,
+                                                                size: 16,
+                                                                color: isOverAllocated
+                                                                    ? Colors.red.shade600
+                                                                    : isUnderAllocated
+                                                                        ? Colors.orange.shade600
+                                                                        : Colors.green.shade600,
+                                                              ),
+                                                              const SizedBox(width: 6),
+                                                              Text(
+                                                                'Quantity Allocation',
+                                                                style: TextStyle(
+                                                                  fontWeight: FontWeight.w600,
+                                                                  fontSize: 14,
+                                                                  color: Colors.grey.shade700,
+                                                                ),
+                                                              ),
+                                                              const Spacer(),
+                                                              Container(
+                                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                                                decoration: BoxDecoration(
+                                                                  color: isOverAllocated
+                                                                      ? Colors.red.shade100
+                                                                      : isUnderAllocated
+                                                                          ? Colors.orange.shade100
+                                                                          : Colors.green.shade100,
+                                                                  borderRadius: BorderRadius.circular(12),
+                                                                ),
+                                                                child: Text(
+                                                                  '${variantQty}/${globalQty}',
+                                                                  style: TextStyle(
+                                                                    fontSize: 12,
+                                                                    fontWeight: FontWeight.w600,
+                                                                    color: isOverAllocated
+                                                                        ? Colors.red.shade700
+                                                                        : isUnderAllocated
+                                                                            ? Colors.orange.shade700
+                                                                            : Colors.green.shade700,
+                                                                  ),
+                                                                ),
+                                                              ),
+                                                            ],
+                                                          ),
+                                                          const SizedBox(height: 8),
+                                                          ClipRRect(
+                                                            borderRadius: BorderRadius.circular(6),
+                                                            child: LinearProgressIndicator(
+                                                              value: progress,
+                                                              minHeight: 6,
+                                                              backgroundColor: Colors.grey.shade200,
+                                                              valueColor: AlwaysStoppedAnimation<Color>(
+                                                                isOverAllocated
+                                                                    ? Colors.red.shade400
+                                                                    : isUnderAllocated
+                                                                        ? Colors.orange.shade400
+                                                                        : Colors.green.shade400,
+                                                              ),
+                                                            ),
+                                                          ),
+                                                          const SizedBox(height: 6),
+                                                          Text(
+                                                            isOverAllocated
+                                                                ? 'Over-allocated by ${sumVariants - globalQty} units'
+                                                                : isUnderAllocated
+                                                                    ? 'Under-allocated by ${globalQty - sumVariants} units'
+                                                                    : 'Perfectly allocated',
+                                                            style: TextStyle(
+                                                              fontSize: 12,
+                                                              fontWeight: FontWeight.w500,
+                                                              color: isOverAllocated
+                                                                  ? Colors.red.shade700
+                                                                  : isUnderAllocated
+                                                                      ? Colors.orange.shade700
+                                                                      : Colors.green.shade700,
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    );
+                                                  },
                                                 ),
                                               ],
                                             ),
@@ -790,10 +940,10 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                                             ),
                                           ],
                                         ),
-                                      ),
+                                      )
                                     );
-                                  }).toList(),
-                                ),
+                                    }).toList(),
+                                  ),
                         ],
                       ),
                     ),
@@ -1147,11 +1297,11 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                                           ],
                                         ),
                                       ),
-                                    ),
+                                    )
                                   );
-                                }).toList(),
-                              ),
-                            ),
+                                  }).toList(),
+                                ),
+                            )
                           ] else ...[
                             Container(
                               height: 80,
@@ -1188,231 +1338,4 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
 // ==========================
 // DATA MODELS - Updated to match new schema
 // ==========================
-
-class Product {
-  final String productID;
-  final String name;
-  final double price;
-  final String category;
-  final bool isUpcycled;
-  final bool isMade;
-  final DateTime createdAt;
-  final DateTime updatedAt;
-
-  Product({
-    required this.productID,
-    required this.name,
-    required this.price,
-    required this.category,
-    required this.isUpcycled,
-    required this.isMade,
-    required this.createdAt,
-    required this.updatedAt,
-  });
-}
-
-class ProductVariant {
-  final String variantID;
-  final String productID;
-  String size;
-  String color;
-  int quantityInStock;
-
-  int get quantity => quantityInStock;
-  set quantity(int value) => quantityInStock = value;
-
-  List<VariantFabric> fabrics;
-
-  ProductVariant({
-    required this.variantID,
-    required this.productID,
-    required this.size,
-    required this.color,
-    required this.quantityInStock,
-    this.fabrics = const [],
-  });
-}
-
-class Fabric {
-  final String fabricID;
-  final String name;
-  final String type;
-  final String color;
-  final String qualityGrade;
-  final double quantity;
-  final double expensePerYard;
-  final String swatchImageURL;
-  final DateTime createdAt;
-  final DateTime updatedAt;
-
-  Fabric({
-    required this.fabricID,
-    required this.name,
-    required this.type,
-    required this.color,
-    required this.qualityGrade,
-    required this.quantity,
-    required this.expensePerYard,
-    required this.swatchImageURL,
-    required this.createdAt,
-    required this.updatedAt,
-  });
-}
-
-class JobOrder {
-  final String jobOrderID;
-  final String productID;
-  final int quantity;
-  final String customerName;
-  final String status;
-  final DateTime createdAt;
-  final DateTime updatedAt;
-  final DateTime dueDate;
-  final String? acceptedBy;
-  final String? assignedTo;
-  final String createdBy;
-
-  JobOrder({
-    required this.jobOrderID,
-    required this.productID,
-    required this.quantity,
-    required this.customerName,
-    required this.status,
-    required this.createdAt,
-    required this.updatedAt,
-    required this.dueDate,
-    this.acceptedBy,
-    this.assignedTo,
-    required this.createdBy,
-  });
-}
-
-class JobOrderDetail {
-  final String jobOrderDetailID;
-  final String jobOrderID;
-  final String fabricID;
-  final double yardageUsed;
-  final String size;
-  final String color;
-
-  JobOrderDetail({
-    required this.jobOrderDetailID,
-    required this.jobOrderID,
-    required this.fabricID,
-    required this.yardageUsed,
-    required this.size,
-    required this.color,
-  });
-}
-
-class Users {
-  final String userID;
-  final String fullName;
-  final String username;
-  final String password;
-  final String role;
-  final bool canAccessInventory;
-
-  Users({
-    required this.userID,
-    required this.fullName,
-    required this.username,
-    required this.password,
-    required this.role,
-    required this.canAccessInventory,
-  });
-}
-
-class Supplier {
-  final String supplierID;
-  final String supplierName;
-  final String contactNum;
-  final String location;
-
-  Supplier({
-    required this.supplierID,
-    required this.supplierName,
-    required this.contactNum,
-    required this.location,
-  });
-}
-
-class SupplierProduct {
-  final String supplierProductID;
-  final String supplierID;
-  final String productID;
-  final double supplyPrice;
-  final int? minOrderQty;
-  final int? leadTimeDays;
-
-  SupplierProduct({
-    required this.supplierProductID,
-    required this.supplierID,
-    required this.productID,
-    required this.supplyPrice,
-    this.minOrderQty,
-    this.leadTimeDays,
-  });
-}
-
-class InventoryLog {
-  final String inventoryID;
-  final String productID;
-  final String supplierID;
-  final String createdBy;
-
-  InventoryLog({
-    required this.inventoryID,
-    required this.productID,
-    required this.supplierID,
-    required this.createdBy,
-  });
-}
-
-class FabricLog {
-  final String fabricLogID;
-  final String fabricID;
-  final String changeType;
-  final double totalAmount;
-  final DateTime logDate;
-  final String createdBy;
-
-  FabricLog({
-    required this.fabricLogID,
-    required this.fabricID,
-    required this.changeType,
-    required this.totalAmount,
-    required this.logDate,
-    required this.createdBy,
-  });
-}
-
-class SalesLog {
-  final String salesLogID;
-  final String productID;
-  final String variantID;
-  final int qtySold;
-  final double sellingPrice;
-  final DateTime dateSold;
-
-  SalesLog({
-    required this.salesLogID,
-    required this.productID,
-    required this.variantID,
-    required this.qtySold,
-    required this.sellingPrice,
-    required this.dateSold,
-  });
-}
-
-class VariantFabric {
-  final String fabricId;
-  final String fabricName;
-  final double yardsRequired;
-
-   VariantFabric({
-    required this.fabricId,
-    required this.fabricName,
-    required this.yardsRequired,
-  });
-}
+// All model classes have been moved to lib/models/. Please import them as needed.

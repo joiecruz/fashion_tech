@@ -196,18 +196,18 @@ class _JobOrderListPageState extends State<JobOrderListPage> {
                                       child: Column(
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
-                                          const Text('Due Date:', style: TextStyle(color: Colors.black54)),
                                           Row(
                                             children: [
-                                              Text(
-                                                dueDate != null ? _formatDate(dueDate) : '-',
-                                                style: const TextStyle(fontWeight: FontWeight.bold),
-                                              ),
+                                              const Text('Due Date:', style: TextStyle(color: Colors.black54)),
                                               if (overdue != null) ...[
-                                                const SizedBox(width: 6),
-                                                Text(overdue, style: const TextStyle(color: Colors.red, fontSize: 12)),
+                                                const SizedBox(width: 8),
+                                                Text(overdue, style: const TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.w500)),
                                               ]
                                             ],
+                                          ),
+                                          Text(
+                                            dueDate != null ? _formatDate(dueDate) : '-',
+                                            style: const TextStyle(fontWeight: FontWeight.bold),
                                           ),
                                         ],
                                       ),

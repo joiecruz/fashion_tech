@@ -1,0 +1,45 @@
+import 'variant_fabric.dart';
+
+class ProductVariant {
+  final String id;
+  final String productID;
+  String size;
+  String color;
+  int quantityInStock;
+  List<VariantFabric> fabrics;
+
+  int get quantity => quantityInStock;
+  set quantity(int value) => quantityInStock = value;
+
+  ProductVariant({
+    required this.id,
+    required this.productID,
+    required this.size,
+    required this.color,
+    required this.quantityInStock,
+    this.fabrics = const [],
+  });
+
+  factory ProductVariant.fromMap(String id, Map<String, dynamic> data) {
+    return ProductVariant(
+      id: id,
+      productID: data['productID'] ?? '',
+      size: data['size'] ?? '',
+      color: data['color'] ?? '',
+      quantityInStock: data['quantityInStock'] ?? 0,
+      fabrics: (data['fabrics'] as List<dynamic>? ?? [])
+          .map((f) => VariantFabric.fromMap(f as Map<String, dynamic>))
+          .toList(),
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'productID': productID,
+      'size': size,
+      'color': color,
+      'quantityInStock': quantityInStock,
+      'fabrics': fabrics.map((f) => f.toMap()).toList(),
+    };
+  }
+}
