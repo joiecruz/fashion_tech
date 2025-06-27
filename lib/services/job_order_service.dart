@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/job_order.dart';
 
 class JobOrderService {
-  final _collection = FirebaseFirestore.instance.collection('job_orders');
+  final _collection = FirebaseFirestore.instance.collection('joborders');
 
   Future<List<JobOrder>> fetchJobOrders() async {
     final snapshot = await _collection.get();

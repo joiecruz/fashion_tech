@@ -20,7 +20,6 @@ class _AddFabricModalState extends State<AddFabricModal> {
   final TextEditingController _expenseController = TextEditingController();
   final TextEditingController _qualityController = TextEditingController();
 
-  bool _isUpcycled = false;
   File? _swatchImage;
   String? _swatchImageUrl;
   bool _uploading = false;
@@ -74,7 +73,6 @@ class _AddFabricModalState extends State<AddFabricModal> {
         'expensePerYard': double.tryParse(_expenseController.text) ?? 0.0,
         'qualityGrade': _qualityController.text,
         'swatchImageURL': _swatchImageUrl,
-        'isUpcycled': _isUpcycled,
         'createdAt': Timestamp.now(),
         'updatedAt': Timestamp.now(),
       });
@@ -207,11 +205,6 @@ class _AddFabricModalState extends State<AddFabricModal> {
                       TextFormField(
                         controller: _qualityController,
                         decoration: const InputDecoration(labelText: 'Quality Grade'),
-                      ),
-                      SwitchListTile(
-                        value: _isUpcycled,
-                        onChanged: (val) => setState(() => _isUpcycled = val),
-                        title: const Text('Is Upcycled?'),
                       ),
                       const SizedBox(height: 16),
                       ElevatedButton(

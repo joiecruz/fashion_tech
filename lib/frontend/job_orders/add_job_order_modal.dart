@@ -1,7 +1,41 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:fashion_tech/models/product_variant.dart';
-import 'package:fashion_tech/models/variant_fabric.dart';
+
+// Temporary classes for the form to work with the current UI
+class VariantFabric {
+  String fabricId;
+  String fabricName;
+  double yardsRequired;
+  
+  VariantFabric({
+    required this.fabricId,
+    required this.fabricName,
+    required this.yardsRequired,
+  });
+}
+
+// Extended ProductVariant for form use
+class FormProductVariant extends ProductVariant {
+  List<VariantFabric> fabrics;
+  
+  FormProductVariant({
+    required String id,
+    required String productID,
+    required String size,
+    required String color,
+    required int quantityInStock,
+    double? unitCostEstimate,
+    required this.fabrics,
+  }) : super(
+    id: id,
+    productID: productID,
+    size: size,
+    color: color,
+    quantityInStock: quantityInStock,
+    unitCostEstimate: unitCostEstimate,
+  );
+}
 
 // ==========================
 // AddJobOrderModal - Updated for New Schema
@@ -25,7 +59,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
   final TextEditingController _specialInstructionsController = TextEditingController();
   bool _isUpcycled = false;
   String _jobStatus = 'In Progress';
-  List<ProductVariant> _variants = [];
+  List<FormProductVariant> _variants = [];
 
   List<Map<String, dynamic>> _userFabrics = [];
   bool _loadingFabrics = true;
@@ -402,7 +436,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                               TextButton.icon(
                                 onPressed: () {
                                   setState(() {
-                                    _variants.add(ProductVariant(
+                                    _variants.add(FormProductVariant(
                                       id: 'temp_${DateTime.now().millisecondsSinceEpoch}',
                                       productID: 'temp_product',
                                       size: 'Small',
@@ -447,7 +481,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                               : Column(
                                   children: _variants.asMap().entries.map((entry) {
                                     int idx = entry.key;
-                                    ProductVariant variant = entry.value;
+                                    FormProductVariant variant = entry.value;
                                     final List<Color> variantColors = [
                                       Colors.blue.shade50,
                                       Colors.green.shade50,
@@ -1012,7 +1046,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                                   crossAxisAlignment: CrossAxisAlignment.end,
                                   children: _variants.asMap().entries.map((entry) {
                                     int idx = entry.key;
-                                    ProductVariant variant = entry.value;
+                                    FormProductVariant variant = entry.value;
                                     int maxQty = _variants.map((v) => v.quantity).fold(0, (a, b) => a > b ? a : b);
                                     double percent = maxQty > 0 ? (variant.quantity / maxQty) : 0;
                                     final List<Color> barColors = [
@@ -1097,7 +1131,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                               child: Row(
                                 children: _variants.asMap().entries.map((entry) {
                                   int idx = entry.key;
-                                  ProductVariant variant = entry.value;
+                                  FormProductVariant variant = entry.value;
                                   final List<Color> cardColors = [
                                     Colors.blue.shade600,
                                     Colors.green.shade600,

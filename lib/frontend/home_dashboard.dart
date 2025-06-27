@@ -210,7 +210,7 @@ class HomeDashboard extends StatelessWidget {
                       final fabric = doc.data() as Map<String, dynamic>;
                       final name = fabric['name'] ?? 'Unnamed';
                       final color = fabric['color'] ?? '';
-                      final minOrder = fabric['minOrder'] ?? '';
+                      final type = fabric['type'] ?? '';
                       final quantity = fabric['quantity'] ?? 0;
                       return Padding(
                         padding: const EdgeInsets.symmetric(vertical: 6.0),
@@ -226,7 +226,7 @@ class HomeDashboard extends StatelessWidget {
                                     style: const TextStyle(fontWeight: FontWeight.w600),
                                   ),
                                   Text(
-                                    'Min Order: ${minOrder.toString()} yds',
+                                    'Type: ${type.isEmpty ? 'N/A' : type}',
                                     style: const TextStyle(fontSize: 12, color: Colors.black54),
                                   ),
                                 ],

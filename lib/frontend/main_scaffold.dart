@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'home_dashboard.dart';
-import 'fabrics/fabric_logbook_page.dart';
+import 'inventory_page.dart';
 import 'job_orders/job_order_list_page.dart';
 
 // main_scaffold.dart
@@ -13,12 +13,7 @@ class MainScaffold extends StatefulWidget {
 
 class _MainScaffoldState extends State<MainScaffold> {
   int _selectedIndex = 0;
-
-  final List<Widget> _pages = [
-    HomeDashboard(),
-    FabricLogbookPage(),
-    JobOrderListPage(),
-  ];
+  String _inventorySubtab = 'Products'; // Track the current inventory subtab
 
   final List<String> _titles = [
     'Home',
@@ -26,11 +21,33 @@ class _MainScaffoldState extends State<MainScaffold> {
     'Orders',
   ];
 
+  // Method to handle inventory tab changes
+  void _onInventoryTabChanged(String subtab) {
+    setState(() {
+      _inventorySubtab = subtab;
+    });
+  }
+
+  // Get the appropriate title based on current selection
+  String get _currentTitle {
+    if (_selectedIndex == 1) {
+      return 'Inventory | $_inventorySubtab';
+    }
+    return _titles[_selectedIndex];
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Update the inventory page with the callback
+    final List<Widget> pages = [
+      const HomeDashboard(),
+      InventoryPage(onTabChanged: _onInventoryTabChanged),
+      const JobOrderListPage(),
+    ];
+
     return Scaffold(
       appBar: AppBar(
-        title: Text(_titles[_selectedIndex], style: const TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(_currentTitle, style: const TextStyle(fontWeight: FontWeight.bold)),
         centerTitle: true,
         elevation: 0,
         backgroundColor: Colors.white,
@@ -48,7 +65,7 @@ class _MainScaffoldState extends State<MainScaffold> {
       ),
       body: IndexedStack(
         index: _selectedIndex,
-        children: _pages,
+        children: pages,
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,

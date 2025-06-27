@@ -2,6 +2,7 @@ class Product {
   final String id;
   final String name;
   final double price;
+  final double? unitCostEstimate;
   final String category;
   final bool isUpcycled;
   final bool isMade;
@@ -12,6 +13,7 @@ class Product {
     required this.id,
     required this.name,
     required this.price,
+    this.unitCostEstimate,
     required this.category,
     required this.isUpcycled,
     required this.isMade,
@@ -24,6 +26,7 @@ class Product {
       id: id,
       name: data['name'] ?? '',
       price: (data['price'] ?? 0).toDouble(),
+      unitCostEstimate: data['unitCostEstimate']?.toDouble(),
       category: data['category'] ?? '',
       isUpcycled: data['isUpcycled'] ?? false,
       isMade: data['isMade'] ?? false,
@@ -36,6 +39,7 @@ class Product {
     return {
       'name': name,
       'price': price,
+      'unitCostEstimate': unitCostEstimate,
       'category': category,
       'isUpcycled': isUpcycled,
       'isMade': isMade,

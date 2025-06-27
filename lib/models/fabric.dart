@@ -3,28 +3,24 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class Fabric {
   final String id;
   final String name;
-  final int minOrder;
   final String type;
   final String color;
   final String qualityGrade;
-  final double quantity;
-  final String swatchImageURL;
-  final bool isUpcycled;
+  final double quantity; // in yards
   final double expensePerYard;
+  final String? swatchImageURL;
   final DateTime createdAt;
   final DateTime updatedAt;
 
   Fabric({
     required this.id,
     required this.name,
-    required this.minOrder,
     required this.type,
     required this.color,
     required this.qualityGrade,
     required this.quantity,
-    required this.swatchImageURL,
-    required this.isUpcycled,
     required this.expensePerYard,
+    this.swatchImageURL,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -33,14 +29,12 @@ class Fabric {
     return Fabric(
       id: id,
       name: data['name'] ?? '',
-      minOrder: data['minOrder'] ?? 0,
       type: data['type'] ?? '',
       color: data['color'] ?? '',
       qualityGrade: data['qualityGrade'] ?? '',
       quantity: (data['quantity'] ?? 0).toDouble(),
-      swatchImageURL: data['swatchImageURL'] ?? '',
-      isUpcycled: data['isUpcycled'] ?? false,
       expensePerYard: (data['expensePerYard'] ?? 0).toDouble(),
+      swatchImageURL: data['swatchImageURL'],
       createdAt: (data['createdAt'] is Timestamp)
           ? (data['createdAt'] as Timestamp).toDate()
           : DateTime.tryParse(data['createdAt'].toString()) ?? DateTime.now(),
@@ -53,14 +47,12 @@ class Fabric {
   Map<String, dynamic> toMap() {
     return {
       'name': name,
-      'minOrder': minOrder,
       'type': type,
       'color': color,
       'qualityGrade': qualityGrade,
       'quantity': quantity,
-      'swatchImageURL': swatchImageURL,
-      'isUpcycled': isUpcycled,
       'expensePerYard': expensePerYard,
+      'swatchImageURL': swatchImageURL,
       'createdAt': createdAt,
       'updatedAt': updatedAt,
     };

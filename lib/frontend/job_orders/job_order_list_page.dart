@@ -131,7 +131,7 @@ class _JobOrderListPageState extends State<JobOrderListPage> {
               Expanded(
                 child: StreamBuilder<QuerySnapshot>(
                   stream: FirebaseFirestore.instance
-                      .collection('jobOrders')
+                      .collection('joborders')
                       .orderBy('createdAt', descending: true)
                       .snapshots(),
                   builder: (context, snapshot) {
