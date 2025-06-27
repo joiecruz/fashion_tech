@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'home_dashboard.dart';
-import 'fabric_logbook_page.dart';
-import 'job_order_list_page.dart';
+import 'fabrics/fabric_logbook_page.dart';
+import 'job_orders/job_order_list_page.dart';
 
 // main_scaffold.dart
 class MainScaffold extends StatefulWidget {
@@ -21,7 +21,7 @@ class _MainScaffoldState extends State<MainScaffold> {
   ];
 
   final List<String> _titles = [
-    'Dashboard',
+    'Home',
     'Inventory',
     'Orders',
   ];
@@ -50,14 +50,6 @@ class _MainScaffoldState extends State<MainScaffold> {
         index: _selectedIndex,
         children: _pages,
       ),
-      floatingActionButton: _selectedIndex == 1
-          ? FloatingActionButton(
-              onPressed: () {
-                // Show add fabric modal
-              },
-              child: const Icon(Icons.add),
-            )
-          : null,
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         onTap: (index) {

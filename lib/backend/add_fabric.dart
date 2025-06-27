@@ -1,10 +1,7 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import '../models/fabric.dart';
+import '../services/fabric_service.dart';
 
-Future<String> createFabricID() async {
-  final snapshot = await FirebaseFirestore.instance.collection('fabrics').get();
-  final count = snapshot.docs.length + 1;
-  return 'fabric_${count.toString().padLeft(2, '0')}';
-}
+final _fabricService = FabricService();
 
 Future<void> addFabric({
   required String name,
@@ -17,21 +14,22 @@ Future<void> addFabric({
   required bool isUpcycled,
   required double expensePerYard,
 }) async {
-  final fabricID = await createFabricID();
+  final fabricID = await _fabricService.createFabricID();
   final now = DateTime.now();
-
-  await FirebaseFirestore.instance.collection('fabrics').doc(fabricID).set({
-    'name': name,
-    'minOrder': minOrder,
-    'type': type,
-    'color': color,
-    'isUpcycled': isUpcycled,
-    'qualityGrade': qualityGrade,
-    'quantity': quantity,
-    'swatchImageURL': swatchImageURL,
-    'expensePerYard': expensePerYard,
-    'createdAt': now,
-    'updatedAt': now,
-  });
+  final fabric = Fabric(
+    id: fabricID,
+    name: name,
+    minOrder: minOrder,
+    type: type,
+    color: color,
+    qualityGrade: qualityGrade,
+    quantity: quantity,
+    swatchImageURL: swatchImageURL,
+    isUpcycled: isUpcycled,
+    expensePerYard: expensePerYard,
+    createdAt: now,
+    updatedAt: now,
+  );
+  await _fabricService.addFabric(fabric);
 }
 
