@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'add_product_modal.dart';
 import 'product_detail_page.dart';
+import 'package:fashion_tech/backend/fetch_products.dart';
 
 class ProductInventoryPage extends StatefulWidget {
   const ProductInventoryPage({Key? key}) : super(key: key);
@@ -20,7 +20,7 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
   bool _showUpcycledOnly = false;
   bool _showLowStockOnly = false;
   bool _isStatsExpanded = true;
-  
+
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
 
@@ -38,7 +38,7 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
       parent: _animationController,
       curve: Curves.easeInOut,
     ));
-    
+
     _loadProducts();
     _searchController.addListener(_filterProducts);
   }
@@ -56,89 +56,14 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
     });
 
     try {
-      // Fetch products from Firestore using ERDv7 schema (exclude soft-deleted products)
-      final productsSnapshot = await FirebaseFirestore.instance
-          .collection('products')
-          .where('deletedAt', isNull: true) // Exclude soft-deleted products
-          .orderBy('updatedAt', descending: true)
-          .get();
-
-      List<Map<String, dynamic>> products = [];
-
-      for (var productDoc in productsSnapshot.docs) {
-        final productData = productDoc.data();
-        
-        // Fetch variants for this product to calculate total stock
-        final variantsSnapshot = await FirebaseFirestore.instance
-            .collection('productVariants')
-            .where('productID', isEqualTo: productDoc.id)
-            .get();
-
-        int totalStock = 0;
-        List<Map<String, dynamic>> variants = [];
-        
-        for (var variantDoc in variantsSnapshot.docs) {
-          final variantData = variantDoc.data();
-          totalStock += (variantData['quantityInStock'] ?? 0) as int;
-          variants.add({
-            'variantID': variantDoc.id,
-            'size': variantData['size'] ?? '',
-            'color': variantData['color'] ?? '',
-            'quantityInStock': variantData['quantityInStock'] ?? 0,
-            'unitCostEstimate': variantData['unitCostEstimate'] ?? 0.0,
-          });
-        }
-
-        // Fetch primary product image
-        String imageUrl = '';
-        try {
-          final imageSnapshot = await FirebaseFirestore.instance
-              .collection('productImages')
-              .where('productID', isEqualTo: productDoc.id)
-              .where('isPrimary', isEqualTo: true)
-              .limit(1)
-              .get();
-          
-          if (imageSnapshot.docs.isNotEmpty) {
-            imageUrl = imageSnapshot.docs.first.data()['imageURL'] ?? '';
-          }
-        } catch (e) {
-          print('Error fetching product image: $e');
-        }
-
-        // Calculate potential value (price * stock)
-        double price = (productData['price'] ?? 0.0).toDouble();
-        double potentialValue = price * totalStock;
-        
-        // Consider low stock if total stock is less than 5
-        bool lowStock = totalStock < 5;
-
-        products.add({
-          'productID': productDoc.id,
-          'name': productData['name'] ?? 'Unknown Product',
-          'description': productData['description'],
-          'notes': productData['notes'],
-          'category': productData['category'] ?? 'Uncategorized',
-          'price': price,
-          'unitCostEstimate': (productData['unitCostEstimate'] ?? 0.0).toDouble(),
-          'isUpcycled': productData['isUpcycled'] ?? false,
-          'isMade': productData['isMade'] ?? false,
-          'stock': totalStock,
-          'lowStock': lowStock,
-          'potentialValue': potentialValue,
-          'imageUrl': imageUrl,
-          'variants': variants,
-          'createdAt': productData['createdAt'],
-          'updatedAt': productData['updatedAt'],
-        });
-      }
+      final products = await FetchProductsBackend.fetchProducts();
 
       setState(() {
         _products = products;
         _filteredProducts = products;
         _isLoading = false;
       });
-      
+
       _animationController.forward();
     } catch (e) {
       print('Error loading products: $e');
@@ -157,7 +82,6 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
         bool matchesCategory = _selectedCategory == 'All' || product['category'] == _selectedCategory;
         bool matchesUpcycled = !_showUpcycledOnly || product['isUpcycled'];
         bool matchesLowStock = !_showLowStockOnly || product['lowStock'];
-        
         return matchesSearch && matchesCategory && matchesUpcycled && matchesLowStock;
       }).toList();
     });
@@ -198,7 +122,6 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
                       ),
                     ),
                   ),
-                  
                   // Sticky Filter Chips - Full Width
                   Container(
                     width: double.infinity,
@@ -230,7 +153,6 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
                       ),
                     ),
                   ),
-                  
                   // Scrollable Content
                   Expanded(
                     child: CustomScrollView(
@@ -349,7 +271,6 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
                             ),
                           ),
                         ),
-                        
                         // Add New Item Button
                         SliverToBoxAdapter(
                           child: Container(
@@ -384,8 +305,8 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
                                             isScrollControlled: true,
                                             backgroundColor: Colors.transparent,
                                             builder: (context) => Container(
-                                              margin: const EdgeInsets.only(top: 100), // Adjusted to appear below search and filters
-                                              height: MediaQuery.of(context).size.height - 100, // Full height minus margin
+                                              margin: const EdgeInsets.only(top: 100),
+                                              height: MediaQuery.of(context).size.height - 100,
                                               decoration: const BoxDecoration(
                                                 color: Colors.white,
                                                 borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -393,9 +314,8 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
                                               child: const AddProductModal(),
                                             ),
                                           );
-                                          
+
                                           if (result == true) {
-                                            // Refresh the product list if a product was added
                                             _loadProducts();
                                           }
                                         },
@@ -428,10 +348,9 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
                             ),
                           ),
                         ),
-                        
                         // Product List
                         SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(20, 20, 20, 100), // Added bottom padding
+                          padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
                           sliver: SliverList(
                             delegate: SliverChildBuilderDelegate(
                               (context, index) {
@@ -612,7 +531,7 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
           ),
           boxShadow: [
             BoxShadow(
-              color: isSelected 
+              color: isSelected
                   ? Colors.blue[600]!.withOpacity(0.25)
                   : Colors.black.withOpacity(0.06),
               blurRadius: isSelected ? 6 : 4,
@@ -627,7 +546,7 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
               duration: const Duration(milliseconds: 200),
               padding: const EdgeInsets.all(3),
               decoration: BoxDecoration(
-                color: isSelected 
+                color: isSelected
                     ? Colors.white.withOpacity(0.2)
                     : (label == 'Upcycled' ? Colors.green[100] : Colors.orange[100]),
                 borderRadius: BorderRadius.circular(6),
@@ -1037,7 +956,7 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
               ),
             ),
           ),
-        )
+          )
         );
       },
     );

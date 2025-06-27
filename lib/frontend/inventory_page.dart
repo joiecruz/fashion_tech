@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import 'dart:ui';
 import 'products/product_inventory_page.dart';
 import 'fabrics/fabric_logbook_page.dart';
+import '../../backend/fetch_suppliers.dart';
 
 class InventoryPage extends StatefulWidget {
   final Function(String)? onTabChanged;
-  
+
   const InventoryPage({Key? key, this.onTabChanged}) : super(key: key);
 
   @override
@@ -22,7 +23,7 @@ class _InventoryPageState extends State<InventoryPage>
   final List<Widget> _pages = [
     const ProductInventoryPage(),
     const FabricLogbookPage(),
-    const SuppliersPage(), // We'll create this placeholder
+    const SuppliersPage(),
   ];
 
   final List<Map<String, dynamic>> _tabs = [
@@ -50,7 +51,7 @@ class _InventoryPageState extends State<InventoryPage>
       duration: const Duration(milliseconds: 300),
       vsync: this,
     );
-    
+
     _scaleAnimation = Tween<double>(
       begin: 0.0,
       end: 1.0,
@@ -58,7 +59,7 @@ class _InventoryPageState extends State<InventoryPage>
       parent: _animationController,
       curve: Curves.elasticOut,
     ));
-    
+
     _slideAnimation = Tween<Offset>(
       begin: const Offset(0, 1),
       end: Offset.zero,
@@ -66,7 +67,7 @@ class _InventoryPageState extends State<InventoryPage>
       parent: _animationController,
       curve: Curves.easeOutBack,
     ));
-    
+
     // Start animation after a short delay
     Future.delayed(const Duration(milliseconds: 500), () {
       if (mounted) {
@@ -96,7 +97,7 @@ class _InventoryPageState extends State<InventoryPage>
             index: _selectedTab,
             children: _pages,
           ),
-          
+
           // Floating navigation bar
           Positioned(
             bottom: 30,
@@ -122,21 +123,21 @@ class _InventoryPageState extends State<InventoryPage>
 
   Widget _buildFloatingNavBar() {
     return Container(
-      height: 70, // Reduced from 80 to 60
+      height: 70,
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.95),
-        borderRadius: BorderRadius.circular(20), // Reduced from 25 to 20
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.12),
-            blurRadius: 20, // Reduced from 25 to 20
-            offset: const Offset(0, 10), // Reduced from 15 to 10
-            spreadRadius: 1, // Reduced from 2 to 1
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+            spreadRadius: 1,
           ),
           BoxShadow(
             color: Colors.black.withOpacity(0.06),
-            blurRadius: 10, // Reduced from 15 to 10
-            offset: const Offset(0, 5), // Reduced from 8 to 5
+            blurRadius: 10,
+            offset: const Offset(0, 5),
           ),
         ],
         border: Border.all(
@@ -145,42 +146,39 @@ class _InventoryPageState extends State<InventoryPage>
         ),
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(20), // Reduced from 25 to 20
+        borderRadius: BorderRadius.circular(20),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8), // Reduced from 10 to 8
+          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
           child: Container(
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.9),
-              borderRadius: BorderRadius.circular(20), // Reduced from 25 to 20
+              borderRadius: BorderRadius.circular(20),
             ),
             child: Row(
               children: _tabs.asMap().entries.map((entry) {
                 final index = entry.key;
                 final tab = entry.value;
                 final isSelected = _selectedTab == index;
-                
+
                 return Expanded(
                   child: GestureDetector(
                     onTap: () {
                       setState(() {
                         _selectedTab = index;
                       });
-                      
+
                       // Notify parent of tab change
                       if (widget.onTabChanged != null) {
                         widget.onTabChanged!(tab['label']);
                       }
-                      
-                      // Add a subtle haptic feedback
-                      // HapticFeedback.selectionClick(); // Uncomment if you want haptic feedback
                     },
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 250),
                       curve: Curves.easeInOut,
-                      margin: const EdgeInsets.all(6), // Reduced from 8 to 6
+                      margin: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
                         color: isSelected ? tab['color'].withOpacity(0.1) : Colors.transparent,
-                        borderRadius: BorderRadius.circular(16), // Reduced from 20 to 16
+                        borderRadius: BorderRadius.circular(16),
                       ),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -188,29 +186,29 @@ class _InventoryPageState extends State<InventoryPage>
                           AnimatedContainer(
                             duration: const Duration(milliseconds: 250),
                             curve: Curves.easeInOut,
-                            padding: EdgeInsets.all(isSelected ? 8 : 6), // Reduced from 10/8 to 8/6
+                            padding: EdgeInsets.all(isSelected ? 8 : 6),
                             decoration: BoxDecoration(
                               color: isSelected ? tab['color'] : Colors.transparent,
-                              borderRadius: BorderRadius.circular(10), // Reduced from 12 to 10
+                              borderRadius: BorderRadius.circular(10),
                               boxShadow: isSelected ? [
                                 BoxShadow(
                                   color: tab['color'].withOpacity(0.25),
-                                  blurRadius: 6, // Reduced from 8 to 6
-                                  offset: const Offset(0, 3), // Reduced from 4 to 3
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 3),
                                 ),
                               ] : null,
                             ),
                             child: Icon(
                               tab['icon'],
                               color: isSelected ? Colors.white : Colors.grey[600],
-                              size: isSelected ? 18 : 16, // Reduced from 22/18 to 18/16
+                              size: isSelected ? 18 : 16,
                             ),
                           ),
-                          const SizedBox(height: 2), // Reduced from 4 to 2
+                          const SizedBox(height: 2),
                           AnimatedDefaultTextStyle(
                             duration: const Duration(milliseconds: 250),
                             style: TextStyle(
-                              fontSize: isSelected ? 10 : 9, // Reduced from 12/11 to 10/9
+                              fontSize: isSelected ? 10 : 9,
                               fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                               color: isSelected ? tab['color'] : Colors.grey[600],
                             ),
@@ -230,59 +228,99 @@ class _InventoryPageState extends State<InventoryPage>
   }
 }
 
-// Placeholder Suppliers Page
+// Suppliers Page with Firestore fetching
 class SuppliersPage extends StatelessWidget {
   const SuppliersPage({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: Colors.grey[50],
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.local_shipping_outlined,
-              size: 80,
-              color: Colors.grey[400],
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: FetchSuppliersBackend.fetchAllSuppliers(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(
+            child: Text(
+              'Error loading suppliers',
+              style: TextStyle(color: Colors.red[700]),
             ),
-            const SizedBox(height: 20),
-            Text(
-              'Suppliers Management',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Colors.grey[700],
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Coming Soon',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey[500],
-              ),
-            ),
-            const SizedBox(height: 20),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              decoration: BoxDecoration(
-                color: Colors.purple[100],
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                'Manage your suppliers and their details',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.purple[700],
-                  fontWeight: FontWeight.w500,
+          );
+        }
+        final suppliers = snapshot.data ?? [];
+        if (suppliers.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.local_shipping_outlined,
+                  size: 80,
+                  color: Colors.grey[400],
                 ),
-              ),
+                const SizedBox(height: 20),
+                Text(
+                  'No Suppliers Found',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey[700],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Add suppliers to manage your supply chain.',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey[500],
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
+          );
+        }
+        return ListView.builder(
+          padding: const EdgeInsets.all(24),
+          itemCount: suppliers.length,
+          itemBuilder: (context, index) {
+            final supplier = suppliers[index];
+            return Card(
+              elevation: 2,
+              margin: const EdgeInsets.only(bottom: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: Colors.purple[100],
+                  child: Icon(Icons.local_shipping, color: Colors.purple[700]),
+                ),
+                title: Text(
+                  supplier['supplierName'] ?? 'Unnamed Supplier',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (supplier['contactNum'] != null && supplier['contactNum'].toString().isNotEmpty)
+                    Text('Contact: ${supplier['contactNum']}'),
+                  if (supplier['location'] != null && supplier['location'].toString().isNotEmpty)
+                    Text('Location: ${supplier['location']}'),
+                  if (supplier['notes'] != null && supplier['notes'].toString().isNotEmpty)
+                    Text('Notes: ${supplier['notes']}'),
+                  if (supplier['email'] != null && supplier['email'].toString().isNotEmpty)
+                    Text('Email: ${supplier['email']}'),
+                ],
+              ),
+                trailing: supplier['email'] != null && supplier['email'].toString().isNotEmpty
+                    ? Icon(Icons.email, color: Colors.purple[400])
+                    : null,
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }
