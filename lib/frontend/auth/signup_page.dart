@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'login_page.dart';
 import 'signup_be.dart'; // Import your backend signup logic
+import '../main_scaffold.dart';
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({Key? key}) : super(key: key);
@@ -80,7 +81,9 @@ class _SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateM
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         );
-        Navigator.of(context).pushReplacementNamed('/home');
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const MainScaffold()),
+        );
       }
     } on FirebaseAuthException catch (e) {
       String message = 'An error occurred';

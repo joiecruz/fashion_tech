@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'home_dashboard.dart';
 import 'fabrics/fabric_logbook_page.dart';
 import 'job_orders/job_order_list_page.dart';
+import 'auth/login_be.dart';
 
 // main_scaffold.dart
 class MainScaffold extends StatefulWidget {
@@ -37,11 +38,31 @@ class _MainScaffoldState extends State<MainScaffold> {
         foregroundColor: Colors.black,
         actions: [
           IconButton(icon: const Icon(Icons.notifications_none), onPressed: () {}),
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: CircleAvatar(
-              backgroundColor: Colors.teal,
-              child: Text('FL', style: TextStyle(color: Colors.white)),
+          PopupMenuButton<String>(
+            onSelected: (value) async {
+              if (value == 'logout') {
+                await LoginBackend.signOut();
+                // Navigation will be handled automatically by AuthWrapper
+              }
+            },
+            itemBuilder: (BuildContext context) => [
+              const PopupMenuItem<String>(
+                value: 'logout',
+                child: Row(
+                  children: [
+                    Icon(Icons.logout, size: 18),
+                    SizedBox(width: 8),
+                    Text('Sign Out'),
+                  ],
+                ),
+              ),
+            ],
+            child: Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: CircleAvatar(
+                backgroundColor: Colors.teal,
+                child: Text('FL', style: TextStyle(color: Colors.white)),
+              ),
             ),
           ),
         ],

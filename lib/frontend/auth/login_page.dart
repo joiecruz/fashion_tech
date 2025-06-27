@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'signup_page.dart';
 import 'login_be.dart';
+import '../main_scaffold.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({Key? key}) : super(key: key);
@@ -60,7 +61,9 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         );
-        Navigator.of(context).pushReplacementNamed('/home');
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const MainScaffold()),
+        );
       }
     } on FirebaseAuthException catch (e) {
       String message = 'An error occurred';
@@ -109,7 +112,9 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         );
-        Navigator.of(context).pushReplacementNamed('/home');
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const MainScaffold()),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -141,7 +146,9 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         );
-        Navigator.of(context).pushReplacementNamed('/home');
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const MainScaffold()),
+        );
       }
     } catch (e) {
       if (mounted) {
