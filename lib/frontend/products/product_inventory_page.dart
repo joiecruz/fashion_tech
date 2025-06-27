@@ -24,87 +24,6 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
 
-  // Mock data for demo - replace with actual Firestore data
-  final List<Map<String, dynamic>> _mockProducts = [
-    {
-      'productID': '1',
-      'name': 'Denim Jacket Classic Fit',
-      'description': 'Vintage-style denim jacket with classic fit and sustainable materials',
-      'notes': 'Hand-distressed finish, limited edition',
-      'category': 'outerwear',
-      'price': 75.00,
-      'unitCostEstimate': 35.00,
-      'isUpcycled': true,
-      'isMade': true,
-      'stock': 5,
-      'lowStock': true,
-      'potentialValue': 375.00,
-      'imageUrl': '',
-      'variants': [
-        {'variantID': '1a', 'size': 'M', 'color': 'Blue', 'quantityInStock': 3},
-        {'variantID': '1b', 'size': 'L', 'color': 'Blue', 'quantityInStock': 2},
-      ],
-    },
-    {
-      'productID': '2',
-      'name': 'Silk Scarf Artisan',
-      'description': 'Hand-painted silk scarf with unique artisan design',
-      'notes': 'Each piece is unique, slight variations expected',
-      'category': 'accessories',
-      'price': 25.50,
-      'unitCostEstimate': 12.00,
-      'isUpcycled': false,
-      'isMade': true,
-      'stock': 8,
-      'lowStock': false,
-      'potentialValue': 204.00,
-      'imageUrl': '',
-      'variants': [
-        {'variantID': '2a', 'size': 'One Size', 'color': 'Red', 'quantityInStock': 4},
-        {'variantID': '2b', 'size': 'One Size', 'color': 'Green', 'quantityInStock': 4},
-      ],
-    },
-    {
-      'productID': '3',
-      'name': 'Linen Trousers Slim Fit',
-      'description': 'Sustainable linen trousers with eco-friendly dyeing process',
-      'notes': 'Pre-washed to prevent shrinkage, runs large',
-      'category': 'bottom',
-      'price': 60.00,
-      'unitCostEstimate': 28.00,
-      'isUpcycled': true,
-      'isMade': false,
-      'stock': 2,
-      'lowStock': true,
-      'potentialValue': 120.00,
-      'imageUrl': '',
-      'variants': [
-        {'variantID': '3a', 'size': 'S', 'color': 'Beige', 'quantityInStock': 1},
-        {'variantID': '3b', 'size': 'M', 'color': 'Beige', 'quantityInStock': 1},
-      ],
-    },
-    {
-      'productID': '4',
-      'name': 'Classic Cotton Tee',
-      'description': 'Organic cotton t-shirt with soft finish and durable construction',
-      'notes': 'Available in multiple colors, high-quality print',
-      'category': 'top',
-      'price': 20.00,
-      'unitCostEstimate': 8.00,
-      'isUpcycled': false,
-      'isMade': true,
-      'stock': 12,
-      'lowStock': false,
-      'potentialValue': 240.00,
-      'imageUrl': '',
-      'variants': [
-        {'variantID': '4a', 'size': 'S', 'color': 'White', 'quantityInStock': 4},
-        {'variantID': '4b', 'size': 'M', 'color': 'White', 'quantityInStock': 4},
-        {'variantID': '4c', 'size': 'L', 'color': 'Black', 'quantityInStock': 4},
-      ],
-    },
-  ];
-
   @override
   void initState() {
     super.initState();
@@ -151,7 +70,7 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
         
         // Fetch variants for this product to calculate total stock
         final variantsSnapshot = await FirebaseFirestore.instance
-            .collection('productvariants')
+            .collection('productVariants')
             .where('productID', isEqualTo: productDoc.id)
             .get();
 
@@ -174,7 +93,7 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
         String imageUrl = '';
         try {
           final imageSnapshot = await FirebaseFirestore.instance
-              .collection('productimages')
+              .collection('productImages')
               .where('productID', isEqualTo: productDoc.id)
               .where('isPrimary', isEqualTo: true)
               .limit(1)
@@ -223,10 +142,7 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
       _animationController.forward();
     } catch (e) {
       print('Error loading products: $e');
-      // Fallback to mock data if Firestore fails
       setState(() {
-        _products = _mockProducts;
-        _filteredProducts = _mockProducts;
         _isLoading = false;
       });
       _animationController.forward();
