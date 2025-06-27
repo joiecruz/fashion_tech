@@ -34,15 +34,15 @@ class _AddProductModalState extends State<AddProductModal> {
   final _nameController = TextEditingController();
   final _priceController = TextEditingController();
   final _unitCostController = TextEditingController();
-  final _supplierController = TextEditingController(); // New field for source/supplier
-  final _notesController = TextEditingController(); // New field for additional notes
-  final _stockController = TextEditingController(); // <-- Stock controller
+  final _supplierController = TextEditingController();
+  final _notesController = TextEditingController();
+  final _stockController = TextEditingController();
   String _selectedCategory = 'top';
   bool _isUpcycled = false;
   bool _isMade = false;
   bool _isLoading = false;
-  DateTime? _acquisitionDate = DateTime.now(); // New field for when item was acquired
-  
+  DateTime? _acquisitionDate = DateTime.now();
+
   // Product Image
   File? _productImage;
   String? _productImageUrl;
@@ -69,7 +69,7 @@ class _AddProductModalState extends State<AddProductModal> {
     _unitCostController.dispose();
     _supplierController.dispose();
     _notesController.dispose();
-    _stockController.dispose(); // Dispose stock controller
+    _stockController.dispose();
     super.dispose();
   }
 
@@ -105,7 +105,7 @@ class _AddProductModalState extends State<AddProductModal> {
 
   Future<void> _saveProduct() async {
     if (!_formKey.currentState!.validate()) return;
-    
+
     if (_variants.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please add at least one product variant')),
@@ -120,12 +120,12 @@ class _AddProductModalState extends State<AddProductModal> {
     try {
       // Create consolidated description including supplier info and acquisition date
       String consolidatedDescription = '';
-      
+
       // Add supplier info if provided
       if (_supplierController.text.trim().isNotEmpty) {
         consolidatedDescription += 'Supplier/Source: ${_supplierController.text.trim()}';
       }
-      
+
       // Add acquisition date if provided
       if (_acquisitionDate != null) {
         if (consolidatedDescription.isNotEmpty) consolidatedDescription += '\n';
@@ -140,8 +140,8 @@ class _AddProductModalState extends State<AddProductModal> {
         description: consolidatedDescription.isNotEmpty ? consolidatedDescription : null,
         notes: _notesController.text.trim().isNotEmpty ? _notesController.text.trim() : null,
         price: double.parse(_priceController.text),
-        unitCostEstimate: _unitCostController.text.isNotEmpty 
-            ? double.parse(_unitCostController.text) 
+        unitCostEstimate: _unitCostController.text.isNotEmpty
+            ? double.parse(_unitCostController.text)
             : null,
         category: _selectedCategory,
         isUpcycled: _isUpcycled,
@@ -173,7 +173,7 @@ class _AddProductModalState extends State<AddProductModal> {
           id: productImageRef.id,
           productID: productRef.id,
           imageURL: _productImageUrl!,
-          isPrimary: true, // First image is always primary
+          isPrimary: true,
           uploadedBy: 'user', // TODO: Replace with actual user ID when auth is implemented
           uploadedAt: DateTime.now(),
         );
@@ -265,8 +265,8 @@ class _AddProductModalState extends State<AddProductModal> {
                           ],
                         ),
                         const SizedBox(height: 16),
-                        
-                        // Image Upload Area
+
+                        // Image Upload Area (fixed: check file existence)
                         GestureDetector(
                           onTap: _uploadingImage ? null : _pickImage,
                           child: Container(
@@ -281,7 +281,7 @@ class _AddProductModalState extends State<AddProductModal> {
                               ),
                               color: _productImage != null ? Colors.orange[50] : Colors.grey[50],
                             ),
-                            child: _productImage != null
+                            child: (_productImage != null && _productImage!.existsSync())
                                 ? Stack(
                                     children: [
                                       ClipRRect(
@@ -379,7 +379,7 @@ class _AddProductModalState extends State<AddProductModal> {
                                   ),
                           ),
                         ),
-                        
+
                         const SizedBox(height: 8),
                         Center(
                           child: Text(
@@ -396,7 +396,7 @@ class _AddProductModalState extends State<AddProductModal> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                
+
                 // Product Name
                 Card(
                   elevation: 2,
@@ -441,9 +441,9 @@ class _AddProductModalState extends State<AddProductModal> {
                     ),
                   ),
                 ),
-                
+
                 const SizedBox(height: 16),
-                
+
                 // Price and Category Row
                 IntrinsicHeight(
                   child: Row(
@@ -504,9 +504,9 @@ class _AddProductModalState extends State<AddProductModal> {
                           ),
                         ),
                       ),
-                      
+
                       const SizedBox(width: 12),
-                      
+
                       // Category
                       Expanded(
                         child: Card(
@@ -532,7 +532,7 @@ class _AddProductModalState extends State<AddProductModal> {
                                 Flexible(
                                   child: DropdownButtonFormField<String>(
                                     value: _selectedCategory,
-                                    isExpanded: true, // Prevents overflow
+                                    isExpanded: true,
                                     decoration: InputDecoration(
                                       border: OutlineInputBorder(
                                         borderRadius: BorderRadius.circular(8),
@@ -571,7 +571,7 @@ class _AddProductModalState extends State<AddProductModal> {
                 ),
 
                 const SizedBox(height: 16),
-                
+
                 // Unit Cost Estimate (Optional)
                 Card(
                   elevation: 2,
@@ -620,9 +620,9 @@ class _AddProductModalState extends State<AddProductModal> {
                     ),
                   ),
                 ),
-                
+
                 const SizedBox(height: 16),
-                
+
                 // Supplier/Source (Optional)
                 Card(
                   elevation: 2,
@@ -661,9 +661,9 @@ class _AddProductModalState extends State<AddProductModal> {
                     ),
                   ),
                 ),
-                
+
                 const SizedBox(height: 16),
-                
+
                 // Acquisition Date
                 Card(
                   elevation: 2,
@@ -718,7 +718,7 @@ class _AddProductModalState extends State<AddProductModal> {
                                 Icon(Icons.calendar_today, size: 20, color: Colors.grey[600]),
                                 const SizedBox(width: 12),
                                 Text(
-                                  _acquisitionDate != null 
+                                  _acquisitionDate != null
                                       ? '${_acquisitionDate!.day}/${_acquisitionDate!.month}/${_acquisitionDate!.year}'
                                       : 'Select date',
                                   style: TextStyle(
@@ -734,9 +734,9 @@ class _AddProductModalState extends State<AddProductModal> {
                     ),
                   ),
                 ),
-                
+
                 const SizedBox(height: 16),
-                
+
                 // Additional Notes
                 Card(
                   elevation: 2,
@@ -776,9 +776,9 @@ class _AddProductModalState extends State<AddProductModal> {
                     ),
                   ),
                 ),
-                
+
                 const SizedBox(height: 16),
-                
+
                 // Product Properties
                 Card(
                   elevation: 2,
@@ -799,7 +799,7 @@ class _AddProductModalState extends State<AddProductModal> {
                           ),
                         ),
                         const SizedBox(height: 16),
-                        
+
                         // Upcycled Switch
                         Row(
                           children: [
@@ -841,9 +841,9 @@ class _AddProductModalState extends State<AddProductModal> {
                             ),
                           ],
                         ),
-                        
+
                         const SizedBox(height: 16),
-                        
+
                         // Made Switch
                         Row(
                           children: [
@@ -889,9 +889,9 @@ class _AddProductModalState extends State<AddProductModal> {
                     ),
                   ),
                 ),
-                
+
                 const SizedBox(height: 16),
-                
+
                 // Product Variants Section
                 Card(
                   elevation: 2,
@@ -1084,9 +1084,9 @@ class _AddProductModalState extends State<AddProductModal> {
                     ),
                   ),
                 ),
-                
+
                 const SizedBox(height: 32),
-                
+
                 // Save Button
                 SizedBox(
                   width: double.infinity,
@@ -1117,7 +1117,7 @@ class _AddProductModalState extends State<AddProductModal> {
                     ),
                   ),
                 ),
-                
+
                 const SizedBox(height: 20),
               ],
             ),
