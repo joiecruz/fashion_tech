@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'add_product_page.dart';
+import 'add_product_modal.dart';
 import 'product_detail_page.dart';
 
 class ProductInventoryPage extends StatefulWidget {
@@ -452,9 +452,18 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
                                       color: Colors.transparent,
                                       child: InkWell(
                                         onTap: () async {
-                                          final result = await Navigator.of(context).push(
-                                            MaterialPageRoute(
-                                              builder: (context) => const AddProductPage(),
+                                          final result = await showModalBottomSheet<bool>(
+                                            context: context,
+                                            isScrollControlled: true,
+                                            backgroundColor: Colors.transparent,
+                                            builder: (context) => Container(
+                                              margin: const EdgeInsets.only(top: 100), // Adjusted to appear below search and filters
+                                              height: MediaQuery.of(context).size.height - 100, // Full height minus margin
+                                              decoration: const BoxDecoration(
+                                                color: Colors.white,
+                                                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                                              ),
+                                              child: const AddProductModal(),
                                             ),
                                           );
                                           
