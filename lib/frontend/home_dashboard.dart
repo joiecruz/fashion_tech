@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+// 🚨 TEMPORARY DEV IMPORTS - Remove before production
+import 'package:fashion_tech/frontend/auth/login_page.dart';
+import 'package:fashion_tech/frontend/auth/signup_page.dart';
 
 
 class HomeDashboard extends StatelessWidget {
@@ -257,6 +260,98 @@ class HomeDashboard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
+          
+          // ===================================================================
+          // 🚨 TEMPORARY DEV BUTTONS - REMOVE BEFORE PRODUCTION 🚨
+          // ===================================================================
+          // These buttons are for development navigation testing only.
+          // TODO: Remove this entire section before deploying to production.
+          // The actual navigation should be handled by proper authentication flow.
+          Card(
+            elevation: 2,
+            color: Colors.orange.shade50,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.warning, color: Colors.orange.shade600, size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        '🚨 DEV MODE - Remove Before Production',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.orange.shade800,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Temporary navigation buttons for testing authentication pages:',
+                    style: TextStyle(fontSize: 12, color: Colors.black54),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const LoginPage(),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.login, size: 18),
+                          label: const Text('Test Login'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blue.shade500,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const SignUpPage(),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.person_add, size: 18),
+                          label: const Text('Test Signup'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green.shade500,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // ===================================================================
+          // 🚨 END OF TEMPORARY DEV BUTTONS 🚨
+          // ===================================================================
+          
+          const SizedBox(height: 16),
         ],
       ),
     );
@@ -275,7 +370,6 @@ class _ActivityRow extends StatelessWidget {
     required this.color,
     required this.text,
     required this.time,
-    super.key,
   });
 
   @override
