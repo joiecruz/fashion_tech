@@ -160,7 +160,7 @@ class _ProductDetailPageState extends State<ProductDetailPage>
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            '\$${widget.productData['price'].toStringAsFixed(2)}',
+                            '₱${widget.productData['price'].toStringAsFixed(2)}',
                             style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.w600,
@@ -258,7 +258,7 @@ class _ProductDetailPageState extends State<ProductDetailPage>
                     Expanded(
                       child: _buildStatItem(
                         'Potential Value',
-                        '\$${widget.productData['potentialValue'].toStringAsFixed(2)}',
+                        '₱${widget.productData['potentialValue'].toStringAsFixed(2)}',
                         Icons.attach_money_outlined,
                         Colors.green[600]!,
                       ),
@@ -278,8 +278,8 @@ class _ProductDetailPageState extends State<ProductDetailPage>
                     ),
                     Expanded(
                       child: _buildStatItem(
-                        'Price per Unit',
-                        '\$${widget.productData['price'].toStringAsFixed(2)}',
+                        'Price per Unit (₱)',
+                        '₱${widget.productData['price'].toStringAsFixed(2)}',
                         Icons.local_offer_outlined,
                         Colors.orange[600]!,
                       ),

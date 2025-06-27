@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
 import '../../models/product.dart';
+import '../../models/product_image.dart';
 import '../../utils/utils.dart';
 
 // Helper class for product variant input
@@ -28,7 +32,6 @@ class AddProductModal extends StatefulWidget {
 class _AddProductModalState extends State<AddProductModal> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  final _descriptionController = TextEditingController();
   final _priceController = TextEditingController();
   final _unitCostController = TextEditingController();
   final _supplierController = TextEditingController(); // New field for source/supplier
@@ -38,6 +41,11 @@ class _AddProductModalState extends State<AddProductModal> {
   bool _isMade = false;
   bool _isLoading = false;
   DateTime? _acquisitionDate = DateTime.now(); // New field for when item was acquired
+  
+  // Product Image
+  File? _productImage;
+  String? _productImageUrl;
+  bool _uploadingImage = false;
 
   // Product Variants
   List<ProductVariantInput> _variants = [];
@@ -56,12 +64,41 @@ class _AddProductModalState extends State<AddProductModal> {
   @override
   void dispose() {
     _nameController.dispose();
-    _descriptionController.dispose();
     _priceController.dispose();
     _unitCostController.dispose();
     _supplierController.dispose();
     _notesController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+    if (picked != null) {
+      setState(() {
+        _productImage = File(picked.path);
+      });
+      await _uploadImage();
+    }
+  }
+
+  Future<void> _uploadImage() async {
+    if (_productImage == null) return;
+    setState(() => _uploadingImage = true);
+    try {
+      final fileName = 'products/${DateTime.now().millisecondsSinceEpoch}_${_productImage!.path.split('/').last}';
+      final ref = FirebaseStorage.instance.ref().child(fileName);
+      await ref.putFile(_productImage!);
+      _productImageUrl = await ref.getDownloadURL();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to upload image: $e')),
+        );
+      }
+    } finally {
+      setState(() => _uploadingImage = false);
+    }
   }
 
   Future<void> _saveProduct() async {
@@ -79,12 +116,11 @@ class _AddProductModalState extends State<AddProductModal> {
     });
 
     try {
-      // Create consolidated description including all additional details
-      String consolidatedDescription = _descriptionController.text.trim();
+      // Create consolidated description including supplier info and acquisition date
+      String consolidatedDescription = '';
       
       // Add supplier info if provided
       if (_supplierController.text.trim().isNotEmpty) {
-        if (consolidatedDescription.isNotEmpty) consolidatedDescription += '\n\n';
         consolidatedDescription += 'Supplier/Source: ${_supplierController.text.trim()}';
       }
       
@@ -93,12 +129,6 @@ class _AddProductModalState extends State<AddProductModal> {
         if (consolidatedDescription.isNotEmpty) consolidatedDescription += '\n';
         consolidatedDescription += 'Acquired: ${_acquisitionDate!.day}/${_acquisitionDate!.month}/${_acquisitionDate!.year}';
       }
-      
-      // Add additional notes if provided
-      if (_notesController.text.trim().isNotEmpty) {
-        if (consolidatedDescription.isNotEmpty) consolidatedDescription += '\n\n';
-        consolidatedDescription += 'Notes: ${_notesController.text.trim()}';
-      }
 
       // Create the product first
       final productRef = FirebaseFirestore.instance.collection('products').doc();
@@ -106,6 +136,7 @@ class _AddProductModalState extends State<AddProductModal> {
         id: productRef.id,
         name: _nameController.text.trim(),
         description: consolidatedDescription.isNotEmpty ? consolidatedDescription : null,
+        notes: _notesController.text.trim().isNotEmpty ? _notesController.text.trim() : null,
         price: double.parse(_priceController.text),
         unitCostEstimate: _unitCostController.text.isNotEmpty 
             ? double.parse(_unitCostController.text) 
@@ -131,6 +162,20 @@ class _AddProductModalState extends State<AddProductModal> {
           'quantityInStock': variant.quantityInStock,
           'unitCostEstimate': variant.unitCostEstimate,
         });
+      }
+
+      // Create product image if uploaded
+      if (_productImageUrl != null) {
+        final productImageRef = FirebaseFirestore.instance.collection('productimages').doc();
+        final productImage = ProductImage(
+          id: productImageRef.id,
+          productID: productRef.id,
+          imageURL: _productImageUrl!,
+          isPrimary: true, // First image is always primary
+          uploadedBy: 'user', // TODO: Replace with actual user ID when auth is implemented
+          uploadedAt: DateTime.now(),
+        );
+        await productImageRef.set(productImage.toMap());
       }
 
       if (mounted) {
@@ -188,6 +233,168 @@ class _AddProductModalState extends State<AddProductModal> {
             child: ListView(
               padding: const EdgeInsets.all(20),
               children: [
+                // Product Image Upload
+                Card(
+                  elevation: 3,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.image,
+                              color: Colors.orange[600],
+                              size: 24,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Product Image',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey[800],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        
+                        // Image Upload Area
+                        GestureDetector(
+                          onTap: _uploadingImage ? null : _pickImage,
+                          child: Container(
+                            width: double.infinity,
+                            height: _productImage != null ? 220 : 160,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: _productImage != null ? Colors.orange[300]! : Colors.grey[300]!,
+                                width: 2,
+                                style: BorderStyle.solid,
+                              ),
+                              color: _productImage != null ? Colors.orange[50] : Colors.grey[50],
+                            ),
+                            child: _productImage != null
+                                ? Stack(
+                                    children: [
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(10),
+                                        child: Image.file(
+                                          _productImage!,
+                                          width: double.infinity,
+                                          height: double.infinity,
+                                          fit: BoxFit.cover,
+                                        ),
+                                      ),
+                                      if (_uploadingImage)
+                                        Container(
+                                          decoration: BoxDecoration(
+                                            borderRadius: BorderRadius.circular(10),
+                                            color: Colors.black54,
+                                          ),
+                                          child: const Center(
+                                            child: Column(
+                                              mainAxisAlignment: MainAxisAlignment.center,
+                                              children: [
+                                                CircularProgressIndicator(
+                                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                                ),
+                                                SizedBox(height: 12),
+                                                Text(
+                                                  'Uploading...',
+                                                  style: TextStyle(
+                                                    color: Colors.white,
+                                                    fontWeight: FontWeight.w500,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      Positioned(
+                                        top: 8,
+                                        right: 8,
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            shape: BoxShape.circle,
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: Colors.black26,
+                                                blurRadius: 4,
+                                                offset: Offset(0, 2),
+                                              ),
+                                            ],
+                                          ),
+                                          child: IconButton(
+                                            icon: Icon(Icons.edit, color: Colors.orange[600], size: 20),
+                                            onPressed: _uploadingImage ? null : _pickImage,
+                                            padding: const EdgeInsets.all(8),
+                                            constraints: const BoxConstraints(),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                : Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(16),
+                                        decoration: BoxDecoration(
+                                          color: Colors.orange[100],
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: Icon(
+                                          Icons.add_a_photo,
+                                          size: 32,
+                                          color: Colors.orange[600],
+                                        ),
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Text(
+                                        'Tap to upload product image',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w500,
+                                          color: Colors.orange[700],
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Max size 5MB, JPG/PNG',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey[600],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                          ),
+                        ),
+                        
+                        const SizedBox(height: 8),
+                        Center(
+                          child: Text(
+                            'Optional: Add a product image to help identify this item',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey[500],
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                
                     // Product Name
                     Card(
                       elevation: 2,
@@ -235,156 +442,130 @@ class _AddProductModalState extends State<AddProductModal> {
                     
                     const SizedBox(height: 16),
                     
-                    // Product Description (Optional)
-                    Card(
-                      elevation: 2,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Description (Optional)',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.grey[800],
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            TextFormField(
-                              controller: _descriptionController,
-                              maxLines: 3,
-                              decoration: InputDecoration(
-                                hintText: 'Enter product description, notes, or details...',
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                  borderSide: BorderSide(color: Colors.grey[300]!),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                  borderSide: BorderSide(color: Colors.blue[600]!),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    
-                    const SizedBox(height: 16),
-                    
                     // Price and Category Row
-                    Row(
-                      children: [
-                        // Price
-                        Expanded(
-                          child: Card(
-                            elevation: 2,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Price (\$)',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.grey[800],
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  TextFormField(
-                                    controller: _priceController,
-                                    keyboardType: TextInputType.numberWithOptions(decimal: true),
-                                    decoration: InputDecoration(
-                                      hintText: '0.00',
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: BorderSide(color: Colors.grey[300]!),
-                                      ),
-                                      focusedBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: BorderSide(color: Colors.blue[600]!),
+                    IntrinsicHeight(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Price
+                          Expanded(
+                            child: Card(
+                              elevation: 2,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      'Price (₱)',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.grey[800],
                                       ),
                                     ),
-                                    validator: (value) {
-                                      if (value == null || value.trim().isEmpty) {
-                                        return 'Enter price';
-                                      }
-                                      final price = double.tryParse(value);
-                                      if (price == null || price <= 0) {
-                                        return 'Enter valid price';
-                                      }
-                                      return null;
-                                    },
-                                  ),
-                                ],
+                                    const SizedBox(height: 8),
+                                    Flexible(
+                                      child: TextFormField(
+                                        controller: _priceController,
+                                        keyboardType: TextInputType.numberWithOptions(decimal: true),
+                                        decoration: InputDecoration(
+                                          hintText: '0.00',
+                                          border: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(8),
+                                            borderSide: BorderSide(color: Colors.grey[300]!),
+                                          ),
+                                          focusedBorder: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(8),
+                                            borderSide: BorderSide(color: Colors.blue[600]!),
+                                          ),
+                                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                        ),
+                                        validator: (value) {
+                                          if (value == null || value.trim().isEmpty) {
+                                            return 'Enter price';
+                                          }
+                                          final price = double.tryParse(value);
+                                          if (price == null || price <= 0) {
+                                            return 'Enter valid price';
+                                          }
+                                          return null;
+                                        },
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                        
-                        const SizedBox(width: 12),
-                        
-                        // Category
-                        Expanded(
-                          child: Card(
-                            elevation: 2,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Category',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.grey[800],
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  DropdownButtonFormField<String>(
-                                    value: _selectedCategory,
-                                    decoration: InputDecoration(
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: BorderSide(color: Colors.grey[300]!),
-                                      ),
-                                      focusedBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: BorderSide(color: Colors.blue[600]!),
+                          
+                          const SizedBox(width: 12),
+                          
+                          // Category
+                          Expanded(
+                            child: Card(
+                              elevation: 2,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      'Category',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.grey[800],
                                       ),
                                     ),
-                                    items: _categories.map((category) {
-                                      return DropdownMenuItem(
-                                        value: category,
-                                        child: Text(category.toUpperCase()),
-                                      );
-                                    }).toList(),
-                                    onChanged: (value) {
-                                      setState(() {
-                                        _selectedCategory = value!;
-                                      });
-                                    },
-                                  ),
-                                ],
+                                    const SizedBox(height: 8),
+                                    Flexible(
+                                      child: DropdownButtonFormField<String>(
+                                        value: _selectedCategory,
+                                        isExpanded: true, // Prevents overflow
+                                        decoration: InputDecoration(
+                                          border: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(8),
+                                            borderSide: BorderSide(color: Colors.grey[300]!),
+                                          ),
+                                          focusedBorder: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(8),
+                                            borderSide: BorderSide(color: Colors.blue[600]!),
+                                          ),
+                                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                        ),
+                                        items: _categories.map((category) {
+                                          return DropdownMenuItem(
+                                            value: category,
+                                            child: Text(
+                                              category.toUpperCase(),
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(fontSize: 14),
+                                            ),
+                                          );
+                                        }).toList(),
+                                        onChanged: (value) {
+                                          setState(() {
+                                            _selectedCategory = value!;
+                                          });
+                                        },
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                     
                     const SizedBox(height: 16),
@@ -401,7 +582,7 @@ class _AddProductModalState extends State<AddProductModal> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Unit Cost Estimate (\$) - Optional',
+                              'Unit Cost Estimate (₱) - Optional',
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
@@ -879,7 +1060,7 @@ class _AddProductModalState extends State<AddProductModal> {
                                             child: TextFormField(
                                               initialValue: variant.unitCostEstimate?.toString() ?? '',
                                               decoration: const InputDecoration(
-                                                labelText: 'Unit Cost (Optional)',
+                                                labelText: 'Unit Cost (₱) - Optional',
                                                 border: OutlineInputBorder(),
                                               ),
                                               keyboardType: TextInputType.numberWithOptions(decimal: true),

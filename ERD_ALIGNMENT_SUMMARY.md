@@ -30,11 +30,10 @@
 ## ✅ Models Aligned with ERDv7
 
 ### Core Product Models
-- **`Product`** (`lib/models/product.dart`) - 🟡 **Mostly Compliant**
-  - ✅ **ERDv7 Fields Present**: `productID` (id), `name`, `price`, `category`, `isUpcycled`, `isMade`, `createdAt`, `updatedAt`, `deletedAt`, `description`
-  - ❌ **Missing ERDv7 Field**: `notes` (String) - for product-specific notes separate from description
+- **`Product`** (`lib/models/product.dart`) - ✅ **Fully Compliant**
+  - ✅ **ERDv7 Fields Present**: `productID` (id), `name`, `price`, `category`, `isUpcycled`, `isMade`, `createdAt`, `updatedAt`, `deletedAt`, `description`, `notes`
   - 🟡 **Legacy Field**: `unitCostEstimate` (not in ERDv7, currently used in frontend)
-  - 🔄 **Action Required**: Add `notes` field, consider removing `unitCostEstimate` after frontend migration
+  - 🔄 **Action Required**: Consider removing `unitCostEstimate` after frontend migration
 
 - **`ProductVariant`** (`lib/models/product_variant.dart`) - 🟡 **Mostly Compliant**
   - ✅ **ERDv7 Fields Present**: `variantID` (id), `productID`, `size`, `color`, `quantityInStock`

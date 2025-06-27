@@ -2,6 +2,7 @@ class Product {
   final String id; // Maps to productID in ERDv7
   final String name;
   final String? description; // For additional product details, notes, supplier info
+  final String? notes; // ERDv7 field for product-specific notes
   final double price;
   final double? unitCostEstimate;
   final String category;
@@ -15,6 +16,7 @@ class Product {
     required this.id,
     required this.name,
     this.description,
+    this.notes,
     required this.price,
     this.unitCostEstimate,
     required this.category,
@@ -30,6 +32,7 @@ class Product {
       id: id,
       name: data['name'] ?? '',
       description: data['description'],
+      notes: data['notes'],
       price: (data['price'] ?? 0).toDouble(),
       unitCostEstimate: data['unitCostEstimate']?.toDouble(),
       category: data['category'] ?? '',
@@ -47,6 +50,7 @@ class Product {
     return {
       'name': name,
       'description': description,
+      'notes': notes,
       'price': price,
       'unitCostEstimate': unitCostEstimate,
       'category': category,

@@ -142,7 +142,7 @@ class _FabricLogbookPageState extends State<FabricLogbookPage> {
               icon: Icons.attach_money_rounded,
               iconColor: Colors.green,
               title: 'Total Fabric\nExpense',
-              value: '\$${totalExpense.toStringAsFixed(2)}',
+              value: '₱${totalExpense.toStringAsFixed(2)}',
             ),
           ),
         ],

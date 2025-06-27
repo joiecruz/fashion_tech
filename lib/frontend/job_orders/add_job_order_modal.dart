@@ -348,7 +348,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                                     Expanded(
                                       child: TextFormField(
                                         controller: _priceController,
-                                        decoration: const InputDecoration(labelText: 'Price'),
+                                        decoration: const InputDecoration(labelText: 'Price (₱)'),
                                         keyboardType: TextInputType.number,
                                       ),
                                     ),

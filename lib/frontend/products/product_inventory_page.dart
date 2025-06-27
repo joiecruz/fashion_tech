@@ -411,7 +411,7 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
                                             icon: Icons.attach_money,
                                             iconColor: Colors.green[600]!,
                                             title: 'Potential\nValue',
-                                            value: '\$${_totalPotentialValue.toStringAsFixed(2)}',
+                                            value: '₱${_totalPotentialValue.toStringAsFixed(2)}',
                                             isLarge: true,
                                           )),
                                         ],
@@ -867,7 +867,7 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
                     Row(
                       children: [
                         Text(
-                          '\$${product['price'].toStringAsFixed(2)}',
+                          '₱${product['price'].toStringAsFixed(2)}',
                           style: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,

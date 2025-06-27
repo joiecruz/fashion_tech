@@ -209,7 +209,7 @@ class _AddFabricModalState extends State<AddFabricModal> {
                       ),
                       TextFormField(
                         controller: _expenseController,
-                        decoration: const InputDecoration(labelText: 'Expense per yard'),
+                        decoration: const InputDecoration(labelText: 'Expense per yard (₱)'),
                         keyboardType: TextInputType.number,
                       ),
                       TextFormField(
