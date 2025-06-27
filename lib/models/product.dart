@@ -1,6 +1,7 @@
 class Product {
   final String id; // Maps to productID in ERDv7
   final String name;
+  final String? description; // For additional product details, notes, supplier info
   final double price;
   final double? unitCostEstimate;
   final String category;
@@ -13,6 +14,7 @@ class Product {
   Product({
     required this.id,
     required this.name,
+    this.description,
     required this.price,
     this.unitCostEstimate,
     required this.category,
@@ -27,6 +29,7 @@ class Product {
     return Product(
       id: id,
       name: data['name'] ?? '',
+      description: data['description'],
       price: (data['price'] ?? 0).toDouble(),
       unitCostEstimate: data['unitCostEstimate']?.toDouble(),
       category: data['category'] ?? '',
@@ -43,6 +46,7 @@ class Product {
   Map<String, dynamic> toMap() {
     return {
       'name': name,
+      'description': description,
       'price': price,
       'unitCostEstimate': unitCostEstimate,
       'category': category,

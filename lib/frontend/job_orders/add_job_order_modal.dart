@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:fashion_tech/models/product_variant.dart';
+import '../../utils/utils.dart';
 
 // Temporary classes for the form to work with the current UI
 class VariantFabric {
@@ -240,43 +241,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
   }
 
   Color _parseColor(String colorValue) {
-    if (colorValue.startsWith('#') || RegExp(r'^[0-9A-Fa-f]{6,8}$').hasMatch(colorValue)) {
-      try {
-        String hex = colorValue.replaceAll('#', '');
-        if (hex.length == 6) hex = 'FF$hex';
-        return Color(int.parse(hex, radix: 16));
-      } catch (e) {
-        return Colors.grey;
-      }
-    }
-    final Map<String, Color> colorNames = {
-      'red': Colors.red,
-      'green': Colors.green,
-      'blue': Colors.blue,
-      'yellow': Colors.yellow,
-      'orange': Colors.orange,
-      'purple': Colors.purple,
-      'brown': Colors.brown,
-      'black': Colors.black,
-      'white': Colors.white,
-      'grey': Colors.grey,
-      'gray': Colors.grey,
-      'pink': Colors.pink,
-      'teal': Colors.teal,
-      'cyan': Colors.cyan,
-      'lime': Colors.lime,
-      'indigo': Colors.indigo,
-      'amber': Colors.amber,
-      'cream': const Color(0xFFFFFDD0),
-      'beige': const Color(0xFFF5F5DC),
-      'navy': const Color(0xFF000080),
-      'maroon': const Color(0xFF800000),
-      'olive': const Color(0xFF808000),
-      'silver': const Color(0xFFC0C0C0),
-      'gold': const Color(0xFFFFD700),
-    };
-    final colorName = colorValue.toLowerCase().trim();
-    return colorNames[colorName] ?? Colors.grey;
+    return ColorUtils.parseColor(colorValue);
   }
 
   @override

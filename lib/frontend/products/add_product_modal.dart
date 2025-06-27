@@ -1,6 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/product.dart';
+import '../../utils/utils.dart';
+
+// Helper class for product variant input
+class ProductVariantInput {
+  String size;
+  String color;
+  int quantityInStock;
+  double? unitCostEstimate;
+
+  ProductVariantInput({
+    required this.size,
+    required this.color,
+    required this.quantityInStock,
+    this.unitCostEstimate,
+  });
+}
 
 class AddProductModal extends StatefulWidget {
   const AddProductModal({super.key});
@@ -12,12 +28,19 @@ class AddProductModal extends StatefulWidget {
 class _AddProductModalState extends State<AddProductModal> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
+  final _descriptionController = TextEditingController();
   final _priceController = TextEditingController();
   final _unitCostController = TextEditingController();
+  final _supplierController = TextEditingController(); // New field for source/supplier
+  final _notesController = TextEditingController(); // New field for additional notes
   String _selectedCategory = 'top';
   bool _isUpcycled = false;
   bool _isMade = false;
   bool _isLoading = false;
+  DateTime? _acquisitionDate = DateTime.now(); // New field for when item was acquired
+
+  // Product Variants
+  List<ProductVariantInput> _variants = [];
 
   final List<String> _categories = [
     'top',
@@ -26,25 +49,63 @@ class _AddProductModalState extends State<AddProductModal> {
     'accessories',
   ];
 
+  final List<String> _sizeOptions = [
+    'XS', 'S', 'M', 'L', 'XL', 'XXL', 'One Size'
+  ];
+
   @override
   void dispose() {
     _nameController.dispose();
+    _descriptionController.dispose();
     _priceController.dispose();
     _unitCostController.dispose();
+    _supplierController.dispose();
+    _notesController.dispose();
     super.dispose();
   }
 
   Future<void> _saveProduct() async {
     if (!_formKey.currentState!.validate()) return;
+    
+    if (_variants.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please add at least one product variant')),
+      );
+      return;
+    }
 
     setState(() {
       _isLoading = true;
     });
 
     try {
+      // Create consolidated description including all additional details
+      String consolidatedDescription = _descriptionController.text.trim();
+      
+      // Add supplier info if provided
+      if (_supplierController.text.trim().isNotEmpty) {
+        if (consolidatedDescription.isNotEmpty) consolidatedDescription += '\n\n';
+        consolidatedDescription += 'Supplier/Source: ${_supplierController.text.trim()}';
+      }
+      
+      // Add acquisition date if provided
+      if (_acquisitionDate != null) {
+        if (consolidatedDescription.isNotEmpty) consolidatedDescription += '\n';
+        consolidatedDescription += 'Acquired: ${_acquisitionDate!.day}/${_acquisitionDate!.month}/${_acquisitionDate!.year}';
+      }
+      
+      // Add additional notes if provided
+      if (_notesController.text.trim().isNotEmpty) {
+        if (consolidatedDescription.isNotEmpty) consolidatedDescription += '\n\n';
+        consolidatedDescription += 'Notes: ${_notesController.text.trim()}';
+      }
+
+      // Create the product first
+      final productRef = FirebaseFirestore.instance.collection('products').doc();
       final product = Product(
-        id: '', // Firestore will generate this and map to productID
+        id: productRef.id,
         name: _nameController.text.trim(),
+        description: consolidatedDescription.isNotEmpty ? consolidatedDescription : null,
         price: double.parse(_priceController.text),
         unitCostEstimate: _unitCostController.text.isNotEmpty 
             ? double.parse(_unitCostController.text) 
@@ -57,14 +118,25 @@ class _AddProductModalState extends State<AddProductModal> {
         // deletedAt is null for new products (not deleted)
       );
 
-      await FirebaseFirestore.instance
-          .collection('products')
-          .add(product.toMap());
+      await productRef.set(product.toMap());
+
+      // Create product variants
+      for (final variant in _variants) {
+        await FirebaseFirestore.instance
+            .collection('productvariants')
+            .add({
+          'productID': productRef.id,
+          'size': variant.size,
+          'color': variant.color,
+          'quantityInStock': variant.quantityInStock,
+          'unitCostEstimate': variant.unitCostEstimate,
+        });
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Product added successfully!'),
+            content: Text('Product and variants added successfully!'),
             backgroundColor: Colors.green,
           ),
         );
@@ -155,6 +227,48 @@ class _AddProductModalState extends State<AddProductModal> {
                                 }
                                 return null;
                               },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    
+                    const SizedBox(height: 16),
+                    
+                    // Product Description (Optional)
+                    Card(
+                      elevation: 2,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Description (Optional)',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey[800],
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            TextFormField(
+                              controller: _descriptionController,
+                              maxLines: 3,
+                              decoration: InputDecoration(
+                                hintText: 'Enter product description, notes, or details...',
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: BorderSide(color: Colors.grey[300]!),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: BorderSide(color: Colors.blue[600]!),
+                                ),
+                              ),
                             ),
                           ],
                         ),
@@ -326,6 +440,162 @@ class _AddProductModalState extends State<AddProductModal> {
                     
                     const SizedBox(height: 16),
                     
+                    // Supplier/Source (Optional)
+                    Card(
+                      elevation: 2,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Supplier/Source - Optional',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey[800],
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            TextFormField(
+                              controller: _supplierController,
+                              decoration: InputDecoration(
+                                hintText: 'Enter supplier name or source',
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: BorderSide(color: Colors.grey[300]!),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: BorderSide(color: Colors.blue[600]!),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    
+                    const SizedBox(height: 16),
+                    
+                    // Acquisition Date
+                    Card(
+                      elevation: 2,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Acquisition Date',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey[800],
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            InkWell(
+                              onTap: () async {
+                                final selectedDate = await showDatePicker(
+                                  context: context,
+                                  initialDate: _acquisitionDate!,
+                                  firstDate: DateTime(2000),
+                                  lastDate: DateTime.now(),
+                                  builder: (context, child) {
+                                    return Theme(
+                                      data: Theme.of(context).copyWith(
+                                        colorScheme: ColorScheme.light(primary: Colors.blue[600]!),
+                                      ),
+                                      child: child!,
+                                    );
+                                  },
+                                );
+                                if (selectedDate != null) {
+                                  setState(() {
+                                    _acquisitionDate = selectedDate;
+                                  });
+                                }
+                              },
+                              child: Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: Colors.grey[300]!),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.calendar_today, size: 20, color: Colors.grey[600]),
+                                    const SizedBox(width: 12),
+                                    Text(
+                                      _acquisitionDate != null 
+                                          ? '${_acquisitionDate!.day}/${_acquisitionDate!.month}/${_acquisitionDate!.year}'
+                                          : 'Select date',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        color: _acquisitionDate != null ? Colors.black87 : Colors.grey[600],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    
+                    const SizedBox(height: 16),
+                    
+                    // Additional Notes
+                    Card(
+                      elevation: 2,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Additional Notes - Optional',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey[800],
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            TextFormField(
+                              controller: _notesController,
+                              maxLines: 3,
+                              decoration: InputDecoration(
+                                hintText: 'Any additional notes, purchase details, condition, etc.',
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: BorderSide(color: Colors.grey[300]!),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: BorderSide(color: Colors.blue[600]!),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    
+                    const SizedBox(height: 16),
+                    
                     // Product Properties
                     Card(
                       elevation: 2,
@@ -432,6 +702,201 @@ class _AddProductModalState extends State<AddProductModal> {
                                 ),
                               ],
                             ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    
+                    const SizedBox(height: 16),
+                    
+                    // Product Variants Section
+                    Card(
+                      elevation: 2,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  'Product Variants',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.grey[800],
+                                  ),
+                                ),
+                                const Spacer(),
+                                TextButton.icon(
+                                  onPressed: () {
+                                    setState(() {
+                                      _variants.add(ProductVariantInput(
+                                        size: _sizeOptions.first,
+                                        color: ColorUtils.colorOptions.first,
+                                        quantityInStock: 0,
+                                      ));
+                                    });
+                                  },
+                                  icon: const Icon(Icons.add, size: 18),
+                                  label: const Text('Add Variant'),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            if (_variants.isEmpty)
+                              Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[100],
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: Colors.grey[300]!),
+                                ),
+                                child: const Center(
+                                  child: Text(
+                                    'No variants added yet.\nAdd variants to specify size, color, and stock quantities.',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(color: Colors.grey),
+                                  ),
+                                ),
+                              )
+                            else
+                              ..._variants.asMap().entries.map((entry) {
+                                final index = entry.key;
+                                final variant = entry.value;
+                                return Container(
+                                  margin: const EdgeInsets.only(bottom: 12),
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.blue[50],
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: Colors.blue[200]!),
+                                  ),
+                                  child: Column(
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Text(
+                                            'Variant ${index + 1}',
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 14,
+                                            ),
+                                          ),
+                                          const Spacer(),
+                                          IconButton(
+                                            icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                                            onPressed: () {
+                                              setState(() {
+                                                _variants.removeAt(index);
+                                              });
+                                            },
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Row(
+                                        children: [
+                                          // Size Dropdown
+                                          Expanded(
+                                            child: DropdownButtonFormField<String>(
+                                              value: variant.size,
+                                              decoration: const InputDecoration(
+                                                labelText: 'Size',
+                                                border: OutlineInputBorder(),
+                                              ),
+                                              items: _sizeOptions.map((size) {
+                                                return DropdownMenuItem(
+                                                  value: size,
+                                                  child: Text(size),
+                                                );
+                                              }).toList(),
+                                              onChanged: (value) {
+                                                setState(() {
+                                                  _variants[index].size = value!;
+                                                });
+                                              },
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          // Color Dropdown
+                                          Expanded(
+                                            child: DropdownButtonFormField<String>(
+                                              value: variant.color,
+                                              decoration: const InputDecoration(
+                                                labelText: 'Color',
+                                                border: OutlineInputBorder(),
+                                              ),
+                                              selectedItemBuilder: (context) {
+                                                return ColorUtils.buildColorSelectedItems(context, size: 16);
+                                              },
+                                              items: ColorUtils.buildColorDropdownItems(),
+                                              onChanged: (value) {
+                                                setState(() {
+                                                  _variants[index].color = value!;
+                                                });
+                                              },
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Row(
+                                        children: [
+                                          // Quantity
+                                          Expanded(
+                                            child: TextFormField(
+                                              initialValue: variant.quantityInStock.toString(),
+                                              decoration: const InputDecoration(
+                                                labelText: 'Quantity in Stock',
+                                                border: OutlineInputBorder(),
+                                              ),
+                                              keyboardType: TextInputType.number,
+                                              validator: (value) {
+                                                if (value == null || value.trim().isEmpty) {
+                                                  return 'Required';
+                                                }
+                                                final qty = int.tryParse(value);
+                                                if (qty == null || qty < 0) {
+                                                  return 'Valid qty';
+                                                }
+                                                return null;
+                                              },
+                                              onChanged: (value) {
+                                                final qty = int.tryParse(value) ?? 0;
+                                                setState(() {
+                                                  _variants[index].quantityInStock = qty;
+                                                });
+                                              },
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          // Unit Cost (Optional)
+                                          Expanded(
+                                            child: TextFormField(
+                                              initialValue: variant.unitCostEstimate?.toString() ?? '',
+                                              decoration: const InputDecoration(
+                                                labelText: 'Unit Cost (Optional)',
+                                                border: OutlineInputBorder(),
+                                              ),
+                                              keyboardType: TextInputType.numberWithOptions(decimal: true),
+                                              onChanged: (value) {
+                                                final cost = value.isEmpty ? null : double.tryParse(value);
+                                                setState(() {
+                                                  _variants[index].unitCostEstimate = cost;
+                                                });
+                                              },
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }).toList(),
                           ],
                         ),
                       ),
