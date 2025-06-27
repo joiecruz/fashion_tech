@@ -43,7 +43,7 @@ class _AddProductModalState extends State<AddProductModal> {
 
     try {
       final product = Product(
-        id: '', // Firestore will generate this
+        id: '', // Firestore will generate this and map to productID
         name: _nameController.text.trim(),
         price: double.parse(_priceController.text),
         unitCostEstimate: _unitCostController.text.isNotEmpty 
@@ -54,6 +54,7 @@ class _AddProductModalState extends State<AddProductModal> {
         isMade: _isMade,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
+        // deletedAt is null for new products (not deleted)
       );
 
       await FirebaseFirestore.instance

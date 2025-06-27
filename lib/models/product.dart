@@ -1,5 +1,5 @@
 class Product {
-  final String id;
+  final String id; // Maps to productID in ERDv7
   final String name;
   final double price;
   final double? unitCostEstimate;
@@ -8,6 +8,7 @@ class Product {
   final bool isMade;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final DateTime? deletedAt; // New field for soft delete in ERDv7
 
   Product({
     required this.id,
@@ -19,6 +20,7 @@ class Product {
     required this.isMade,
     required this.createdAt,
     required this.updatedAt,
+    this.deletedAt,
   });
 
   factory Product.fromMap(String id, Map<String, dynamic> data) {
@@ -32,6 +34,9 @@ class Product {
       isMade: data['isMade'] ?? false,
       createdAt: data['createdAt'] is DateTime ? data['createdAt'] : DateTime.tryParse(data['createdAt'].toString()) ?? DateTime.now(),
       updatedAt: data['updatedAt'] is DateTime ? data['updatedAt'] : DateTime.tryParse(data['updatedAt'].toString()) ?? DateTime.now(),
+      deletedAt: data['deletedAt'] != null 
+          ? (data['deletedAt'] is DateTime ? data['deletedAt'] : DateTime.tryParse(data['deletedAt'].toString())) 
+          : null,
     );
   }
 
@@ -45,6 +50,7 @@ class Product {
       'isMade': isMade,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
+      'deletedAt': deletedAt?.toIso8601String(),
     };
   }
 }

@@ -129,9 +129,10 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
     });
 
     try {
-      // Fetch products from Firestore using ERD schema
+      // Fetch products from Firestore using ERDv7 schema (exclude soft-deleted products)
       final productsSnapshot = await FirebaseFirestore.instance
           .collection('products')
+          .where('deletedAt', isNull: true) // Exclude soft-deleted products
           .orderBy('updatedAt', descending: true)
           .get();
 
