@@ -29,6 +29,8 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
     {
       'productID': '1',
       'name': 'Denim Jacket Classic Fit',
+      'description': 'Vintage-style denim jacket with classic fit and sustainable materials',
+      'notes': 'Hand-distressed finish, limited edition',
       'category': 'outerwear',
       'price': 75.00,
       'unitCostEstimate': 35.00,
@@ -46,6 +48,8 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
     {
       'productID': '2',
       'name': 'Silk Scarf Artisan',
+      'description': 'Hand-painted silk scarf with unique artisan design',
+      'notes': 'Each piece is unique, slight variations expected',
       'category': 'accessories',
       'price': 25.50,
       'unitCostEstimate': 12.00,
@@ -63,6 +67,8 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
     {
       'productID': '3',
       'name': 'Linen Trousers Slim Fit',
+      'description': 'Sustainable linen trousers with eco-friendly dyeing process',
+      'notes': 'Pre-washed to prevent shrinkage, runs large',
       'category': 'bottom',
       'price': 60.00,
       'unitCostEstimate': 28.00,
@@ -80,6 +86,8 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
     {
       'productID': '4',
       'name': 'Classic Cotton Tee',
+      'description': 'Organic cotton t-shirt with soft finish and durable construction',
+      'notes': 'Available in multiple colors, high-quality print',
       'category': 'top',
       'price': 20.00,
       'unitCostEstimate': 8.00,
@@ -189,6 +197,8 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
         products.add({
           'productID': productDoc.id,
           'name': productData['name'] ?? 'Unknown Product',
+          'description': productData['description'],
+          'notes': productData['notes'],
           'category': productData['category'] ?? 'Uncategorized',
           'price': price,
           'unitCostEstimate': (productData['unitCostEstimate'] ?? 0.0).toDouble(),
@@ -505,13 +515,13 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
                         
                         // Product List
                         SliverPadding(
-                          padding: const EdgeInsets.all(20),
+                          padding: const EdgeInsets.fromLTRB(20, 20, 20, 100), // Added bottom padding
                           sliver: SliverList(
                             delegate: SliverChildBuilderDelegate(
                               (context, index) {
                                 final product = _filteredProducts[index];
                                 return Padding(
-                                  padding: EdgeInsets.only(bottom: index < _filteredProducts.length - 1 ? 16 : 0),
+                                  padding: const EdgeInsets.only(bottom: 16),
                                   child: _buildProductCard(product, index),
                                 );
                               },
@@ -806,58 +816,118 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
                               Row(
                                 children: [
                                   Expanded(
-                                    child: Text(
-                                      product['name'],
-                                      style: const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
-                                        color: Colors.black87,
-                                      ),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          product['name'],
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.black87,
+                                          ),
+                                        ),
+                                        Text(
+                                          '${product['category'].toString().toUpperCase()}',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            color: Colors.grey[600],
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                  if (product['isUpcycled'])
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: Colors.green[100],
-                                        borderRadius: BorderRadius.circular(12),
+                                  // Status labels section in upper right corner
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          if (product['isUpcycled'])
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                              decoration: BoxDecoration(
+                                                color: Colors.green[100],
+                                                borderRadius: BorderRadius.circular(12),
+                                              ),
+                                              child: Text(
+                                                'Upcycled',
+                                                style: TextStyle(
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: Colors.green[700],
+                                                ),
+                                              ),
+                                            ),
+                                          if (product['isMade'] == true)
+                                            Container(
+                                              margin: EdgeInsets.only(left: product['isUpcycled'] ? 4 : 0),
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                              decoration: BoxDecoration(
+                                                color: Colors.blue[100],
+                                                borderRadius: BorderRadius.circular(12),
+                                              ),
+                                              child: Text(
+                                                'Made',
+                                                style: TextStyle(
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: Colors.blue[700],
+                                                ),
+                                              ),
+                                            ),
+                                        ],
                                       ),
-                                      child: Text(
-                                        'Upcycled',
-                                        style: TextStyle(
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w600,
-                                          color: Colors.green[700],
+                                      if (product['lowStock']) ...[
+                                        const SizedBox(height: 4),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: Colors.red[50],
+                                            borderRadius: BorderRadius.circular(12),
+                                            border: Border.all(color: Colors.red[200]!),
+                                          ),
+                                          child: Text(
+                                            'Low Stock',
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w600,
+                                              color: Colors.red[700],
+                                            ),
+                                          ),
                                         ),
-                                      ),
-                                    ),
-                                  if (product['isMade'] == true)
-                                    Container(
-                                      margin: EdgeInsets.only(left: product['isUpcycled'] ? 8 : 0),
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: Colors.blue[100],
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: Text(
-                                        'Made',
-                                        style: TextStyle(
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w600,
-                                          color: Colors.blue[700],
-                                        ),
-                                      ),
-                                    ),
+                                      ],
+                                    ],
+                                  ),
                                 ],
                               ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '${product['category'].toString().toUpperCase()}',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.grey[600],
+                              // Show description or notes if available
+                              if (product['description'] != null && product['description'].toString().trim().isNotEmpty) ...[
+                                const SizedBox(height: 6),
+                                Text(
+                                  product['description'].toString().length > 60 
+                                      ? '${product['description'].toString().substring(0, 60)}...'
+                                      : product['description'].toString(),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[700],
+                                    fontStyle: FontStyle.italic,
+                                  ),
                                 ),
-                              ),
+                              ] else if (product['notes'] != null && product['notes'].toString().trim().isNotEmpty) ...[
+                                const SizedBox(height: 6),
+                                Text(
+                                  product['notes'].toString().length > 60 
+                                      ? '${product['notes'].toString().substring(0, 60)}...'
+                                      : product['notes'].toString(),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[700],
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         ),
@@ -866,35 +936,55 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
                     const SizedBox(height: 16),
                     Row(
                       children: [
-                        Text(
-                          '₱${product['price'].toStringAsFixed(2)}',
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black87,
-                          ),
-                        ),
-                        const Spacer(),
-                        if (product['lowStock'])
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: Colors.red[50],
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.red[200]!),
-                            ),
-                            child: Text(
-                              'Low Stock',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.red[700],
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '₱${product['price'].toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
                               ),
                             ),
+                            if (product['unitCostEstimate'] != null && product['unitCostEstimate'] > 0) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                'Cost: ₱${product['unitCostEstimate'].toStringAsFixed(2)}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.blue[50],
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.blue[200]!),
                           ),
+                          child: Text(
+                            'Stock: ${product['stock']}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.blue[700],
+                            ),
+                          ),
+                        ),
                       ],
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 12),
+                    Container(
+                      height: 1,
+                      width: double.infinity,
+                      color: Colors.grey[200],
+                    ),
+                    const SizedBox(height: 12),
                     if (product['variants'] != null && product['variants'].isNotEmpty)
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -952,6 +1042,12 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
                           fontStyle: FontStyle.italic,
                         ),
                       ),
+                    const SizedBox(height: 12),
+                    Container(
+                      height: 1,
+                      width: double.infinity,
+                      color: Colors.grey[200],
+                    ),
                     const SizedBox(height: 16),
                     Row(
                       children: [
