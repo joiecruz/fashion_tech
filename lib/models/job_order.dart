@@ -1,69 +1,93 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'job_order_detail.dart';
+
+enum JobOrderStatus { open, inProgress, done }
 
 class JobOrder {
   final String id;
   final String productID;
-  final String fabricID;
   final int quantity;
-  final String status;
+  final String customerName;
+  final JobOrderStatus status;
+  final DateTime dueDate;
+  final String? acceptedBy;
+  final String? assignedTo;
+  final String createdBy;
   final DateTime createdAt;
   final DateTime updatedAt;
-  final DateTime dueDate;
-  final String acceptedBy;
-  final String assignedTo;
-  final List<JobOrderDetail> details;
 
   JobOrder({
     required this.id,
     required this.productID,
-    required this.fabricID,
     required this.quantity,
+    required this.customerName,
     required this.status,
+    required this.dueDate,
+    this.acceptedBy,
+    this.assignedTo,
+    required this.createdBy,
     required this.createdAt,
     required this.updatedAt,
-    required this.dueDate,
-    required this.acceptedBy,
-    required this.assignedTo,
-    required this.details,
   });
 
   factory JobOrder.fromMap(String id, Map<String, dynamic> data) {
     return JobOrder(
       id: id,
       productID: data['productID'] ?? '',
-      fabricID: data['fabricID'] ?? '',
       quantity: data['quantity'] ?? 0,
-      status: data['status'] ?? '',
+      customerName: data['customerName'] ?? '',
+      status: _statusFromString(data['status'] ?? 'open'),
+      dueDate: (data['dueDate'] is Timestamp)
+          ? (data['dueDate'] as Timestamp).toDate()
+          : DateTime.tryParse(data['dueDate'].toString()) ?? DateTime.now(),
+      acceptedBy: data['acceptedBy'],
+      assignedTo: data['assignedTo'],
+      createdBy: data['createdBy'] ?? '',
       createdAt: (data['createdAt'] is Timestamp)
           ? (data['createdAt'] as Timestamp).toDate()
           : DateTime.tryParse(data['createdAt'].toString()) ?? DateTime.now(),
       updatedAt: (data['updatedAt'] is Timestamp)
           ? (data['updatedAt'] as Timestamp).toDate()
           : DateTime.tryParse(data['updatedAt'].toString()) ?? DateTime.now(),
-      dueDate: (data['dueDate'] is Timestamp)
-          ? (data['dueDate'] as Timestamp).toDate()
-          : DateTime.tryParse(data['dueDate'].toString()) ?? DateTime.now(),
-      acceptedBy: data['acceptedBy'] ?? '',
-      assignedTo: data['assignedTo'] ?? '',
-      details: (data['details'] as List<dynamic>? ?? [])
-          .map((d) => JobOrderDetail.fromMap('', d as Map<String, dynamic>))
-          .toList(),
     );
   }
 
   Map<String, dynamic> toMap() {
     return {
       'productID': productID,
-      'fabricID': fabricID,
       'quantity': quantity,
-      'status': status,
-      'createdAt': createdAt,
-      'updatedAt': updatedAt,
+      'customerName': customerName,
+      'status': _statusToString(status),
       'dueDate': dueDate,
       'acceptedBy': acceptedBy,
       'assignedTo': assignedTo,
-      'details': details.map((d) => d.toMap()).toList(),
+      'createdBy': createdBy,
+      'createdAt': createdAt,
+      'updatedAt': updatedAt,
     };
+  }
+
+  static JobOrderStatus _statusFromString(String status) {
+    switch (status.toLowerCase()) {
+      case 'open':
+        return JobOrderStatus.open;
+      case 'inprogress':
+      case 'in progress':
+        return JobOrderStatus.inProgress;
+      case 'done':
+        return JobOrderStatus.done;
+      default:
+        return JobOrderStatus.open;
+    }
+  }
+
+  static String _statusToString(JobOrderStatus status) {
+    switch (status) {
+      case JobOrderStatus.open:
+        return 'Open';
+      case JobOrderStatus.inProgress:
+        return 'In Progress';
+      case JobOrderStatus.done:
+        return 'Done';
+    }
   }
 }

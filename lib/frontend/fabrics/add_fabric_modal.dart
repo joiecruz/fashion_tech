@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:io';
+import '../../utils/utils.dart';
 
 class AddFabricModal extends StatefulWidget {
   const AddFabricModal({super.key});
@@ -15,12 +16,11 @@ class _AddFabricModalState extends State<AddFabricModal> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _typeController = TextEditingController();
-  final TextEditingController _colorController = TextEditingController();
+  String _selectedColor = ColorUtils.colorOptions.first; // Changed from controller to dropdown
   final TextEditingController _quantityController = TextEditingController();
   final TextEditingController _expenseController = TextEditingController();
   final TextEditingController _qualityController = TextEditingController();
 
-  bool _isUpcycled = false;
   File? _swatchImage;
   String? _swatchImageUrl;
   bool _uploading = false;
@@ -69,12 +69,11 @@ class _AddFabricModalState extends State<AddFabricModal> {
       await FirebaseFirestore.instance.collection('fabrics').add({
         'name': _nameController.text,
         'type': _typeController.text,
-        'color': _colorController.text,
+        'color': _selectedColor,
         'quantity': int.tryParse(_quantityController.text) ?? 0,
         'expensePerYard': double.tryParse(_expenseController.text) ?? 0.0,
         'qualityGrade': _qualityController.text,
         'swatchImageURL': _swatchImageUrl,
-        'isUpcycled': _isUpcycled,
         'createdAt': Timestamp.now(),
         'updatedAt': Timestamp.now(),
       });
@@ -190,9 +189,18 @@ class _AddFabricModalState extends State<AddFabricModal> {
                         controller: _typeController,
                         decoration: const InputDecoration(labelText: 'Fabric Type'),
                       ),
-                      TextFormField(
-                        controller: _colorController,
+                      DropdownButtonFormField<String>(
+                        value: _selectedColor,
                         decoration: const InputDecoration(labelText: 'Color'),
+                        selectedItemBuilder: (context) {
+                          return ColorUtils.buildColorSelectedItems(context, size: 16);
+                        },
+                        items: ColorUtils.buildColorDropdownItems(),
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedColor = value!;
+                          });
+                        },
                       ),
                       TextFormField(
                         controller: _quantityController,
@@ -201,17 +209,12 @@ class _AddFabricModalState extends State<AddFabricModal> {
                       ),
                       TextFormField(
                         controller: _expenseController,
-                        decoration: const InputDecoration(labelText: 'Expense per yard'),
+                        decoration: const InputDecoration(labelText: 'Expense per yard (₱)'),
                         keyboardType: TextInputType.number,
                       ),
                       TextFormField(
                         controller: _qualityController,
                         decoration: const InputDecoration(labelText: 'Quality Grade'),
-                      ),
-                      SwitchListTile(
-                        value: _isUpcycled,
-                        onChanged: (val) => setState(() => _isUpcycled = val),
-                        title: const Text('Is Upcycled?'),
                       ),
                       const SizedBox(height: 16),
                       ElevatedButton(

@@ -26,24 +26,32 @@ class _JobOrderListPageState extends State<JobOrderListPage> {
   }
 
   Future<void> _preloadData() async {
+    print('DEBUG: Starting to preload data...');
+    
     // Fetch all users
     final usersSnap = await FirebaseFirestore.instance.collection('users').get();
+    print('DEBUG: Found ${usersSnap.docs.length} users');
     userNames = {
       for (var doc in usersSnap.docs)
-        doc.id: (doc.data()['fullName'] ?? '') as String
+        doc.id: '${(doc.data()['firstName'] ?? '')} ${(doc.data()['lastName'] ?? '')}'.trim()
     };
 
     // Fetch all products
     final productsSnap = await FirebaseFirestore.instance.collection('products').get();
+    print('DEBUG: Found ${productsSnap.docs.length} products');
     productNames = {
       for (var doc in productsSnap.docs)
         doc.id: (doc.data()['name'] ?? '') as String
     };
+
+    // Note: Quantity is now in productvariants, not products
+    // For now, we'll set product quantities to 0 and get actual quantities from job order details
     productQuantities = {
       for (var doc in productsSnap.docs)
-        doc.id: (doc.data()['quantity'] ?? 0) as int
+        doc.id: 0
     };
 
+    print('DEBUG: Data preloaded successfully');
     setState(() {
       _dataLoaded = true;
     });
@@ -138,14 +146,33 @@ class _JobOrderListPageState extends State<JobOrderListPage> {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Center(child: CircularProgressIndicator());
                     }
-                    if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                    
+                    if (snapshot.hasError) {
+                      return Center(child: Text('Error: ${snapshot.error}'));
+                    }
+                    
+                    if (!snapshot.hasData) {
+                      return const Center(child: Text('No data received from Firestore.'));
+                    }
+                    
+                    print('DEBUG: Total documents in joborders collection: ${snapshot.data!.docs.length}');
+                    
+                    if (snapshot.data!.docs.isEmpty) {
                       return const Center(child: Text('No job orders found.'));
                     }
+                    
                     var jobOrders = snapshot.data!.docs;
+                    
+                    // Debug: Print first few documents
+                    if (jobOrders.isNotEmpty) {
+                      print('DEBUG: First job order data: ${jobOrders.first.data()}');
+                    }
+                    
                     if (_selectedStatus != 'All') {
                       jobOrders = jobOrders.where((doc) =>
                         (doc.data() as Map<String, dynamic>)['status'] == _selectedStatus
                       ).toList();
+                      print('DEBUG: After status filter ($_selectedStatus): ${jobOrders.length} documents');
                     }
 
                     return ListView.builder(
@@ -158,15 +185,16 @@ class _JobOrderListPageState extends State<JobOrderListPage> {
                         final createdAt = (data['createdAt'] as Timestamp?)?.toDate();
                         final dueDate = (data['dueDate'] as Timestamp?)?.toDate();
                         final assignedTo = data['assignedTo'] ?? '';
+                        final customerName = data['customerName'] ?? '';
+                        final jobOrderQuantity = data['quantity'] ?? 0; // Get quantity from job order
 
                         final overdue = dueDate != null && dueDate.isBefore(DateTime.now())
                             ? 'Overdue (${DateTime.now().difference(dueDate).inDays} days)'
                             : null;
 
                         // Get names from cache
-                        final productName = productNames[productID] ?? '';
-                        final assignedToName = userNames[assignedTo] ?? '';
-                        final productQuantity = productQuantities[productID] ?? 0;
+                        final productName = productNames[productID] ?? 'Unknown Product';
+                        final assignedToName = userNames[assignedTo] ?? assignedTo;
 
                         // --- SEARCH FILTER: Only show if matches search query ---
                         if (_searchQuery.isNotEmpty) {
@@ -174,7 +202,8 @@ class _JobOrderListPageState extends State<JobOrderListPage> {
                           final matchesProductName = productName.toLowerCase().contains(searchLower);
                           final matchesProductID = productID.toString().toLowerCase().contains(searchLower);
                           final matchesAssignedTo = assignedToName.toLowerCase().contains(searchLower);
-                          if (!(matchesProductName || matchesProductID || matchesAssignedTo)) {
+                          final matchesCustomer = customerName.toLowerCase().contains(searchLower);
+                          if (!(matchesProductName || matchesProductID || matchesAssignedTo || matchesCustomer)) {
                             return const SizedBox.shrink();
                           }
                         }
@@ -211,7 +240,8 @@ class _JobOrderListPageState extends State<JobOrderListPage> {
                                     const SizedBox(width: 8),
                                     Expanded(
                                       child: Text(
-                                        assignedToName.isNotEmpty ? 'Assigned to: $assignedToName' : '',
+                                        customerName.isNotEmpty ? 'Customer: $customerName' : 
+                                        (assignedToName.isNotEmpty ? 'Assigned to: $assignedToName' : ''),
                                         style: const TextStyle(color: Colors.black54),
                                       ),
                                     ),
@@ -272,7 +302,7 @@ class _JobOrderListPageState extends State<JobOrderListPage> {
                                       ),
                                     ),
                                     const SizedBox(width: 16),
-                                    Text('Qty: $productQuantity', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                    Text('Qty: $jobOrderQuantity', style: const TextStyle(fontWeight: FontWeight.bold)),
                                     const Spacer(),
                                     OutlinedButton(
                                       onPressed: () {

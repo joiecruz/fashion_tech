@@ -1,7 +1,42 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:fashion_tech/models/product_variant.dart';
-import 'package:fashion_tech/models/variant_fabric.dart';
+import '../../utils/utils.dart';
+
+// Temporary classes for the form to work with the current UI
+class VariantFabric {
+  String fabricId;
+  String fabricName;
+  double yardsRequired;
+  
+  VariantFabric({
+    required this.fabricId,
+    required this.fabricName,
+    required this.yardsRequired,
+  });
+}
+
+// Extended ProductVariant for form use
+class FormProductVariant extends ProductVariant {
+  List<VariantFabric> fabrics;
+  
+  FormProductVariant({
+    required String id,
+    required String productID,
+    required String size,
+    required String color,
+    required int quantityInStock,
+    double? unitCostEstimate,
+    required this.fabrics,
+  }) : super(
+    id: id,
+    productID: productID,
+    size: size,
+    color: color,
+    quantityInStock: quantityInStock,
+    unitCostEstimate: unitCostEstimate,
+  );
+}
 
 // ==========================
 // AddJobOrderModal - Updated for New Schema
@@ -25,7 +60,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
   final TextEditingController _specialInstructionsController = TextEditingController();
   bool _isUpcycled = false;
   String _jobStatus = 'In Progress';
-  List<ProductVariant> _variants = [];
+  List<FormProductVariant> _variants = [];
 
   List<Map<String, dynamic>> _userFabrics = [];
   bool _loadingFabrics = true;
@@ -206,43 +241,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
   }
 
   Color _parseColor(String colorValue) {
-    if (colorValue.startsWith('#') || RegExp(r'^[0-9A-Fa-f]{6,8}$').hasMatch(colorValue)) {
-      try {
-        String hex = colorValue.replaceAll('#', '');
-        if (hex.length == 6) hex = 'FF$hex';
-        return Color(int.parse(hex, radix: 16));
-      } catch (e) {
-        return Colors.grey;
-      }
-    }
-    final Map<String, Color> colorNames = {
-      'red': Colors.red,
-      'green': Colors.green,
-      'blue': Colors.blue,
-      'yellow': Colors.yellow,
-      'orange': Colors.orange,
-      'purple': Colors.purple,
-      'brown': Colors.brown,
-      'black': Colors.black,
-      'white': Colors.white,
-      'grey': Colors.grey,
-      'gray': Colors.grey,
-      'pink': Colors.pink,
-      'teal': Colors.teal,
-      'cyan': Colors.cyan,
-      'lime': Colors.lime,
-      'indigo': Colors.indigo,
-      'amber': Colors.amber,
-      'cream': const Color(0xFFFFFDD0),
-      'beige': const Color(0xFFF5F5DC),
-      'navy': const Color(0xFF000080),
-      'maroon': const Color(0xFF800000),
-      'olive': const Color(0xFF808000),
-      'silver': const Color(0xFFC0C0C0),
-      'gold': const Color(0xFFFFD700),
-    };
-    final colorName = colorValue.toLowerCase().trim();
-    return colorNames[colorName] ?? Colors.grey;
+    return ColorUtils.parseColor(colorValue);
   }
 
   @override
@@ -349,7 +348,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                                     Expanded(
                                       child: TextFormField(
                                         controller: _priceController,
-                                        decoration: const InputDecoration(labelText: 'Price'),
+                                        decoration: const InputDecoration(labelText: 'Price (₱)'),
                                         keyboardType: TextInputType.number,
                                       ),
                                     ),
@@ -402,7 +401,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                               TextButton.icon(
                                 onPressed: () {
                                   setState(() {
-                                    _variants.add(ProductVariant(
+                                    _variants.add(FormProductVariant(
                                       id: 'temp_${DateTime.now().millisecondsSinceEpoch}',
                                       productID: 'temp_product',
                                       size: 'Small',
@@ -447,7 +446,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                               : Column(
                                   children: _variants.asMap().entries.map((entry) {
                                     int idx = entry.key;
-                                    ProductVariant variant = entry.value;
+                                    FormProductVariant variant = entry.value;
                                     final List<Color> variantColors = [
                                       Colors.blue.shade50,
                                       Colors.green.shade50,
@@ -1012,7 +1011,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                                   crossAxisAlignment: CrossAxisAlignment.end,
                                   children: _variants.asMap().entries.map((entry) {
                                     int idx = entry.key;
-                                    ProductVariant variant = entry.value;
+                                    FormProductVariant variant = entry.value;
                                     int maxQty = _variants.map((v) => v.quantity).fold(0, (a, b) => a > b ? a : b);
                                     double percent = maxQty > 0 ? (variant.quantity / maxQty) : 0;
                                     final List<Color> barColors = [
@@ -1097,7 +1096,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                               child: Row(
                                 children: _variants.asMap().entries.map((entry) {
                                   int idx = entry.key;
-                                  ProductVariant variant = entry.value;
+                                  FormProductVariant variant = entry.value;
                                   final List<Color> cardColors = [
                                     Colors.blue.shade600,
                                     Colors.green.shade600,
