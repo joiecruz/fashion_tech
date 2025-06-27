@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'login_page.dart';
+import 'signup_be.dart'; // Import your backend signup logic
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({Key? key}) : super(key: key);
@@ -63,25 +64,22 @@ class _SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateM
     setState(() => _isLoading = true);
 
     try {
-      // Create user account
-      final UserCredential userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: _emailController.text.trim(),
+      // Use the backend class for signup
+      final userCredential = await SignupBackend.registerUser(
+        username: _usernameController.text,
+        email: _emailController.text,
         password: _passwordController.text,
       );
 
-      // Update display name
-      await userCredential.user?.updateDisplayName(_usernameController.text.trim());
-
-      // Create user document in Firestore
-      await FirebaseFirestore.instance.collection('users').doc(userCredential.user?.uid).set({
-        'username': _usernameController.text.trim(),
-        'email': _emailController.text.trim(),
-        'createdAt': FieldValue.serverTimestamp(),
-        'role': 'user',
-        'isActive': true,
-      });
-      
       if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Account created successfully!'),
+            backgroundColor: Colors.green.shade400,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
         Navigator.of(context).pushReplacementNamed('/home');
       }
     } on FirebaseAuthException catch (e) {
@@ -99,7 +97,7 @@ class _SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateM
         default:
           message = e.message ?? 'Registration failed';
       }
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -161,7 +159,6 @@ class _SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateM
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const SizedBox(height: 20),
-                          
                           // Logo Section
                           Center(
                             child: Container(
@@ -190,9 +187,7 @@ class _SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateM
                               ),
                             ),
                           ),
-                          
                           const SizedBox(height: 40),
-                          
                           // Title Section
                           const Center(
                             child: Column(
@@ -218,9 +213,7 @@ class _SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateM
                               ],
                             ),
                           ),
-                          
                           const SizedBox(height: 40),
-                          
                           // Form Section
                           Form(
                             key: _formKey,
@@ -267,9 +260,7 @@ class _SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateM
                                     return null;
                                   },
                                 ),
-                                
                                 const SizedBox(height: 20),
-                                
                                 const Text(
                                   'Email Address',
                                   style: TextStyle(
@@ -311,9 +302,7 @@ class _SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateM
                                     return null;
                                   },
                                 ),
-                                
                                 const SizedBox(height: 20),
-                                
                                 const Text(
                                   'Password',
                                   style: TextStyle(
@@ -369,9 +358,7 @@ class _SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateM
                                     return null;
                                   },
                                 ),
-                                
                                 const SizedBox(height: 20),
-                                
                                 const Text(
                                   'Confirm Password',
                                   style: TextStyle(
@@ -424,9 +411,7 @@ class _SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateM
                                     return null;
                                   },
                                 ),
-                                
                                 const SizedBox(height: 40),
-                                
                                 // Register Button
                                 SizedBox(
                                   width: double.infinity,
@@ -459,9 +444,7 @@ class _SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateM
                                           ),
                                   ),
                                 ),
-                                
                                 const SizedBox(height: 32),
-                                
                                 // Login Link
                                 Center(
                                   child: Row(
@@ -494,7 +477,6 @@ class _SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateM
                                     ],
                                   ),
                                 ),
-                                
                                 const SizedBox(height: 32),
                               ],
                             ),

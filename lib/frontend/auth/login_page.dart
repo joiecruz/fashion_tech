@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'signup_page.dart';
+import 'login_be.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({Key? key}) : super(key: key);
@@ -45,12 +46,20 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
     setState(() => _isLoading = true);
 
     try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: _emailController.text.trim(),
+      await LoginBackend.signInWithEmail(
+        email: _emailController.text,
         password: _passwordController.text,
       );
-      
+
       if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Login successful!'),
+            backgroundColor: Colors.green.shade400,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
         Navigator.of(context).pushReplacementNamed('/home');
       }
     } on FirebaseAuthException catch (e) {
@@ -71,11 +80,74 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
         default:
           message = e.message ?? 'Authentication failed';
       }
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(message),
+            backgroundColor: Colors.red.shade400,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _signInWithGoogle() async {
+    setState(() => _isLoading = true);
+    try {
+      final userCredential = await LoginBackend.signInWithGoogle();
+      if (userCredential != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Login with Google successful!'),
+            backgroundColor: Colors.green.shade400,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+        Navigator.of(context).pushReplacementNamed('/home');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Google sign-in failed: $e'),
+            backgroundColor: Colors.red.shade400,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _signInWithApple() async {
+    setState(() => _isLoading = true);
+    try {
+      await LoginBackend.signInWithApple();
+      // If implemented, handle success
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Login with Apple successful!'),
+            backgroundColor: Colors.green.shade400,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+        Navigator.of(context).pushReplacementNamed('/home');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Apple sign-in not available.'),
             backgroundColor: Colors.red.shade400,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -112,13 +184,9 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                   // =============================
                   // 🚨 TEMPORARY DEV BUTTON - REMOVE BEFORE APP RELEASE 🚨
                   // =============================
-                  // This button bypasses authentication for development testing.
-                  // TODO: Remove this entire button and its functionality before publishing to production.
-                  // The home page should only be accessible after proper authentication.
                   ElevatedButton.icon(
                     onPressed: () {
-                      // Navigate back to home dashboard (bypassing auth for dev purposes)
-                      Navigator.of(context).pop(); // Go back to previous screen (likely home)
+                      Navigator.of(context).pop();
                     },
                     icon: const Icon(Icons.developer_mode, size: 18),
                     label: const Text('DEV: Home'),
@@ -150,7 +218,6 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const SizedBox(height: 30),
-                      
                       // Logo Section
                       Center(
                         child: Container(
@@ -182,9 +249,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                           ),
                         ),
                       ),
-                      
                       const SizedBox(height: 40),
-                      
                       // Title Section
                       const Center(
                         child: Column(
@@ -218,9 +283,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                           ],
                         ),
                       ),
-                      
                       const SizedBox(height: 50),
-                      
                       // Form Section
                       Form(
                         key: _formKey,
@@ -268,9 +331,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                                 return null;
                               },
                             ),
-                            
                             const SizedBox(height: 24),
-                            
                             const Text(
                               'Password',
                               style: TextStyle(
@@ -323,9 +384,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                                 return null;
                               },
                             ),
-                            
                             const SizedBox(height: 16),
-                            
                             // Forgot Password
                             Align(
                               alignment: Alignment.centerRight,
@@ -342,9 +401,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                                 ),
                               ),
                             ),
-                            
                             const SizedBox(height: 32),
-                            
                             // Login Button
                             SizedBox(
                               width: double.infinity,
@@ -377,9 +434,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                                       ),
                               ),
                             ),
-                            
                             const SizedBox(height: 32),
-                            
                             // Divider
                             Row(
                               children: [
@@ -401,17 +456,13 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                                 ),
                               ],
                             ),
-                            
                             const SizedBox(height: 32),
-                            
                             // Social Login Buttons
                             SizedBox(
                               width: double.infinity,
                               height: 56,
                               child: OutlinedButton.icon(
-                                onPressed: () {
-                                  // TODO: Implement Google Sign In
-                                },
+                                onPressed: _isLoading ? null : _signInWithGoogle,
                                 icon: Icon(Icons.g_mobiledata, color: Colors.grey.shade700),
                                 label: Text(
                                   'Sign in with Google',
@@ -428,16 +479,12 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                                 ),
                               ),
                             ),
-                            
                             const SizedBox(height: 16),
-                            
                             SizedBox(
                               width: double.infinity,
                               height: 56,
                               child: OutlinedButton.icon(
-                                onPressed: () {
-                                  // TODO: Implement Apple Sign In
-                                },
+                                onPressed: _isLoading ? null : _signInWithApple,
                                 icon: Icon(Icons.apple, color: Colors.grey.shade700),
                                 label: Text(
                                   'Sign in with Apple',
@@ -454,9 +501,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                                 ),
                               ),
                             ),
-                            
                             const SizedBox(height: 32),
-                            
                             // Sign Up Link
                             Center(
                               child: Row(
@@ -489,7 +534,6 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                                 ],
                               ),
                             ),
-                            
                             const SizedBox(height: 32),
                           ],
                         ),
