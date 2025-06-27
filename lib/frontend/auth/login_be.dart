@@ -1,8 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-// import 'package:sign_in_with_apple/sign_in_with_apple.dart'; // Uncomment if using Apple sign-in
 
 class LoginBackend {
+  /// Sign in using email and password
   static Future<UserCredential> signInWithEmail({
     required String email,
     required String password,
@@ -13,21 +13,40 @@ class LoginBackend {
     );
   }
 
+  /// Sign in with Google
   static Future<UserCredential?> signInWithGoogle() async {
-    final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
-    if (googleUser == null) return null; // User cancelled
+    try {
+      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+      if (googleUser == null) return null; // User cancelled
 
-    final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-    final credential = GoogleAuthProvider.credential(
-      accessToken: googleAuth.accessToken,
-      idToken: googleAuth.idToken,
-    );
-    return await FirebaseAuth.instance.signInWithCredential(credential);
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+
+      final OAuthCredential credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      return await FirebaseAuth.instance.signInWithCredential(credential);
+    } catch (e) {
+      print('Google sign-in exception: $e');
+      return null;
+    }
   }
 
+  /// Sign out from Google and Firebase
+  static Future<bool> signOutFromGoogle() async {
+    try {
+      await GoogleSignIn().signOut();
+      await FirebaseAuth.instance.signOut();
+      return true;
+    } catch (e) {
+      print('Google sign-out exception: $e');
+      return false;
+    }
+  }
+
+  /// Sign in with Apple (Not implemented yet)
   static Future<UserCredential?> signInWithApple() async {
-    // Apple sign-in requires additional setup and only works on iOS/macOS
-    // This is a stub for demonstration
-    throw UnimplementedError('Apple Sign-In not implemented');
+    throw UnimplementedError('Apple sign-in not implemented');
   }
 }
