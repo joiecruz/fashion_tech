@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'add_fabric_modal.dart'; // Import the AddFabricModal widget
+import 'add_fabric_modal.dart';
 import 'dart:convert';
 
 class FabricLogbookPage extends StatefulWidget {
@@ -10,30 +10,68 @@ class FabricLogbookPage extends StatefulWidget {
   State<FabricLogbookPage> createState() => _FabricLogbookPageState();
 }
 
-class _FabricLogbookPageState extends State<FabricLogbookPage> {
+class _FabricLogbookPageState extends State<FabricLogbookPage>
+    with SingleTickerProviderStateMixin {
   final TextEditingController _searchController = TextEditingController();
-  List<QueryDocumentSnapshot> _allFabrics = [];
-  List<QueryDocumentSnapshot> _filteredFabrics = [];
-  String _searchQuery = '';
+  String _selectedType = 'All';
+  bool _showUpcycledOnly = false;
+  bool _showLowStockOnly = false;
+
+  late AnimationController _animationController;
+  late Animation<double> _fadeAnimation;
 
   @override
   void initState() {
     super.initState();
-    _searchController.addListener(_onSearchChanged);
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+    _fadeAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeInOut,
+    ));
+
+    // Start animation after a brief delay
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (mounted) {
+        _animationController.forward();
+      }
+    });
   }
 
   @override
   void dispose() {
-    _searchController.removeListener(_onSearchChanged);
+    _animationController.dispose();
     _searchController.dispose();
     super.dispose();
   }
 
-  void _onSearchChanged() {
-    setState(() {
-      _searchQuery = _searchController.text.toLowerCase();
-      _filteredFabrics = _filterFabrics(_allFabrics);
-    });
+  List<QueryDocumentSnapshot> _filterFabrics(List<QueryDocumentSnapshot> fabrics) {
+    String query = _searchController.text.toLowerCase();
+    
+    return fabrics.where((fabric) {
+      final data = fabric.data() as Map<String, dynamic>;
+      final name = (data['name'] ?? '').toString().toLowerCase();
+      final type = (data['type'] ?? '').toString().toLowerCase();
+      final color = (data['color'] ?? '').toString().toLowerCase();
+      final quantity = data['quantity'] ?? 0;
+      final isUpcycled = data['isUpcycled'] ?? false;
+
+      bool matchesSearch = query.isEmpty ||
+          name.contains(query) ||
+          type.contains(query) ||
+          color.contains(query);
+
+      bool matchesType = _selectedType == 'All' || type == _selectedType.toLowerCase();
+      bool matchesUpcycled = !_showUpcycledOnly || isUpcycled;
+      bool matchesLowStock = !_showLowStockOnly || quantity < 5;
+
+      return matchesSearch && matchesType && matchesUpcycled && matchesLowStock;
+    }).toList();
   }
 
   bool _isBase64Image(String str) {
@@ -60,6 +98,7 @@ class _FabricLogbookPageState extends State<FabricLogbookPage> {
       ),
       child: TextField(
         controller: _searchController,
+        onChanged: (value) => setState(() {}), // Trigger rebuild for filtering
         decoration: InputDecoration(
           hintText: 'Search fabrics by name, type, or color...',
           hintStyle: TextStyle(color: Colors.grey[500]),
@@ -69,6 +108,7 @@ class _FabricLogbookPageState extends State<FabricLogbookPage> {
                   icon: Icon(Icons.clear, color: Colors.grey[500]),
                   onPressed: () {
                     _searchController.clear();
+                    setState(() {});
                   },
                 )
               : null,
@@ -79,22 +119,73 @@ class _FabricLogbookPageState extends State<FabricLogbookPage> {
     );
   }
 
-  List<QueryDocumentSnapshot> _filterFabrics(List<QueryDocumentSnapshot> fabrics) {
-    if (_searchQuery.isEmpty) {
-      return fabrics;
-    }
+  Widget _buildFilterChips() {
+    final Set<String> fabricTypes = {'All', 'Cotton', 'Silk', 'Wool', 'Linen', 'Polyester', 'Blend'};
     
-    return fabrics.where((fabric) {
-      final data = fabric.data() as Map<String, dynamic>;
-      final name = (data['name'] ?? '').toString().toLowerCase();
-      final type = (data['type'] ?? '').toString().toLowerCase();
-      final color = (data['color'] ?? '').toString().toLowerCase();
-      
-      return name.contains(_searchQuery) ||
-             type.contains(_searchQuery) ||
-             color.contains(_searchQuery);
-    }).toList();
+    return Container(
+      height: 60,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: [
+          Expanded(
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: [
+                // Type filter
+                Wrap(
+                  spacing: 8,
+                  children: fabricTypes.map((type) {
+                    final isSelected = _selectedType == type;
+                    return FilterChip(
+                      label: Text(type),
+                      selected: isSelected,
+                      onSelected: (selected) {
+                        setState(() {
+                          _selectedType = type;
+                        });
+                      },
+                      backgroundColor: Colors.grey[200],
+                      selectedColor: Colors.blue[100],
+                      checkmarkColor: Colors.blue[700],
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(width: 8),
+                // Toggle chips
+                FilterChip(
+                  label: const Text('Upcycled Only'),
+                  selected: _showUpcycledOnly,
+                  onSelected: (selected) {
+                    setState(() {
+                      _showUpcycledOnly = selected;
+                    });
+                  },
+                  backgroundColor: Colors.grey[200],
+                  selectedColor: Colors.green[100],
+                  checkmarkColor: Colors.green[700],
+                ),
+                const SizedBox(width: 8),
+                FilterChip(
+                  label: const Text('Low Stock'),
+                  selected: _showLowStockOnly,
+                  onSelected: (selected) {
+                    setState(() {
+                      _showLowStockOnly = selected;
+                    });
+                  },
+                  backgroundColor: Colors.grey[200],
+                  selectedColor: Colors.red[100],
+                  checkmarkColor: Colors.red[700],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
+
+
 
   Widget _buildStatsSection(List<QueryDocumentSnapshot> fabrics) {
     int totalFabrics = fabrics.length;
@@ -218,263 +309,26 @@ class _FabricLogbookPageState extends State<FabricLogbookPage> {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final fabrics = snapshot.data!.docs;
-          
-          // Update fabrics data if it changed
-          if (_allFabrics != fabrics) {
-            _allFabrics = fabrics;
-            _filteredFabrics = _filterFabrics(fabrics);
-          }
+          final allFabrics = snapshot.data!.docs;
+          final filteredFabrics = _filterFabrics(allFabrics);
 
-          final displayFabrics = _searchQuery.isEmpty ? fabrics : _filteredFabrics;
-
-          if (fabrics.isEmpty) {
-            return Column(
+          return FadeTransition(
+            opacity: _fadeAnimation,
+            child: Column(
               children: [
                 _buildSearchBar(),
-                _buildStatsSection([]),
-                const Expanded(
-                  child: Center(child: Text('No fabrics added yet.')),
+                _buildFilterChips(),
+                _buildStatsSection(allFabrics),
+                Expanded(
+                  child: _buildFabricsList(filteredFabrics, allFabrics),
                 ),
               ],
-            );
-          }
-
-          if (displayFabrics.isEmpty && _searchQuery.isNotEmpty) {
-            return Column(
-              children: [
-                _buildSearchBar(),
-                _buildStatsSection(fabrics),
-                const Expanded(
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.search_off, size: 64, color: Colors.grey),
-                        SizedBox(height: 16),
-                        Text(
-                          'No fabrics found',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
-                        ),
-                        SizedBox(height: 8),
-                        Text(
-                          'Try adjusting your search criteria',
-                          style: TextStyle(color: Colors.grey),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            );
-          }
-
-          return Column(
-            children: [
-              _buildSearchBar(),
-              _buildStatsSection(fabrics),
-              Expanded(
-                child: ListView.builder(
-                  itemCount: displayFabrics.length,
-                  itemBuilder: (context, index) {
-                    final fabric = displayFabrics[index].data() as Map<String, dynamic>;
-                    final swatchUrl = fabric['swatchImageURL'] ?? '';
-                    final name = fabric['name'] ?? 'Unnamed Fabric';
-                    final type = fabric['type'] ?? '';
-                    final color = fabric['color'] ?? '';
-                    final quality = fabric['qualityGrade'] ?? '';
-                    final quantity = fabric['quantity'] ?? 0;
-                    final createdAt = fabric['createdAt'] != null
-                        ? (fabric['createdAt'] as Timestamp).toDate()
-                        : null;
-                    final reasons = fabric['reasons'] ?? '';
-
-                    return Card(
-                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                      elevation: 2,
-                      child: Padding(
-                        padding: const EdgeInsets.all(18),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Title Row
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        name,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 20,
-                                        ),
-                                      ),
-                                      Text(
-                                        type,
-                                        style: const TextStyle(
-                                          color: Colors.black54,
-                                          fontSize: 15,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                PopupMenuButton(
-                                  itemBuilder: (context) => [
-                                    const PopupMenuItem(child: Text('Edit')),
-                                    const PopupMenuItem(child: Text('Delete')),
-                                  ],
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            // Swatch and Details Row
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: swatchUrl.isNotEmpty
-                                      ? Image(
-                                          image: _getSwatchImageProvider(swatchUrl),
-                                          width: 80,
-                                          height: 80,
-                                          errorBuilder: (context, error, stackTrace) =>
-                                              const Icon(Icons.image_not_supported),
-                                        )
-                                      : const Icon(Icons.image_not_supported),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          const Text('Color: ',
-                                              style: TextStyle(
-                                                  color: Colors.black54,
-                                                  fontWeight: FontWeight.w500)),
-                                          Text(
-                                            color,
-                                            style: const TextStyle(fontWeight: FontWeight.bold),
-                                          ),
-                                          if (fabric['isUpcycled'] == true)
-                                            const Padding(
-                                              padding: EdgeInsets.only(left: 8),
-                                              child: Icon(Icons.recycling, color: Colors.green, size: 18),
-                                            ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 6),
-                                      Row(
-                                        children: [
-                                          const Text('Quality: ',
-                                              style: TextStyle(
-                                                  color: Colors.black54,
-                                                  fontWeight: FontWeight.w500)),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-                                            decoration: BoxDecoration(
-                                              color: Colors.lightBlueAccent,
-                                              borderRadius: BorderRadius.circular(12),
-                                            ),
-                                            child: Text(
-                                              quality.isNotEmpty ? quality : 'N/A',
-                                              style: const TextStyle(
-                                                  color: Colors.white, fontWeight: FontWeight.bold),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 6),
-                                      Row(
-                                        children: [
-                                          const Text('Qty: ',
-                                              style: TextStyle(
-                                                  color: Colors.black54,
-                                                  fontWeight: FontWeight.w500)),
-                                          Text(
-                                            '$quantity units',
-                                            style: const TextStyle(
-                                                fontWeight: FontWeight.bold, fontSize: 16),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-                            Divider(),
-                            // Date and Reasons
-                            Row(
-                              children: [
-                                Icon(Icons.calendar_today, size: 18, color: Colors.grey[600]),
-                                const SizedBox(width: 6),
-                                Tooltip(
-                                  message: 'Created date',
-                                  child: Text(
-                                    createdAt != null
-                                        ? "${createdAt.year}-${createdAt.month.toString().padLeft(2, '0')}-${createdAt.day.toString().padLeft(2, '0')}"
-                                        : 'No date',
-                                    style: const TextStyle(fontSize: 14, color: Colors.black87),
-                                  ),
-                                ),
-                                if (fabric['updatedAt'] != null &&
-                                    (fabric['createdAt'] == null ||
-                                     (fabric['updatedAt'] as Timestamp).toDate() != createdAt))
-                                  Padding(
-                                    padding: const EdgeInsets.only(left: 12),
-                                    child: Text(
-                                      'Last Updated: ${_formatDate(fabric['updatedAt'] as Timestamp)}',
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.grey,
-                                        fontStyle: FontStyle.italic,
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                            if (reasons != null && reasons.toString().isNotEmpty) ...[
-                              const SizedBox(height: 6),
-                              Row(
-                                children: const [
-                                  Icon(Icons.info, color: Colors.red, size: 18),
-                                  SizedBox(width: 6),
-                                  Text(
-                                    'Reasons: ',
-                                    style: TextStyle(color: Colors.red, fontWeight: FontWeight.w500),
-                                  ),
-                                ],
-                              ),
-                              Padding(
-                                padding: const EdgeInsets.only(left: 24),
-                                child: Text(
-                                  reasons.toString(),
-                                  style: const TextStyle(color: Colors.red),
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
+            ),
           );
         },
       ),
       floatingActionButton: Container(
-        margin: const EdgeInsets.only(bottom: 100), // Position above the sub navigation bar
+        margin: const EdgeInsets.only(bottom: 100),
         child: FloatingActionButton.extended(
           onPressed: () async {
             await showModalBottomSheet(
@@ -485,7 +339,7 @@ class _FabricLogbookPageState extends State<FabricLogbookPage> {
               ),
               backgroundColor: Colors.transparent,
               builder: (context) => Container(
-                margin: const EdgeInsets.only(top: 100), // Add space from the top (below notch/appbar)
+                margin: const EdgeInsets.only(top: 100),
                 decoration: const BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -513,8 +367,314 @@ class _FabricLogbookPageState extends State<FabricLogbookPage> {
     );
   }
 
-  String _formatDate(Timestamp timestamp) {
-    final date = timestamp.toDate();
+  Widget _buildFabricsList(List<QueryDocumentSnapshot> filteredFabrics, List<QueryDocumentSnapshot> allFabrics) {
+    if (allFabrics.isEmpty) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.palette_outlined, size: 64, color: Colors.grey),
+            SizedBox(height: 16),
+            Text(
+              'No fabrics added yet',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+            ),
+            SizedBox(height: 8),
+            Text(
+              'Add your first fabric to get started',
+              style: TextStyle(color: Colors.grey),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (filteredFabrics.isEmpty) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.search_off, size: 64, color: Colors.grey),
+            SizedBox(height: 16),
+            Text(
+              'No fabrics found',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+            ),
+            SizedBox(height: 8),
+            Text(
+              'Try adjusting your search criteria',
+              style: TextStyle(color: Colors.grey),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      itemCount: filteredFabrics.length,
+      itemBuilder: (context, index) {
+        final fabric = filteredFabrics[index].data() as Map<String, dynamic>;
+        return _buildFabricCard(fabric);
+      },
+    );
+  }
+
+  Widget _buildFabricCard(Map<String, dynamic> fabric) {
+    final swatchUrl = fabric['swatchImageURL'] ?? '';
+    final name = fabric['name'] ?? 'Unnamed Fabric';
+    final type = fabric['type'] ?? '';
+    final color = fabric['color'] ?? '';
+    final quality = fabric['qualityGrade'] ?? '';
+    final quantity = fabric['quantity'] ?? 0;
+    final createdAt = fabric['createdAt'] != null
+        ? (fabric['createdAt'] as Timestamp).toDate()
+        : null;
+    final reasons = fabric['reasons'] ?? '';
+
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Title Row
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                        ),
+                      ),
+                      if (type.isNotEmpty)
+                        Text(
+                          type,
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 14,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert),
+                  onSelected: (value) {
+                    // Handle edit/delete actions
+                  },
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(
+                      value: 'edit',
+                      child: Row(
+                        children: [
+                          Icon(Icons.edit, size: 18),
+                          SizedBox(width: 8),
+                          Text('Edit'),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'delete',
+                      child: Row(
+                        children: [
+                          Icon(Icons.delete, size: 18, color: Colors.red),
+                          SizedBox(width: 8),
+                          Text('Delete', style: TextStyle(color: Colors.red)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            // Swatch and Details Row
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Swatch Image
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    width: 70,
+                    height: 70,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[200],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: swatchUrl.isNotEmpty
+                        ? Image(
+                            image: _getSwatchImageProvider(swatchUrl),
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) =>
+                                Icon(Icons.image_not_supported, color: Colors.grey[400]),
+                          )
+                        : Icon(Icons.palette, color: Colors.grey[400]),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                // Details
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Color and Upcycled
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Row(
+                              children: [
+                                Icon(Icons.color_lens, size: 16, color: Colors.grey[600]),
+                                const SizedBox(width: 4),
+                                Text(
+                                  color.isNotEmpty ? color : 'No color',
+                                  style: const TextStyle(fontWeight: FontWeight.w500),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (fabric['isUpcycled'] == true)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.green[100],
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.recycling, color: Colors.green[700], size: 14),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Upcycled',
+                                    style: TextStyle(
+                                      color: Colors.green[700],
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      // Quality
+                      if (quality.isNotEmpty)
+                        Row(
+                          children: [
+                            Icon(Icons.grade, size: 16, color: Colors.grey[600]),
+                            const SizedBox(width: 4),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.blue[100],
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                quality,
+                                style: TextStyle(
+                                  color: Colors.blue[700],
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      const SizedBox(height: 8),
+                      // Quantity
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.inventory,
+                            size: 16,
+                            color: quantity < 5 ? Colors.red[600] : Colors.grey[600],
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '$quantity units',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: quantity < 5 ? Colors.red[700] : Colors.black87,
+                            ),
+                          ),
+                          if (quantity < 5) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.red[100],
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                'Low Stock',
+                                style: TextStyle(
+                                  color: Colors.red[700],
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            const Divider(),
+            // Date and Reasons
+            Row(
+              children: [
+                Icon(Icons.calendar_today, size: 14, color: Colors.grey[500]),
+                const SizedBox(width: 4),
+                Text(
+                  createdAt != null ? _formatDate(createdAt) : 'No date',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+            if (reasons != null && reasons.toString().isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.info_outline, color: Colors.orange[600], size: 16),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      reasons.toString(),
+                      style: TextStyle(
+                        color: Colors.orange[700],
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatDate(DateTime date) {
     return "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";
   }
 }
