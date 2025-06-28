@@ -17,6 +17,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.13.0"
+  auth_wrapper:
+    dependency: "direct main"
+    description:
+      name: auth_wrapper
+      sha256: "8b1e9a922e22dad18b28d002e32c6f6836d5c16768c910b16af15c76dffd7bbd"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.2"
   boolean_selector:
     dependency: transitive
     description:

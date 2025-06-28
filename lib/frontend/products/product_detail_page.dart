@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/product_variant.dart';
+import '../../backend/fetch_variants.dart';
 
 class ProductDetailPage extends StatefulWidget {
   final Map<String, dynamic> productData;
-  
+
   const ProductDetailPage({
-    Key? key, 
+    Key? key,
     required this.productData,
   }) : super(key: key);
 
@@ -34,15 +34,19 @@ class _ProductDetailPageState extends State<ProductDetailPage>
   }
 
   Future<void> _loadVariants() async {
+    setState(() => _isLoading = true);
     try {
-      final variantsSnapshot = await FirebaseFirestore.instance
-          .collection('productVariants')
-          .where('productID', isEqualTo: widget.productData['productID'])
-          .get();
-
+      final variantMaps = await FetchVariantsBackend.fetchVariantsByProductID(widget.productData['productID']);
       setState(() {
-        _variants = variantsSnapshot.docs
-            .map((doc) => ProductVariant.fromMap(doc.id, doc.data()))
+        _variants = variantMaps
+            .map((v) => ProductVariant(
+                  id: v['variantID'],
+                  productID: widget.productData['productID'],
+                  size: v['size'],
+                  color: v['color'],
+                  quantityInStock: v['quantityInStock'],
+                  unitCostEstimate: v['unitCostEstimate'],
+                ))
             .toList();
         _isLoading = false;
       });
@@ -172,9 +176,9 @@ class _ProductDetailPageState extends State<ProductDetailPage>
                     ),
                   ],
                 ),
-                
+
                 const SizedBox(height: 20),
-                
+
                 // Properties
                 Row(
                   children: [
@@ -223,9 +227,9 @@ class _ProductDetailPageState extends State<ProductDetailPage>
             ),
           ),
         ),
-        
+
         const SizedBox(height: 16),
-        
+
         // Stats Card
         Card(
           elevation: 2,
@@ -441,5 +445,5 @@ class _ProductDetailPageState extends State<ProductDetailPage>
         ),
       ],
     );
-  }
-}
+  } 
+    }

@@ -44,6 +44,7 @@ dependencies:
   flutter_colorpicker: ^1.0.3
   google_sign_in: ^7.0.0
   sign_in_with_apple: ^7.0.1
+  auth_wrapper: ^1.0.2
 
 dev_dependencies:
   flutter_test:

@@ -4,7 +4,6 @@ import 'inventory_page.dart';
 import 'job_orders/job_order_list_page.dart';
 import '../backend/login_be.dart';
 
-// main_scaffold.dart
 class MainScaffold extends StatefulWidget {
   const MainScaffold({Key? key}) : super(key: key);
 
@@ -14,7 +13,7 @@ class MainScaffold extends StatefulWidget {
 
 class _MainScaffoldState extends State<MainScaffold> {
   int _selectedIndex = 0;
-  String _inventorySubtab = 'Products'; // Track the current inventory subtab
+  String _inventorySubtab = 'Products';
 
   final List<String> _titles = [
     'Home',
@@ -22,14 +21,12 @@ class _MainScaffoldState extends State<MainScaffold> {
     'Orders',
   ];
 
-  // Method to handle inventory tab changes
   void _onInventoryTabChanged(String subtab) {
     setState(() {
       _inventorySubtab = subtab;
     });
   }
 
-  // Get the appropriate title based on current selection
   String get _currentTitle {
     if (_selectedIndex == 1) {
       return 'Inventory | $_inventorySubtab';
@@ -39,7 +36,6 @@ class _MainScaffoldState extends State<MainScaffold> {
 
   @override
   Widget build(BuildContext context) {
-    // Update the inventory page with the callback
     final List<Widget> pages = [
       const HomeDashboard(),
       InventoryPage(onTabChanged: _onInventoryTabChanged),
@@ -59,7 +55,7 @@ class _MainScaffoldState extends State<MainScaffold> {
             onSelected: (value) async {
               if (value == 'logout') {
                 await LoginBackend.signOut();
-                // Navigation will be handled automatically by AuthWrapper
+                // AuthWrapper will handle redirect to login
               }
             },
             itemBuilder: (BuildContext context) => [
@@ -93,7 +89,7 @@ class _MainScaffoldState extends State<MainScaffold> {
         onTap: (index) {
           setState(() => _selectedIndex = index);
         },
-        items: [
+        items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
           BottomNavigationBarItem(icon: Icon(Icons.inventory), label: 'Inventory'),
           BottomNavigationBarItem(icon: Icon(Icons.assignment), label: 'Orders'),
