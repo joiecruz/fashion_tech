@@ -88,11 +88,15 @@ class _AddProductModalState extends State<AddProductModal> {
     if (_productImage == null) return;
     setState(() => _uploadingImage = true);
     try {
+      print('DEBUG: Starting image upload...');
       final fileName = 'products/${DateTime.now().millisecondsSinceEpoch}_${_productImage!.path.split('/').last}';
+      print('DEBUG: Uploading to Firebase Storage with filename: $fileName');
       final ref = FirebaseStorage.instance.ref().child(fileName);
       await ref.putFile(_productImage!);
       _productImageUrl = await ref.getDownloadURL();
+      print('DEBUG: Image uploaded successfully, download URL: $_productImageUrl');
     } catch (e) {
+      print('DEBUG: Error uploading image: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to upload image: $e')),
@@ -168,16 +172,24 @@ class _AddProductModalState extends State<AddProductModal> {
 
       // Create product image if uploaded
       if (_productImageUrl != null) {
-        final productImageRef = FirebaseFirestore.instance.collection('productImages').doc();
-        final productImage = ProductImage(
-          id: productImageRef.id,
-          productID: productRef.id,
-          imageURL: _productImageUrl!,
-          isPrimary: true,
-          uploadedBy: 'user', // TODO: Replace with actual user ID when auth is implemented
-          uploadedAt: DateTime.now(),
-        );
-        await productImageRef.set(productImage.toMap());
+        try {
+          print('DEBUG: Attempting to save product image with URL: $_productImageUrl');
+          final productImageRef = FirebaseFirestore.instance.collection('productImages').doc();
+          final productImage = ProductImage(
+            id: productImageRef.id,
+            productID: productRef.id,
+            imageURL: _productImageUrl!,
+            isPrimary: true,
+            uploadedBy: 'user', // TODO: Replace with actual user ID when auth is implemented
+            uploadedAt: DateTime.now(),
+          );
+          print('DEBUG: Saving product image to Firestore with data: ${productImage.toMap()}');
+          await productImageRef.set(productImage.toMap());
+          print('DEBUG: Product image saved successfully with ID: ${productImageRef.id}');
+        } catch (e) {
+          print('DEBUG: Error saving product image: $e');
+          // Don't throw here, just log the error so the product still gets created
+        }
       }
 
       if (mounted) {
