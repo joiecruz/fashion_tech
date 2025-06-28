@@ -703,10 +703,17 @@ class _FabricLogbookPageState extends State<FabricLogbookPage>
     final color = fabric['color'] ?? '';
     final quality = fabric['qualityGrade'] ?? '';
     final quantity = fabric['quantity'] ?? 0;
+    final pricePerUnit = fabric['pricePerUnit'] ?? 0.0;
+    final isUpcycled = fabric['isUpcycled'] ?? false;
     final createdAt = fabric['createdAt'] != null
         ? (fabric['createdAt'] as Timestamp).toDate()
         : null;
     final reasons = fabric['reasons'] ?? '';
+    
+    // Calculate total value and status
+    final totalValue = quantity * pricePerUnit;
+    final isLowStock = quantity < 5;
+    final isOutOfStock = quantity == 0;
 
     return TweenAnimationBuilder<double>(
       duration: Duration(milliseconds: 300 + (index * 100)),
@@ -719,289 +726,338 @@ class _FabricLogbookPageState extends State<FabricLogbookPage>
             child: Container(
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(20),
+                border: isOutOfStock 
+                    ? Border.all(color: Colors.red[300]!, width: 2)
+                    : isLowStock 
+                        ? Border.all(color: Colors.orange[300]!, width: 1.5)
+                        : null,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
+                    color: isOutOfStock 
+                        ? Colors.red.withOpacity(0.1)
+                        : isLowStock 
+                            ? Colors.orange.withOpacity(0.08)
+                            : Colors.black.withOpacity(0.06),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
                   ),
                 ],
               ),
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Header Row with Name and Actions
-                    Row(
+              child: Stack(
+                children: [
+                  // Main content
+                  Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      name,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 18,
-                                        color: Colors.black87,
-                                      ),
-                                    ),
-                                  ),
-                                  if (fabric['isUpcycled'] == true)
-                                    Container(
-                                      margin: const EdgeInsets.only(left: 8),
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: Colors.green[100],
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(Icons.recycling, color: Colors.green[700], size: 14),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            'Upcycled',
-                                            style: TextStyle(
-                                              color: Colors.green[700],
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                ],
-                              ),
-                              if (type.isNotEmpty)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 4),
-                                  child: Text(
-                                    type,
-                                    style: TextStyle(
-                                      color: Colors.grey[600],
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                        PopupMenuButton<String>(
-                          icon: Icon(Icons.more_vert, color: Colors.grey[600]),
-                          onSelected: (value) {
-                            // Handle edit/delete actions
-                          },
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          itemBuilder: (context) => [
-                            const PopupMenuItem(
-                              value: 'edit',
-                              child: Row(
-                                children: [
-                                  Icon(Icons.edit_outlined, size: 18),
-                                  SizedBox(width: 12),
-                                  Text('Edit Fabric'),
-                                ],
-                              ),
-                            ),
-                            const PopupMenuItem(
-                              value: 'delete',
-                              child: Row(
-                                children: [
-                                  Icon(Icons.delete_outline, size: 18, color: Colors.red),
-                                  SizedBox(width: 12),
-                                  Text('Delete', style: TextStyle(color: Colors.red)),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    // Main Content Row
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Swatch Image
-                        Container(
-                          width: 80,
-                          height: 80,
-                          decoration: BoxDecoration(
-                            color: Colors.grey[100],
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.grey[200]!, width: 1),
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(11),
-                            child: swatchUrl.isNotEmpty
-                                ? Image(
-                                    image: _getSwatchImageProvider(swatchUrl),
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) =>
-                                        Icon(Icons.image_not_supported, color: Colors.grey[400], size: 32),
-                                  )
-                                : Icon(Icons.palette, color: Colors.grey[400], size: 32),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        // Details Section
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Color
-                              _buildDetailRow(
-                                icon: Icons.color_lens_outlined,
-                                label: 'Color',
-                                value: color.isNotEmpty ? color : 'Not specified',
-                                valueColor: color.isNotEmpty ? Colors.black87 : Colors.grey[500],
-                              ),
-                              const SizedBox(height: 8),
-                              // Quality
-                              if (quality.isNotEmpty)
-                                _buildDetailRow(
-                                  icon: Icons.grade_outlined,
-                                  label: 'Quality',
-                                  value: quality,
-                                  chip: true,
-                                  chipColor: Colors.blue[100],
-                                  chipTextColor: Colors.blue[700],
-                                ),
-                              if (quality.isNotEmpty) const SizedBox(height: 8),
-                              // Quantity with status
-                              Row(
-                                children: [
-                                  Icon(
-                                    Icons.inventory_2_outlined,
-                                    size: 16,
-                                    color: quantity < 5 ? Colors.red[600] : Colors.grey[600],
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    'Qty: ',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      color: Colors.grey[600],
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  Text(
-                                    '$quantity units',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      color: quantity < 5 ? Colors.red[700] : Colors.black87,
-                                    ),
-                                  ),
-                                  if (quantity < 5) ...[
-                                    const SizedBox(width: 8),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: Colors.red[100],
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Text(
-                                        'LOW STOCK',
-                                        style: TextStyle(
-                                          color: Colors.red[700],
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w700,
-                                          letterSpacing: 0.5,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    const Divider(thickness: 1),
-                    const SizedBox(height: 12),
-                    // Footer Row
-                    Row(
-                      children: [
-                        Icon(Icons.calendar_today_outlined, size: 14, color: Colors.grey[500]),
-                        const SizedBox(width: 6),
-                        Text(
-                          createdAt != null ? _formatDate(createdAt) : 'No date',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                        if (fabric['pricePerUnit'] != null) ...[
-                          const SizedBox(width: 16),
-                          Icon(Icons.attach_money, size: 14, color: Colors.grey[500]),
-                          const SizedBox(width: 4),
-                          Text(
-                            '₱${(fabric['pricePerUnit'] as num).toStringAsFixed(2)}/unit',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey[600],
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                    // Reasons (if any)
-                    if (reasons != null && reasons.toString().isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.orange[50],
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.orange[200]!),
-                        ),
-                        child: Row(
+                        // Header with fabric name and status badges
+                        Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Icon(Icons.info_outline, color: Colors.orange[600], size: 16),
-                            const SizedBox(width: 8),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    'Notes:',
-                                    style: TextStyle(
-                                      color: Colors.orange[700],
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
+                                    name,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 20,
+                                      color: Colors.black87,
+                                      letterSpacing: -0.2,
                                     ),
                                   ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    reasons.toString(),
-                                    style: TextStyle(
-                                      color: Colors.orange[700],
-                                      fontSize: 12,
-                                      height: 1.3,
+                                  if (type.isNotEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 6),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: _getFabricTypeColor(type).withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(12),
+                                          border: Border.all(
+                                            color: _getFabricTypeColor(type).withOpacity(0.3),
+                                          ),
+                                        ),
+                                        child: Text(
+                                          type.toUpperCase(),
+                                          style: TextStyle(
+                                            color: _getFabricTypeColor(type),
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w700,
+                                            letterSpacing: 0.8,
+                                          ),
+                                        ),
+                                      ),
                                     ),
+                                ],
+                              ),
+                            ),
+                            PopupMenuButton<String>(
+                              icon: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[100],
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Icon(Icons.more_vert, color: Colors.grey[600], size: 18),
+                              ),
+                              onSelected: (value) {
+                                // Handle edit/delete actions
+                              },
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              itemBuilder: (context) => [
+                                const PopupMenuItem(
+                                  value: 'edit',
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.edit_outlined, size: 18),
+                                      SizedBox(width: 12),
+                                      Text('Edit Fabric'),
+                                    ],
                                   ),
+                                ),
+                                const PopupMenuItem(
+                                  value: 'delete',
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.delete_outline, size: 18, color: Colors.red),
+                                      SizedBox(width: 12),
+                                      Text('Delete', style: TextStyle(color: Colors.red)),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+                        // Main visual and info section
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Enhanced swatch with shadow and styling
+                            Container(
+                              width: 100,
+                              height: 100,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.15),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(16),
+                                child: Stack(
+                                  children: [
+                                    Container(
+                                      width: 100,
+                                      height: 100,
+                                      color: Colors.grey[50],
+                                      child: swatchUrl.isNotEmpty
+                                          ? Image(
+                                              image: _getSwatchImageProvider(swatchUrl),
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (context, error, stackTrace) =>
+                                                  _buildFallbackSwatch(color),
+                                            )
+                                          : _buildFallbackSwatch(color),
+                                    ),
+                                    // Overlay for out of stock
+                                    if (isOutOfStock)
+                                      Container(
+                                        width: 100,
+                                        height: 100,
+                                        decoration: BoxDecoration(
+                                          color: Colors.black.withOpacity(0.6),
+                                          borderRadius: BorderRadius.circular(16),
+                                        ),
+                                        child: Center(
+                                          child: Column(
+                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            children: [
+                                              Icon(Icons.inventory_2, color: Colors.white, size: 24),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                'OUT OF\nSTOCK',
+                                                textAlign: TextAlign.center,
+                                                style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.w900,
+                                                  letterSpacing: 0.5,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 20),
+                            // Enhanced details section
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Color and quality row
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: _buildDetailChip(
+                                          icon: Icons.palette_outlined,
+                                          label: color.isNotEmpty ? color : 'No color',
+                                          backgroundColor: Colors.purple[50]!,
+                                          textColor: Colors.purple[700]!,
+                                          iconColor: Colors.purple[600]!,
+                                        ),
+                                      ),
+                                      if (quality.isNotEmpty) ...[
+                                        const SizedBox(width: 8),
+                                        _buildQualityBadge(quality),
+                                      ],
+                                    ],
+                                  ),
+                                  const SizedBox(height: 12),
+                                  // Stock status with visual indicator
+                                  _buildStockIndicator(quantity, isLowStock, isOutOfStock),
+                                  const SizedBox(height: 12),
+                                  // Pricing information
+                                  if (pricePerUnit > 0)
+                                    _buildPricingInfo(pricePerUnit, totalValue),
                                 ],
                               ),
                             ),
                           ],
                         ),
-                      ),
-                    ],
-                  ],
-                ),
+                        const SizedBox(height: 20),
+                        // Status badges row
+                        Row(
+                          children: [
+                            if (isUpcycled)
+                              _buildStatusBadge(
+                                icon: Icons.eco_outlined,
+                                label: 'Eco-Friendly',
+                                backgroundColor: Colors.green[50]!,
+                                borderColor: Colors.green[300]!,
+                                textColor: Colors.green[700]!,
+                                iconColor: Colors.green[600]!,
+                              ),
+                            if (isUpcycled && isLowStock) const SizedBox(width: 8),
+                            if (isLowStock && !isOutOfStock)
+                              _buildStatusBadge(
+                                icon: Icons.warning_amber_outlined,
+                                label: 'Low Stock Alert',
+                                backgroundColor: Colors.orange[50]!,
+                                borderColor: Colors.orange[300]!,
+                                textColor: Colors.orange[700]!,
+                                iconColor: Colors.orange[600]!,
+                              ),
+                            if (isOutOfStock)
+                              _buildStatusBadge(
+                                icon: Icons.block_outlined,
+                                label: 'Out of Stock',
+                                backgroundColor: Colors.red[50]!,
+                                borderColor: Colors.red[300]!,
+                                textColor: Colors.red[700]!,
+                                iconColor: Colors.red[600]!,
+                              ),
+                          ],
+                        ),
+                        // Footer with date and additional info
+                        const SizedBox(height: 16),
+                        const Divider(thickness: 1, color: Color(0xFFE5E7EB)),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Icon(Icons.access_time_outlined, size: 14, color: Colors.grey[500]),
+                            const SizedBox(width: 6),
+                            Text(
+                              createdAt != null ? 'Added ${_formatDateRelative(createdAt)}' : 'No date',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const Spacer(),
+                            if (pricePerUnit > 0)
+                              Text(
+                                'Unit: ₱${pricePerUnit.toStringAsFixed(2)}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[600],
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                          ],
+                        ),
+                        // Notes section if available
+                        if (reasons != null && reasons.toString().isNotEmpty) ...[
+                          const SizedBox(height: 16),
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [Colors.blue[50]!, Colors.blue[100]!.withOpacity(0.3)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.blue[200]!),
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.blue[100],
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Icon(Icons.note_outlined, color: Colors.blue[700], size: 16),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Production Notes',
+                                        style: TextStyle(
+                                          color: Colors.blue[800],
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        reasons.toString(),
+                                        style: TextStyle(
+                                          color: Colors.blue[700],
+                                          fontSize: 13,
+                                          height: 1.4,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -1010,59 +1066,372 @@ class _FabricLogbookPageState extends State<FabricLogbookPage>
     );
   }
 
-  Widget _buildDetailRow({
-    required IconData icon,
-    required String label,
-    required String value,
-    Color? valueColor,
-    bool chip = false,
-    Color? chipColor,
-    Color? chipTextColor,
-  }) {
-    return Row(
-      children: [
-        Icon(icon, size: 16, color: Colors.grey[600]),
-        const SizedBox(width: 6),
-        Text(
-          '$label: ',
-          style: TextStyle(
-            fontSize: 13,
-            color: Colors.grey[600],
-            fontWeight: FontWeight.w500,
-          ),
+  // Helper methods for fabric card UI
+  Color _getFabricTypeColor(String type) {
+    switch (type.toLowerCase()) {
+      case 'cotton':
+        return Colors.green[600]!;
+      case 'silk':
+        return Colors.purple[600]!;
+      case 'wool':
+        return Colors.brown[600]!;
+      case 'polyester':
+        return Colors.blue[600]!;
+      case 'linen':
+        return Colors.amber[600]!;
+      case 'denim':
+        return Colors.indigo[600]!;
+      case 'leather':
+        return Colors.orange[700]!;
+      case 'lace':
+        return Colors.pink[600]!;
+      case 'velvet':
+        return Colors.deepPurple[600]!;
+      case 'chiffon':
+        return Colors.teal[600]!;
+      default:
+        return Colors.grey[600]!;
+    }
+  }
+
+  Widget _buildFallbackSwatch(String? color) {
+    return Container(
+      width: 100,
+      height: 100,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.grey[200]!,
+            Colors.grey[100]!,
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        if (chip)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            decoration: BoxDecoration(
-              color: chipColor ?? Colors.grey[100],
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              value,
-              style: TextStyle(
-                color: chipTextColor ?? Colors.grey[700],
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          )
-        else
-          Expanded(
-            child: Text(
-              value,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: valueColor ?? Colors.black87,
-              ),
-            ),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.texture_outlined,
+            size: 32,
+            color: Colors.grey[500],
           ),
-      ],
+          const SizedBox(height: 8),
+          if (color != null && color.isNotEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.9),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                color,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey[700],
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+        ],
+      ),
     );
   }
 
-  String _formatDate(DateTime date) {
-    return "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";
+  Widget _buildDetailChip({
+    required IconData icon,
+    required String label,
+    required Color backgroundColor,
+    required Color textColor,
+    required Color iconColor,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: iconColor.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: iconColor),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: textColor,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQualityBadge(String quality) {
+    Color backgroundColor;
+    Color textColor;
+    Color borderColor;
+    
+    switch (quality.toLowerCase()) {
+      case 'premium':
+      case 'high':
+        backgroundColor = Colors.amber[50]!;
+        textColor = Colors.amber[800]!;
+        borderColor = Colors.amber[300]!;
+        break;
+      case 'good':
+      case 'medium':
+        backgroundColor = Colors.blue[50]!;
+        textColor = Colors.blue[700]!;
+        borderColor = Colors.blue[300]!;
+        break;
+      case 'standard':
+      case 'low':
+        backgroundColor = Colors.grey[100]!;
+        textColor = Colors.grey[700]!;
+        borderColor = Colors.grey[300]!;
+        break;
+      default:
+        backgroundColor = Colors.grey[50]!;
+        textColor = Colors.grey[600]!;
+        borderColor = Colors.grey[200]!;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: borderColor),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.stars_outlined, size: 12, color: textColor),
+          const SizedBox(width: 4),
+          Text(
+            quality.toUpperCase(),
+            style: TextStyle(
+              color: textColor,
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStockIndicator(int quantity, bool isLowStock, bool isOutOfStock) {
+    Color backgroundColor;
+    Color textColor;
+    Color iconColor;
+    IconData icon;
+    String label;
+
+    if (isOutOfStock) {
+      backgroundColor = Colors.red[50]!;
+      textColor = Colors.red[700]!;
+      iconColor = Colors.red[600]!;
+      icon = Icons.block_outlined;
+      label = '0 units - Out of Stock';
+    } else if (isLowStock) {
+      backgroundColor = Colors.orange[50]!;
+      textColor = Colors.orange[700]!;
+      iconColor = Colors.orange[600]!;
+      icon = Icons.warning_amber_outlined;
+      label = '$quantity units - Low Stock';
+    } else {
+      backgroundColor = Colors.green[50]!;
+      textColor = Colors.green[700]!;
+      iconColor = Colors.green[600]!;
+      icon = Icons.check_circle_outlined;
+      label = '$quantity units - In Stock';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: iconColor.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: iconColor),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: textColor,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPricingInfo(double pricePerUnit, double totalValue) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.green[50]!, Colors.green[100]!.withOpacity(0.3)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.green[200]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.attach_money_outlined, size: 16, color: Colors.green[700]),
+              const SizedBox(width: 6),
+              Text(
+                'Pricing',
+                style: TextStyle(
+                  color: Colors.green[800],
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Per Unit',
+                    style: TextStyle(
+                      color: Colors.green[600],
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  Text(
+                    '₱${pricePerUnit.toStringAsFixed(2)}',
+                    style: TextStyle(
+                      color: Colors.green[800],
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                width: 1,
+                height: 30,
+                color: Colors.green[300],
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    'Total Value',
+                    style: TextStyle(
+                      color: Colors.green[600],
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  Text(
+                    '₱${totalValue.toStringAsFixed(2)}',
+                    style: TextStyle(
+                      color: Colors.green[800],
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusBadge({
+    required IconData icon,
+    required String label,
+    required Color backgroundColor,
+    required Color borderColor,
+    required Color textColor,
+    required Color iconColor,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: borderColor),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: iconColor),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              color: textColor,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDateRelative(DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date);
+
+    if (difference.inDays == 0) {
+      if (difference.inHours == 0) {
+        if (difference.inMinutes == 0) {
+          return 'just now';
+        } else {
+          return '${difference.inMinutes}m ago';
+        }
+      } else {
+        return '${difference.inHours}h ago';
+      }
+    } else if (difference.inDays == 1) {
+      return 'yesterday';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays}d ago';
+    } else if (difference.inDays < 30) {
+      final weeks = (difference.inDays / 7).floor();
+      return '${weeks}w ago';
+    } else if (difference.inDays < 365) {
+      final months = (difference.inDays / 30).floor();
+      return '${months}mo ago';
+    } else {
+      final years = (difference.inDays / 365).floor();
+      return '${years}y ago';
+    }
   }
 }
