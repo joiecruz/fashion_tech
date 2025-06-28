@@ -36,7 +36,7 @@ class _ProductDetailPageState extends State<ProductDetailPage>
   Future<void> _loadVariants() async {
     try {
       final variantsSnapshot = await FirebaseFirestore.instance
-          .collection('productvariants')
+          .collection('productVariants')
           .where('productID', isEqualTo: widget.productData['productID'])
           .get();
 
@@ -257,8 +257,8 @@ class _ProductDetailPageState extends State<ProductDetailPage>
                     ),
                     Expanded(
                       child: _buildStatItem(
-                        'Potential Value',
-                        '₱${widget.productData['potentialValue'].toStringAsFixed(2)}',
+                        'Price',
+                        '₱${widget.productData['price'].toStringAsFixed(2)}',
                         Icons.attach_money_outlined,
                         Colors.green[600]!,
                       ),
@@ -278,8 +278,8 @@ class _ProductDetailPageState extends State<ProductDetailPage>
                     ),
                     Expanded(
                       child: _buildStatItem(
-                        'Price per Unit (₱)',
-                        '₱${widget.productData['price'].toStringAsFixed(2)}',
+                        'Unit Cost Estimate',
+                        '₱${widget.productData['unitCostEstimate'].toStringAsFixed(2)}',
                         Icons.local_offer_outlined,
                         Colors.orange[600]!,
                       ),
