@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'login_page.dart';
-import 'signup_be.dart'; // Import your backend signup logic
+import '../../backend/signup_be.dart'; // Import your backend signup logic
 import '../main_scaffold.dart';
 
 class SignUpPage extends StatefulWidget {
