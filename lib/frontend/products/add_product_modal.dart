@@ -181,11 +181,17 @@ class _AddProductModalState extends State<AddProductModal> {
       }
 
       // Create product image if uploaded
-      if (_productImageUrl != null) {
+      if (_productImageUrl != null && _productImageUrl!.isNotEmpty) {
         try {
           print('DEBUG: Attempting to save product image with URL: $_productImageUrl');
+          print('DEBUG: URL length: ${_productImageUrl!.length}');
+          print('DEBUG: URL starts with https: ${_productImageUrl!.startsWith('https')}');
+          print('DEBUG: Product ID: ${productRef.id}');
+          print('DEBUG: User ID: $userId');
           
           final productImageRef = FirebaseFirestore.instance.collection('productImages').doc();
+          print('DEBUG: Generated image document ID: ${productImageRef.id}');
+          
           final productImage = ProductImage(
             id: productImageRef.id,
             productID: productRef.id,
@@ -194,13 +200,33 @@ class _AddProductModalState extends State<AddProductModal> {
             uploadedBy: userId, // Use the same user ID from above
             uploadedAt: DateTime.now(),
           );
-          print('DEBUG: Saving product image to Firestore with data: ${productImage.toMap()}');
-          await productImageRef.set(productImage.toMap());
-          print('DEBUG: Product image saved successfully with ID: ${productImageRef.id}');
-        } catch (e) {
-          print('DEBUG: Error saving product image: $e');
+          
+          final imageData = productImage.toMap();
+          print('DEBUG: Product image data to save: $imageData');
+          print('DEBUG: Image data types: ${imageData.map((k, v) => MapEntry(k, v.runtimeType))}');
+          
+          // Try the save operation with more detailed error handling
+          print('DEBUG: About to call Firestore set...');
+          await productImageRef.set(imageData);
+          print('DEBUG: Firestore set completed successfully');
+          
+          // Verify the document was created
+          final savedDoc = await productImageRef.get();
+          if (savedDoc.exists) {
+            print('DEBUG: SUCCESS - Product image saved and verified with ID: ${productImageRef.id}');
+            print('DEBUG: Saved document data: ${savedDoc.data()}');
+          } else {
+            print('DEBUG: ERROR - Document was not found after saving');
+          }
+          
+        } catch (e, stackTrace) {
+          print('DEBUG: ERROR saving product image: $e');
+          print('DEBUG: Stack trace: $stackTrace');
           // Don't throw here, just log the error so the product still gets created
         }
+      } else {
+        print('DEBUG: No product image URL to save (_productImageUrl is null or empty)');
+        print('DEBUG: _productImageUrl value: $_productImageUrl');
       }
 
       if (mounted) {

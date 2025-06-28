@@ -36,7 +36,7 @@ class ProductImage {
       'imageURL': imageURL,
       'isPrimary': isPrimary,
       'uploadedBy': uploadedBy,
-      'uploadedAt': uploadedAt,
+      'uploadedAt': Timestamp.fromDate(uploadedAt), // Convert DateTime to Firestore Timestamp
     };
   }
 }
