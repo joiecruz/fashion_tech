@@ -809,7 +809,7 @@ class _FabricLogbookPageState extends State<FabricLogbookPage>
                                     ],
                                   ),
                                 ),
-                                // Status labels section in upper right corner
+                                // Status labels and actions in upper right corner
                                 Column(
                                   crossAxisAlignment: CrossAxisAlignment.end,
                                   children: [
@@ -832,23 +832,43 @@ class _FabricLogbookPageState extends State<FabricLogbookPage>
                                               ),
                                             ),
                                           ),
-                                        if (quality.isNotEmpty)
-                                          Container(
-                                            margin: EdgeInsets.only(left: isUpcycled ? 4 : 0),
-                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        if (isUpcycled) const SizedBox(width: 4),
+                                        PopupMenuButton<String>(
+                                          icon: Container(
+                                            padding: const EdgeInsets.all(6),
                                             decoration: BoxDecoration(
-                                              color: _getQualityColor(quality),
-                                              borderRadius: BorderRadius.circular(12),
+                                              color: Colors.grey[100],
+                                              borderRadius: BorderRadius.circular(8),
                                             ),
-                                            child: Text(
-                                              quality,
-                                              style: TextStyle(
-                                                fontSize: 10,
-                                                fontWeight: FontWeight.w600,
-                                                color: _getQualityTextColor(quality),
+                                            child: Icon(Icons.more_vert, color: Colors.grey[600], size: 16),
+                                          ),
+                                          onSelected: (value) {
+                                            // Handle edit/delete actions
+                                          },
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                          itemBuilder: (context) => [
+                                            const PopupMenuItem(
+                                              value: 'edit',
+                                              child: Row(
+                                                children: [
+                                                  Icon(Icons.edit_outlined, size: 16),
+                                                  SizedBox(width: 8),
+                                                  Text('Edit Fabric'),
+                                                ],
                                               ),
                                             ),
-                                          ),
+                                            const PopupMenuItem(
+                                              value: 'delete',
+                                              child: Row(
+                                                children: [
+                                                  Icon(Icons.delete_outline, size: 16, color: Colors.red),
+                                                  SizedBox(width: 8),
+                                                  Text('Delete', style: TextStyle(color: Colors.red)),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                       ],
                                     ),
                                     if (isLowStock || isOutOfStock) ...[
@@ -1061,51 +1081,16 @@ class _FabricLogbookPageState extends State<FabricLogbookPage>
                             ),
                           ),
                         ),
-                      const SizedBox(width: 8),
-                      PopupMenuButton<String>(
-                        icon: Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            color: Colors.grey[100],
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Icon(Icons.more_vert, color: Colors.grey[600], size: 16),
-                        ),
-                        onSelected: (value) {
-                          // Handle edit/delete actions
-                        },
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        itemBuilder: (context) => [
-                          const PopupMenuItem(
-                            value: 'edit',
-                            child: Row(
-                              children: [
-                                Icon(Icons.edit_outlined, size: 16),
-                                SizedBox(width: 8),
-                                Text('Edit Fabric'),
-                              ],
-                            ),
-                          ),
-                          const PopupMenuItem(
-                            value: 'delete',
-                            child: Row(
-                              children: [
-                                Icon(Icons.delete_outline, size: 16, color: Colors.red),
-                                SizedBox(width: 8),
-                                Text('Delete', style: TextStyle(color: Colors.red)),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
+                      // Date info
+                      _buildDateInfo(fabric),
                     ],
                   ),
                 ],
               ),
             ),
-          ),
+          )
         );
-      },
+        }
     );
   }
 
@@ -1156,22 +1141,6 @@ class _FabricLogbookPageState extends State<FabricLogbookPage>
     );
   }
 
-  Color _getQualityColor(String quality) {
-    switch (quality.toLowerCase()) {
-      case 'premium':
-      case 'high':
-        return Colors.amber[100]!;
-      case 'good':
-      case 'medium':
-        return Colors.blue[100]!;
-      case 'standard':
-      case 'low':
-        return Colors.grey[200]!;
-      default:
-        return Colors.grey[100]!;
-    }
-  }
-
   Color _getQualityTextColor(String quality) {
     switch (quality.toLowerCase()) {
       case 'premium':
@@ -1214,5 +1183,55 @@ class _FabricLogbookPageState extends State<FabricLogbookPage>
       default:
         return Colors.grey[600]!;
     }
+  }
+
+  Widget _buildDateInfo(Map<String, dynamic> fabric) {
+    final createdAt = fabric['createdAt'] as Timestamp?;
+    final lastEdited = fabric['lastEdited'] as Timestamp?;
+    
+    if (createdAt == null && lastEdited == null) {
+      return const SizedBox.shrink();
+    }
+
+    final now = DateTime.now();
+    String formatDate(DateTime date) {
+      final difference = now.difference(date);
+      if (difference.inDays == 0) {
+        if (difference.inHours == 0) {
+          return '${difference.inMinutes}m ago';
+        }
+        return '${difference.inHours}h ago';
+      } else if (difference.inDays < 7) {
+        return '${difference.inDays}d ago';
+      } else if (difference.inDays < 30) {
+        return '${(difference.inDays / 7).floor()}w ago';
+      } else {
+        return '${date.day}/${date.month}/${date.year}';
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        if (createdAt != null)
+          Text(
+            'Created ${formatDate(createdAt.toDate())}',
+            style: TextStyle(
+              fontSize: 10,
+              color: Colors.grey[500],
+            ),
+          ),
+        if (lastEdited != null) ...[
+          if (createdAt != null) const SizedBox(height: 2),
+          Text(
+            'Edited ${formatDate(lastEdited.toDate())}',
+            style: TextStyle(
+              fontSize: 10,
+              color: Colors.grey[500],
+            ),
+          ),
+        ],
+      ],
+    );
   }
 }
