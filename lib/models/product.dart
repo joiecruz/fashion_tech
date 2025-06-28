@@ -8,6 +8,7 @@ class Product {
   final String category;
   final bool isUpcycled;
   final bool isMade;
+  final String createdBy; // User ID of who created this product
   final DateTime createdAt;
   final DateTime updatedAt;
   final DateTime? deletedAt; // New field for soft delete in ERDv7
@@ -22,6 +23,7 @@ class Product {
     required this.category,
     required this.isUpcycled,
     required this.isMade,
+    required this.createdBy,
     required this.createdAt,
     required this.updatedAt,
     this.deletedAt,
@@ -38,6 +40,7 @@ class Product {
       category: data['category'] ?? '',
       isUpcycled: data['isUpcycled'] ?? false,
       isMade: data['isMade'] ?? false,
+      createdBy: data['createdBy'] ?? 'anonymous',
       createdAt: data['createdAt'] is DateTime ? data['createdAt'] : DateTime.tryParse(data['createdAt'].toString()) ?? DateTime.now(),
       updatedAt: data['updatedAt'] is DateTime ? data['updatedAt'] : DateTime.tryParse(data['updatedAt'].toString()) ?? DateTime.now(),
       deletedAt: data['deletedAt'] != null 
@@ -56,6 +59,7 @@ class Product {
       'category': category,
       'isUpcycled': isUpcycled,
       'isMade': isMade,
+      'createdBy': createdBy,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
       'deletedAt': deletedAt?.toIso8601String(),

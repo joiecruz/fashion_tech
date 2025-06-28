@@ -72,6 +72,7 @@ class FetchProductsBackend {
           'unitCostEstimate': (productData['unitCostEstimate'] ?? 0.0).toDouble(),
           'isUpcycled': productData['isUpcycled'] ?? false,
           'isMade': productData['isMade'] ?? false,
+          'createdBy': productData['createdBy'] ?? 'anonymous',
           'stock': totalStock,
           'lowStock': lowStock,
           'potentialValue': potentialValue,

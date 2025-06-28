@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import '../../models/product.dart';
@@ -121,6 +122,9 @@ class _AddProductModalState extends State<AddProductModal> {
       _isLoading = true;
     });
 
+    print('DEBUG: _saveProduct called');
+    print('DEBUG: _productImageUrl = $_productImageUrl');
+
     try {
       // Create consolidated description including supplier info and acquisition date
       String consolidatedDescription = '';
@@ -136,6 +140,11 @@ class _AddProductModalState extends State<AddProductModal> {
         consolidatedDescription += 'Acquired: ${_acquisitionDate!.day}/${_acquisitionDate!.month}/${_acquisitionDate!.year}';
       }
 
+      // Get current user ID for both product and image
+      final currentUser = FirebaseAuth.instance.currentUser;
+      final userId = currentUser?.uid ?? 'anonymous'; // Fallback to anonymous if no user
+      print('DEBUG: Current user ID: $userId');
+
       // Create the product first
       final productRef = FirebaseFirestore.instance.collection('products').doc();
       final product = Product(
@@ -150,6 +159,7 @@ class _AddProductModalState extends State<AddProductModal> {
         category: _selectedCategory,
         isUpcycled: _isUpcycled,
         isMade: _isMade,
+        createdBy: userId, // Add user ID to product
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
         // deletedAt is null for new products (not deleted)
@@ -174,13 +184,14 @@ class _AddProductModalState extends State<AddProductModal> {
       if (_productImageUrl != null) {
         try {
           print('DEBUG: Attempting to save product image with URL: $_productImageUrl');
+          
           final productImageRef = FirebaseFirestore.instance.collection('productImages').doc();
           final productImage = ProductImage(
             id: productImageRef.id,
             productID: productRef.id,
             imageURL: _productImageUrl!,
             isPrimary: true,
-            uploadedBy: 'user', // TODO: Replace with actual user ID when auth is implemented
+            uploadedBy: userId, // Use the same user ID from above
             uploadedAt: DateTime.now(),
           );
           print('DEBUG: Saving product image to Firestore with data: ${productImage.toMap()}');
