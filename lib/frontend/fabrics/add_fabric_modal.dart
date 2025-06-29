@@ -6,6 +6,8 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:io';
 import 'dart:convert';
 import '../../utils/utils.dart';
+import '../../backend/fetch_suppliers.dart';
+import '../../backend/add_supplier_fabric.dart';
 
 class AddFabricModal extends StatefulWidget {
   const AddFabricModal({super.key});
@@ -25,10 +27,36 @@ class _AddFabricModalState extends State<AddFabricModal> {
   final TextEditingController _minOrderController = TextEditingController();
   bool _isUpcycled = false;
 
+  // Supplier-related variables
+  List<Map<String, dynamic>> _suppliers = [];
+  String? _selectedSupplierId;
+  bool _loadingSuppliers = true;
+
   File? _swatchImage;
   String? _swatchImageUrl;
   bool _uploading = false;
   bool _useFirebaseStorage = false; // Set to false to skip Firebase Storage and use base64 directly
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSuppliers();
+  }
+
+  Future<void> _loadSuppliers() async {
+    try {
+      final suppliers = await FetchSuppliersBackend.fetchAllSuppliers();
+      setState(() {
+        _suppliers = suppliers;
+        _loadingSuppliers = false;
+      });
+    } catch (e) {
+      print('Error loading suppliers: $e');
+      setState(() {
+        _loadingSuppliers = false;
+      });
+    }
+  }
 
   Future<void> _uploadImageAsBase64() async {
     if (_swatchImage == null) return;
@@ -254,36 +282,73 @@ class _AddFabricModalState extends State<AddFabricModal> {
     
     if (_formKey.currentState!.validate()) {
       final currentUser = FirebaseAuth.instance.currentUser;
-      await FirebaseFirestore.instance.collection('fabrics').add({
-        'name': _nameController.text,
-        'type': _selectedType,
-        'color': _selectedColor,
-        'quantity': int.tryParse(_quantityController.text) ?? 0,
-        'pricePerUnit': double.tryParse(_expenseController.text) ?? 0.0,
-        'qualityGrade': _selectedQuality,
-        'minOrder': int.tryParse(_minOrderController.text) ?? 0,
-        'isUpcycled': _isUpcycled,
-        'swatchImageURL': _swatchImageUrl,
-        'createdBy': currentUser?.uid ?? 'anonymous', // ERDv8 requirement
-        'createdAt': Timestamp.now(),
-        'lastEdited': Timestamp.now(),
-      });
+      
+      try {
+        // Add the fabric document
+        final fabricDoc = await FirebaseFirestore.instance.collection('fabrics').add({
+          'name': _nameController.text,
+          'type': _selectedType,
+          'color': _selectedColor,
+          'quantity': int.tryParse(_quantityController.text) ?? 0,
+          'pricePerUnit': double.tryParse(_expenseController.text) ?? 0.0,
+          'qualityGrade': _selectedQuality,
+          'minOrder': int.tryParse(_minOrderController.text) ?? 0,
+          'isUpcycled': _isUpcycled,
+          'swatchImageURL': _swatchImageUrl,
+          'supplierID': _selectedSupplierId, // Add supplier ID for reference
+          'createdBy': currentUser?.uid ?? 'anonymous', // ERDv8 requirement
+          'createdAt': Timestamp.now(),
+          'lastEdited': Timestamp.now(),
+        });
 
-      await showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Success'),
-          content: const Text('Fabric added successfully!'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('OK'),
-            ),
-          ],
-        ),
-      );
+        // If a supplier is selected, create the supplier-fabric relationship using backend service
+        if (_selectedSupplierId != null) {
+          await AddSupplierFabricBackend.addSupplierFabric(
+            supplierID: _selectedSupplierId!,
+            fabricID: fabricDoc.id,
+            supplyPrice: double.tryParse(_expenseController.text) ?? 0.0,
+            minOrder: int.tryParse(_minOrderController.text),
+            daysToDeliver: null, // Can be updated later
+          );
+        }
 
-      Navigator.pop(context); // Go back after adding
+        // Show success message
+        await showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Success'),
+            content: Text(_selectedSupplierId != null 
+                ? 'Fabric and supplier relationship added successfully!' 
+                : 'Fabric added successfully!'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+
+        Navigator.pop(context); // Go back after adding
+        
+      } catch (e) {
+        print('Error adding fabric: $e');
+        
+        // Show error message
+        await showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Error'),
+            content: Text('Failed to add fabric: ${e.toString()}'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      }
     }
   }
 
@@ -981,6 +1046,86 @@ class _AddFabricModalState extends State<AddFabricModal> {
                         ),
                       ),
                     ],
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Supplier Selection Card
+                Card(
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Supplier',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey[800],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        _loadingSuppliers
+                            ? Container(
+                                height: 48,
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: Colors.grey[300]!),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Center(
+                                  child: SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  ),
+                                ),
+                              )
+                            : DropdownButtonFormField<String>(
+                                value: _selectedSupplierId,
+                                hint: const Text('Select a supplier (optional)'),
+                                isExpanded: true,
+                                decoration: InputDecoration(
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    borderSide: BorderSide(color: Colors.grey[300]!),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    borderSide: BorderSide(color: Colors.blue[600]!),
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                ),
+                                items: [
+                                  // None option
+                                  const DropdownMenuItem<String>(
+                                    value: null,
+                                    child: Text('No supplier'),
+                                  ),
+                                  // Supplier options
+                                  ..._suppliers.map((supplier) {
+                                    return DropdownMenuItem<String>(
+                                      value: supplier['supplierID'],
+                                      child: Text(
+                                        supplier['supplierName'] ?? 'Unknown Supplier',
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    );
+                                  }),
+                                ],
+                                onChanged: (value) {
+                                  setState(() {
+                                    _selectedSupplierId = value;
+                                  });
+                                },
+                              ),
+                      ],
+                    ),
                   ),
                 ),
 
