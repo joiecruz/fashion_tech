@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/product_variant.dart';
 import '../../backend/fetch_variants.dart';
 import 'edit_product_modal.dart';
+import 'dart:convert';
 
 class ProductDetailPage extends StatefulWidget {
   final Map<String, dynamic> productData;
@@ -120,6 +121,36 @@ class _ProductDetailPageState extends State<ProductDetailPage>
     return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
   }
 
+  Widget _buildProductImage(String? imageUrl) {
+    if (imageUrl == null || imageUrl.isEmpty) {
+      return Icon(Icons.image, size: 40, color: Colors.grey[400]);
+    }
+    if (imageUrl.startsWith('data:image')) {
+      // Base64 image
+      final base64Data = imageUrl.split(',').last;
+      try {
+        return Image.memory(
+          base64Decode(base64Data),
+          fit: BoxFit.cover,
+          width: 80,
+          height: 80,
+        );
+      } catch (e) {
+        return Icon(Icons.broken_image, size: 40, color: Colors.red[300]);
+      }
+    } else if (Uri.tryParse(imageUrl)?.isAbsolute == true) {
+      // Network image
+      return Image.network(
+        imageUrl,
+        fit: BoxFit.cover,
+        width: 80,
+        height: 80,
+      );
+    } else {
+      return Icon(Icons.image_not_supported, size: 40, color: Colors.grey[400]);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -193,11 +224,7 @@ class _ProductDetailPageState extends State<ProductDetailPage>
                         color: Colors.grey[200],
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Icon(
-                        Icons.image,
-                        size: 40,
-                        color: Colors.grey[400],
-                      ),
+                      child: _buildProductImage(_productData['imageURL']),
                     ),
                     const SizedBox(width: 16),
                     Expanded(

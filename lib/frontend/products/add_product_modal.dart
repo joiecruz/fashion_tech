@@ -341,6 +341,10 @@ Future<void> _pickImage() async {
             uploadedBy: userId,
             uploadedAt: DateTime.now(),
           );
+          await FirebaseFirestore.instance
+              .collection('products')
+              .doc(productRef.id) // use the correct product ID
+              .update({'imageURL': _productImageUrl});
           await productImageRef.set(productImage.toMap());
         } catch (e, stackTrace) {
           print('DEBUG: ERROR saving product images: $e');

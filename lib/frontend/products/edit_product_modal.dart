@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import '../../models/product.dart';
 import '../../models/product_image.dart';
 import '../../utils/utils.dart';
-import '../../backend/edit_product.dart';
 
 class ProductVariantInput {
   String size;
@@ -31,21 +32,23 @@ class EditProductModal extends StatefulWidget {
 
 class _EditProductModalState extends State<EditProductModal> {
   final _formKey = GlobalKey<FormState>();
-  late TextEditingController _nameController;
-  late TextEditingController _priceController;
-  late TextEditingController _supplierController;
-  late TextEditingController _notesController;
-  late TextEditingController _stockController;
-  late String _selectedCategory;
+  final _nameController = TextEditingController();
+  final _priceController = TextEditingController();
+  final _supplierController = TextEditingController();
+  final _notesController = TextEditingController();
+  final _stockController = TextEditingController();
+  String _selectedCategory = 'top';
   bool _isUpcycled = false;
   bool _isMade = false;
   bool _isLoading = false;
+  bool _uploading = false;
   DateTime? _acquisitionDate;
 
-  List<File> _productImages = [];
-  List<String> _productImageUrls = [];
-  bool _uploadingImages = false;
-  int _primaryImageIndex = 0;
+  // Single image logic
+  File? _productImage;
+  String? _productImageUrl;
+  bool _uploadingImage = false;
+  bool _useFirebaseStorage = true;
 
   List<ProductVariantInput> _variants = [];
 
@@ -63,16 +66,16 @@ class _EditProductModalState extends State<EditProductModal> {
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController(text: widget.productData['name'] ?? '');
-    _priceController = TextEditingController(text: widget.productData['price']?.toString() ?? '');
-    _supplierController = TextEditingController(text: widget.productData['supplier'] ?? '');
-    _notesController = TextEditingController(text: widget.productData['notes'] ?? '');
-    _stockController = TextEditingController(text: widget.productData['stock']?.toString() ?? '');
+    _nameController.text = widget.productData['name'] ?? '';
+    _priceController.text = widget.productData['price']?.toString() ?? '';
+    _supplierController.text = widget.productData['supplier'] ?? '';
+    _notesController.text = widget.productData['notes'] ?? '';
+    _stockController.text = widget.productData['stock']?.toString() ?? '';
     _selectedCategory = widget.productData['category'] ?? _categories.first;
     _isUpcycled = widget.productData['isUpcycled'] ?? false;
     _isMade = widget.productData['isMade'] ?? false;
 
-    // Fix acquisitionDate type error
+    // Acquisition date
     final acquisitionRaw = widget.productData['acquisitionDate'];
     if (acquisitionRaw is Timestamp) {
       _acquisitionDate = acquisitionRaw.toDate();
@@ -82,10 +85,10 @@ class _EditProductModalState extends State<EditProductModal> {
       _acquisitionDate = DateTime.now();
     }
 
-    // Load images and variants if present
-    if (widget.productData['images'] != null) {
-      _productImageUrls = List<String>.from(widget.productData['images']);
-    }
+    // Fetch the existing image (single image logic)
+    _productImageUrl = widget.productData['imageURL'];
+
+    // Fetch variants if any
     if (widget.productData['variants'] != null) {
       _variants = (widget.productData['variants'] as List)
           .map((v) => ProductVariantInput(
@@ -107,172 +110,257 @@ class _EditProductModalState extends State<EditProductModal> {
     super.dispose();
   }
 
-  Future<void> _pickImages() async {
-    final picker = ImagePicker();
-    final picked = await picker.pickMultiImage(imageQuality: 60);
-    if (picked.isNotEmpty) {
-      setState(() {
-        _productImages = picked.map((xFile) => File(xFile.path)).toList();
-        _productImageUrls.clear();
-        _primaryImageIndex = 0;
-      });
-      await _uploadImages();
-    }
-  }
+  Future<void> _uploadImageAsBase64() async {
+    if (_productImage == null) return;
 
-  Future<void> _uploadImages() async {
-    if (_productImages.isEmpty) return;
-    setState(() => _uploadingImages = true);
     try {
-      _productImageUrls.clear();
-      for (int i = 0; i < _productImages.length; i++) {
-        await _convertToBase64(i);
+      setState(() => _uploading = true);
+      final fileSize = await _productImage!.length();
+      if (fileSize > 2 * 1024 * 1024) {
+        throw Exception('File size exceeds 2MB limit. Please choose a smaller image or reduce quality.');
       }
-    } finally {
-      setState(() => _uploadingImages = false);
-    }
-  }
 
-  Future<void> _convertToBase64(int index) async {
-    if (index >= _productImages.length) return;
-    final image = _productImages[index];
-    try {
-      final compressedImage = await _compressImage(image);
-      final imageToProcess = compressedImage ?? image;
-      final bytes = await imageToProcess.readAsBytes();
-      final estimatedBase64Size = bytes.length * 1.4;
-      if (estimatedBase64Size > 800 * 1024) {
-        throw Exception('Image too large for storage.');
-      }
+      final bytes = await _productImage!.readAsBytes();
       final base64String = base64Encode(bytes);
-      final extension = image.path.split('.').last.toLowerCase();
-      final mimeType = extension == 'png' ? 'image/png' : 'image/jpeg';
-      final dataUrl = 'data:$mimeType;base64,$base64String';
-      setState(() {
-        while (_productImageUrls.length <= index) {
-          _productImageUrls.add('');
-        }
-        _productImageUrls[index] = dataUrl;
-      });
-    } catch (e) {
+      final mimeType = _productImage!.path.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+
+      _productImageUrl = 'data:$mimeType;base64,$base64String';
+
+      setState(() => _uploading = false);
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to process image ${index + 1}: $e'),
+            content: const Text('Image processed successfully!'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() => _uploading = false);
+      _productImageUrl = null;
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to process image: $e'),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
           ),
         );
       }
     }
   }
 
-  Future<File?> _compressImage(File imageFile) async {
-    try {
-      final bytes = await imageFile.readAsBytes();
-      if (bytes.length <= 1200 * 1024) {
-        return imageFile;
-      }
-      return imageFile;
-    } catch (e) {
-      return imageFile;
-    }
-  }
-
-  DateTime? _parseDateTime(dynamic value) {
-    if (value == null) return null;
-    if (value is DateTime) return value;
-    if (value is Timestamp) return value.toDate();
-    if (value is String) return DateTime.tryParse(value);
-    return null;
-  }
-Future<void> _saveProduct() async {
-  if (!_formKey.currentState!.validate()) return;
-  if (_variants.isEmpty) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Please add at least one product variant')),
-    );
-    return;
-  }
-  setState(() {
-    _isLoading = true;
-  });
-
+Future<void> _pickImage() async {
   try {
-    // Build the update map directly, like supplier modal
-    final Map<String, dynamic> productData = {
-      'name': _nameController.text.trim(),
-      'price': double.tryParse(_priceController.text) ?? 0,
-      'category': _selectedCategory,
-      'supplier': _supplierController.text.trim(),
-      'notes': _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
-      'isUpcycled': _isUpcycled,
-      'isMade': _isMade,
-      'images': _productImageUrls.isNotEmpty ? _productImageUrls : widget.productData['images'],
-      'variants': _variants.map((v) => {
-        'size': v.size,
-        'color': v.color,
-        'quantityInStock': v.quantityInStock,
-      }).toList(),
-      'acquisitionDate': _acquisitionDate,
-      'updatedAt': DateTime.now(),
-    };
-
-    // If you want to keep createdAt, add it as well
-    if (widget.productData['createdAt'] != null) {
-      productData['createdAt'] = widget.productData['createdAt'];
-    }
-
-    await EditProductBackend.updateProduct(
-      productID: widget.productData['productID'],
-      updatedData: productData,
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 80,
+      maxWidth: 800,
+      maxHeight: 800,
     );
 
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              Icon(Icons.check_circle, color: Colors.white, size: 16),
-              const SizedBox(width: 8),
-              Text('Product "${_nameController.text}" updated!'),
-            ],
-          ),
-          backgroundColor: Colors.green[600],
-          duration: const Duration(seconds: 3),
-          behavior: SnackBarBehavior.floating,
-          margin: const EdgeInsets.all(16),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
-      );
-      Navigator.of(context).pop(true);
+    if (picked != null) {
+      final bytes = await picked.readAsBytes();
+      final mimeType = picked.name.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+      setState(() {
+        _productImage = null; // Not used
+        _productImageUrl = 'data:$mimeType;base64,${base64Encode(bytes)}';
+      });
     }
   } catch (e) {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Row(
-            children: [
-              Icon(Icons.error_outline, color: Colors.white, size: 16),
-              const SizedBox(width: 8),
-              const Text('Failed to update product. Please try again.'),
-            ],
-          ),
-          backgroundColor: Colors.red[600],
+          content: Text('Error selecting image: $e'),
+          backgroundColor: Colors.red,
           duration: const Duration(seconds: 3),
-          behavior: SnackBarBehavior.floating,
-          margin: const EdgeInsets.all(16),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       );
     }
-  } finally {
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
-    }
   }
 }
+  Future<void> _uploadImage() async {
+    if (_productImage == null) return;
+
+    try {
+      setState(() => _uploading = true);
+
+      final fileSize = await _productImage!.length();
+      if (fileSize > 5 * 1024 * 1024) {
+        throw Exception('File size exceeds 5MB limit. Please choose a smaller image.');
+      }
+
+      final fileName = 'products/${DateTime.now().millisecondsSinceEpoch}_${_productImage!.path.split('/').last}';
+      final ref = FirebaseStorage.instance.ref().child(fileName);
+
+      final uploadTask = ref.putFile(_productImage!);
+
+      await uploadTask;
+      _productImageUrl = await ref.getDownloadURL();
+
+      setState(() => _uploading = false);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Image uploaded successfully!'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() => _uploading = false);
+      _productImageUrl = null;
+
+      String errorMessage;
+      if (e.toString().contains('File size exceeds')) {
+        errorMessage = e.toString().replaceAll('Exception: ', '');
+      } else if (e.toString().contains('network')) {
+        errorMessage = 'Network error. Trying alternative upload method...';
+      } else if (e.toString().contains('permission')) {
+        errorMessage = 'Permission denied. Trying alternative upload method...';
+      } else if (e.toString().contains('storage/unauthorized')) {
+        errorMessage = 'Unauthorized access. Trying alternative upload method...';
+      } else {
+        errorMessage = 'Upload failed. Trying alternative upload method...';
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+
+      if (_useFirebaseStorage) {
+        _useFirebaseStorage = false;
+        await _uploadImageAsBase64();
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('All upload methods failed: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: 'Retry',
+              textColor: Colors.white,
+              onPressed: () {
+                _useFirebaseStorage = true;
+                _uploadImage();
+              },
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+Widget _buildImagePreview() {
+  if (_productImageUrl != null && _productImageUrl!.startsWith('data:image')) {
+    final base64Data = _productImageUrl!.split(',').last;
+    return Image.memory(
+      base64Decode(base64Data),
+      fit: BoxFit.cover,
+      width: double.infinity,
+      height: double.infinity,
+    );
+  } else {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(Icons.camera_alt, color: Colors.orange, size: 40),
+        const SizedBox(height: 8),
+        Text(
+          'Tap to upload product image',
+          style: TextStyle(color: Colors.orange.shade700),
+        ),
+      ],
+    );
+  }
+}
+
+  Future<void> _saveProduct() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    if (_variants.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please add at least one product variant')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+          final docId = widget.productData['id'] ?? widget.productData['productID'];
+          if (docId == null) {
+            throw Exception('No document ID provided for update.');
+          }
+
+      final Map<String, dynamic> productData = {
+        'name': _nameController.text.trim(),
+        'price': double.tryParse(_priceController.text) ?? 0,
+        'category': _selectedCategory,
+        'supplier': _supplierController.text.trim(),
+        'notes': _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
+        'isUpcycled': _isUpcycled,
+        'isMade': _isMade,
+        'imageURL': _productImageUrl,
+        'variants': _variants.map((v) => {
+          'size': v.size,
+          'color': v.color,
+          'quantityInStock': v.quantityInStock,
+        }).toList(),
+        'acquisitionDate': _acquisitionDate,
+        'updatedAt': DateTime.now(),
+      };
+
+      if (widget.productData['createdAt'] != null) {
+        productData['createdAt'] = widget.productData['createdAt'];
+      }
+
+      await FirebaseFirestore.instance
+          .collection('products')
+          .doc(docId)
+          .update(productData);
+      await Future.delayed(const Duration(milliseconds: 300));
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Product updated successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.of(context).pop(true);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error updating product: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -322,7 +410,7 @@ Future<void> _saveProduct() async {
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              'Product Images',
+                              'Product Image',
                               style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.w600,
@@ -332,179 +420,75 @@ Future<void> _saveProduct() async {
                           ],
                         ),
                         const SizedBox(height: 16),
-                        if (_productImages.isNotEmpty)
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Selected Images (${_productImages.length})',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.grey[700],
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              SizedBox(
-                                height: 120,
-                                child: ListView.builder(
-                                  scrollDirection: Axis.horizontal,
-                                  itemCount: _productImages.length,
-                                  itemBuilder: (context, index) {
-                                    final isPrimary = index == _primaryImageIndex;
-                                    return Container(
-                                      margin: const EdgeInsets.only(right: 12),
-                                      child: Stack(
-                                        children: [
-                                          GestureDetector(
-                                            onTap: () {
-                                              setState(() {
-                                                _primaryImageIndex = index;
-                                              });
-                                            },
-                                            child: Container(
-                                              width: 100,
-                                              height: 120,
-                                              decoration: BoxDecoration(
-                                                borderRadius: BorderRadius.circular(12),
-                                                border: Border.all(
-                                                  color: isPrimary ? Colors.orange : Colors.grey[300]!,
-                                                  width: isPrimary ? 4 : 2,
-                                                ),
-                                              ),
-                                              child: ClipRRect(
-                                                borderRadius: BorderRadius.circular(11),
-                                                child: Image.file(
-                                                  _productImages[index],
-                                                  fit: BoxFit.cover,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                          if (isPrimary)
-                                            Positioned(
-                                              top: 4,
-                                              left: 4,
-                                              child: Container(
-                                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                                decoration: BoxDecoration(
-                                                  color: Colors.orange,
-                                                  borderRadius: BorderRadius.circular(8),
-                                                ),
-                                                child: const Text(
-                                                  'PRIMARY',
-                                                  style: TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 10,
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          Positioned(
-                                            top: 4,
-                                            right: 4,
-                                            child: GestureDetector(
-                                              onTap: () {
-                                                setState(() {
-                                                  _productImages.removeAt(index);
-                                                  if (_productImageUrls.length > index) {
-                                                    _productImageUrls.removeAt(index);
-                                                  }
-                                                  if (_primaryImageIndex >= _productImages.length) {
-                                                    _primaryImageIndex = _productImages.length > 0 ? 0 : 0;
-                                                  }
-                                                });
-                                              },
-                                              child: Container(
-                                                padding: const EdgeInsets.all(4),
-                                                decoration: const BoxDecoration(
-                                                  color: Colors.red,
-                                                  shape: BoxShape.circle,
-                                                ),
-                                                child: const Icon(
-                                                  Icons.close,
-                                                  color: Colors.white,
-                                                  size: 16,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                            ],
-                          ),
                         GestureDetector(
-                          onTap: _uploadingImages ? null : _pickImages,
+                          onTap: _uploading ? null : _pickImage,
                           child: Container(
                             width: double.infinity,
-                            height: 120,
+                            height: (_productImage != null || _productImageUrl != null) ? 220 : 160,
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                color: Colors.grey[300]!,
+                                color: (_productImage != null || _productImageUrl != null)
+                                    ? Colors.orange[300]!
+                                    : Colors.grey[300]!,
                                 width: 2,
+                                style: BorderStyle.solid,
                               ),
-                              color: Colors.grey[50],
+                              color: (_productImage != null || _productImageUrl != null)
+                                  ? Colors.orange[50]
+                                  : Colors.grey[50],
                             ),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
+                            child: Stack(
                               children: [
-                                if (_uploadingImages)
-                                  const Column(
-                                    children: [
-                                      CircularProgressIndicator(),
-                                      SizedBox(height: 8),
-                                      Text('Processing images...'),
-                                    ],
-                                  )
-                                else
-                                  Column(
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.all(12),
-                                        decoration: BoxDecoration(
-                                          color: Colors.orange[100],
-                                          shape: BoxShape.circle,
-                                        ),
-                                        child: Icon(
-                                          Icons.add_photo_alternate,
-                                          size: 24,
-                                          color: Colors.orange[600],
-                                        ),
+                                Positioned.fill(child: _buildImagePreview()),
+                                if (_productImage != null || _productImageUrl != null)
+                                  Positioned(
+                                    top: 8,
+                                    right: 8,
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        color: Colors.black54,
+                                        borderRadius: BorderRadius.circular(20),
                                       ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        _productImages.isEmpty ? 'Add Product Images' : 'Add More Images',
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w500,
-                                          color: Colors.orange[700],
-                                        ),
+                                      child: IconButton(
+                                        icon: const Icon(Icons.edit, color: Colors.white, size: 18),
+                                        onPressed: _pickImage,
+                                        padding: const EdgeInsets.all(4),
+                                        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                                       ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        'Photos auto-compressed to 60% quality',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.grey[600],
-                                        ),
+                                    ),
+                                  ),
+                                if (_productImageUrl != null && !_uploading)
+                                  Positioned(
+                                    bottom: 8,
+                                    left: 8,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.green,
+                                        borderRadius: BorderRadius.circular(12),
                                       ),
-                                    ],
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: const [
+                                          Icon(Icons.check, color: Colors.white, size: 14),
+                                          SizedBox(width: 4),
+                                          Text(
+                                            'Uploaded',
+                                            style: TextStyle(color: Colors.white, fontSize: 12),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
                                   ),
                               ],
                             ),
                           ),
                         ),
                         const SizedBox(height: 8),
-                        if (_productImages.isNotEmpty)
+                        if (_productImageUrl != null || _productImage != null)
                           Text(
-                            'Tap an image to set it as the primary/thumbnail image. The primary image will be shown in product listings.',
+                            'Tap the image to change or re-upload. The image will be shown in product listings.',
                             style: TextStyle(
                               fontSize: 11,
                               color: Colors.grey[500],
@@ -513,7 +497,7 @@ Future<void> _saveProduct() async {
                           )
                         else
                           Text(
-                            'Upload multiple product images. Photos from your camera will be automatically compressed for storage.',
+                            'Upload a product image. Photos from your camera will be automatically compressed for storage.',
                             style: TextStyle(
                               fontSize: 11,
                               color: Colors.grey[500],

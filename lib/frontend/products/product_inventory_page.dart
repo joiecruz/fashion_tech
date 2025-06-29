@@ -4,6 +4,7 @@ import 'product_detail_page.dart';
 import 'package:fashion_tech/backend/fetch_products.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../utils/image_utils.dart';
+import 'dart:convert';
 
 class ProductInventoryPage extends StatefulWidget {
   const ProductInventoryPage({Key? key}) : super(key: key);
@@ -26,6 +27,37 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
 
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
+
+Widget _buildProductImage(String? imageUrl, {double size = 60}) {
+  if (imageUrl == null || imageUrl.isEmpty) {
+    return Icon(Icons.image, size: size * 0.5, color: Colors.grey[400]);
+  }
+  if (imageUrl.startsWith('data:image')) {
+    final base64Data = imageUrl.split(',').last;
+    try {
+      return Image.memory(
+        base64Decode(base64Data),
+        fit: BoxFit.cover,
+        width: size,
+        height: size,
+      );
+    } catch (e) {
+      return Icon(Icons.broken_image, size: size * 0.5, color: Colors.red[300]);
+    }
+  } else if (Uri.tryParse(imageUrl)?.isAbsolute == true) {
+    return Image.network(
+      imageUrl,
+      fit: BoxFit.cover,
+      width: size,
+      height: size,
+      errorBuilder: (context, error, stackTrace) {
+        return Icon(Icons.image, color: Colors.grey[400], size: size * 0.5);
+      },
+    );
+  } else {
+    return Icon(Icons.image_not_supported, size: size * 0.5, color: Colors.grey[400]);
+  }
+}
 
   @override
   void initState() {
@@ -684,6 +716,7 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
   }
 
   Widget _buildProductCard(Map<String, dynamic> product, int index) {
+    print('Product imageURL: ${product['imageURL']} | imageUrl: ${product['imageUrl']}');
     return TweenAnimationBuilder<double>(
       duration: Duration(milliseconds: 300 + (index * 100)),
       tween: Tween(begin: 0.0, end: 1.0),
@@ -724,31 +757,20 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
                     Row(
                       children: [
                         // Product Image Placeholder
+                        
                         Container(
                           width: 60,
                           height: 60,
                           decoration: BoxDecoration(
                             color: Colors.grey[200],
                             borderRadius: BorderRadius.circular(12),
+                            
                           ),
-                          child: product['imageUrl'].isNotEmpty
-                              ? ClipRRect(
-                                  borderRadius: BorderRadius.circular(12),
-                                  child: ImageUtils.buildImageWidget(
-                                    imageUrl: product['imageUrl'],
-                                    fit: BoxFit.cover,
-                                    errorWidget: Icon(
-                                      Icons.image,
-                                      color: Colors.grey[400],
-                                      size: 30,
-                                    ),
-                                  ),
-                                )
-                              : Icon(
-                                  Icons.image,
-                                  color: Colors.grey[400],
-                                  size: 30,
-                                ),
+                          child: _buildProductImage(
+                            product['imageURL'],
+                            size: 60,
+                          ),
+                          
                         ),
                         const SizedBox(width: 16),
                         Expanded(

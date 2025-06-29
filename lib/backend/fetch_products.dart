@@ -38,24 +38,7 @@ class FetchProductsBackend {
           });
         }
 
-        // Fetch primary product image
-        String imageUrl = '';
-        try {
-          final imageSnapshot = await FirebaseFirestore.instance
-              .collection('productImages')
-              .where('productID', isEqualTo: productDoc.id)
-              .where('isPrimary', isEqualTo: true)
-              .limit(1)
-              .get();
-
-          if (imageSnapshot.docs.isNotEmpty) {
-            imageUrl = imageSnapshot.docs.first.data()['imageURL'] ?? '';
-            print('DEBUG: Image found for ${productData['name']}: $imageUrl');
-          }
-        } catch (e) {
-          print('DEBUG: Error fetching image for ${productData['name']}: $e');
-          imageUrl = '';
-        }
+        String imageURL = productData['imageURL'] ?? '';
 
         double price = (productData['price'] ?? 0.0).toDouble();
         double potentialValue = price * totalStock;
@@ -74,7 +57,7 @@ class FetchProductsBackend {
           'stock': totalStock,
           'lowStock': lowStock,
           'potentialValue': potentialValue,
-          'imageUrl': imageUrl,
+          'imageURL': imageURL,
           'variants': variants,
           'createdAt': productData['createdAt'],
           'updatedAt': productData['updatedAt'],
