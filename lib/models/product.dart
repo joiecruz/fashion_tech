@@ -4,7 +4,6 @@ class Product {
   final String? description; // For additional product details, notes, supplier info
   final String? notes; // ERDv7 field for product-specific notes
   final double price;
-  final double? unitCostEstimate;
   final String category;
   final bool isUpcycled;
   final bool isMade;
@@ -19,7 +18,6 @@ class Product {
     this.description,
     this.notes,
     required this.price,
-    this.unitCostEstimate,
     required this.category,
     required this.isUpcycled,
     required this.isMade,
@@ -36,7 +34,6 @@ class Product {
       description: data['description'],
       notes: data['notes'],
       price: (data['price'] ?? 0).toDouble(),
-      unitCostEstimate: data['unitCostEstimate']?.toDouble(),
       category: data['category'] ?? '',
       isUpcycled: data['isUpcycled'] ?? false,
       isMade: data['isMade'] ?? false,
@@ -55,7 +52,6 @@ class Product {
       'description': description,
       'notes': notes,
       'price': price,
-      'unitCostEstimate': unitCostEstimate,
       'category': category,
       'isUpcycled': isUpcycled,
       'isMade': isMade,

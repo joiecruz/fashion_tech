@@ -14,14 +14,12 @@ class AddProductBackend {
     required String size,
     required String color,
     required int quantityInStock,
-    double? unitCostEstimate,
   }) async {
     await FirebaseFirestore.instance.collection('productVariants').add({
       'productID': productID,
       'size': size,
       'color': color,
       'quantityInStock': quantityInStock,
-      'unitCostEstimate': unitCostEstimate,
     });
   }
 

@@ -54,9 +54,9 @@ This document summarizes all changes made to align the Fashion Tech project with
 - ✅ **Updated constructor, fromMap, and toMap methods with automatic calculation**
 
 ### 8. **Product Model** (`lib/models/product.dart`)
-**Status:** ✅ **Already Compliant**
+**Status:** ✅ **Fully Compliant**
 - ✅ **All ERDv7 fields present:** `notes`, `deletedAt`, etc.
-- ✅ **Legacy field retained:** `unitCostEstimate` (kept for backward compatibility)
+- ✅ **Legacy field removed:** `unitCostEstimate` (fully removed for ERDv7 compliance)
 
 ### 9. **Models Already Compliant**
 - ✅ **JobOrder** - No changes needed
@@ -78,6 +78,10 @@ This document summarizes all changes made to align the Fashion Tech project with
 - ✅ **Removed `unitCostEstimate`** from variant data processing
 - ✅ **Removed `unitCostEstimate`** from product data processing
 
+### 4. **add_product.dart** (`lib/backend/add_product.dart`)
+- ✅ **Removed `unitCostEstimate`** parameter from `addProductVariant` method
+- ✅ **Updated Firestore writes** to exclude `unitCostEstimate` field
+
 ## 🎨 Frontend Updates
 
 ### 1. **Add Fabric Modal** (`lib/frontend/fabrics/add_fabric_modal.dart`)
@@ -91,6 +95,7 @@ This document summarizes all changes made to align the Fashion Tech project with
 - ✅ **Removed `unitCostEstimate`** from ProductVariantInput class
 - ✅ **Removed unit cost fields** from variant form UI
 - ✅ **Updated Firestore writes** to exclude `unitCostEstimate`
+- ✅ **Removed unit cost UI** from product form (final update)
 
 ### 3. **Job Order Modal** (`lib/frontend/job_orders/add_job_order_modal.dart`)
 - ✅ **Removed `unitCostEstimate`** from FormProductVariant class
@@ -118,14 +123,14 @@ This document summarizes all changes made to align the Fashion Tech project with
 - **SalesLog:** `totalRevenue`
 
 ### Field Removals:
+- **Product:** `unitCostEstimate` (fully removed from model and all references)
 - **ProductVariant:** `unitCostEstimate` (removed from model and all references)
 
 ## 🔄 Migration Compatibility
 
 ### Backward Compatibility Features:
 1. **SupplierProduct model** supports both `leadTimeDays` and `daysToDeliver` during migration
-2. **Product model** retains `unitCostEstimate` for backward compatibility
-3. **All new fields** have sensible defaults in `fromMap` constructors
+2. **All new fields** have sensible defaults in `fromMap` constructors
 
 ### Data Migration Required:
 - Existing suppliers need `email` field populated

@@ -32,7 +32,6 @@ class _AddProductModalState extends State<AddProductModal> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _priceController = TextEditingController();
-  final _unitCostController = TextEditingController();
   final _supplierController = TextEditingController();
   final _notesController = TextEditingController();
   final _stockController = TextEditingController();
@@ -65,7 +64,6 @@ class _AddProductModalState extends State<AddProductModal> {
   void dispose() {
     _nameController.dispose();
     _priceController.dispose();
-    _unitCostController.dispose();
     _supplierController.dispose();
     _notesController.dispose();
     _stockController.dispose();
@@ -151,9 +149,6 @@ class _AddProductModalState extends State<AddProductModal> {
         description: consolidatedDescription.isNotEmpty ? consolidatedDescription : null,
         notes: _notesController.text.trim().isNotEmpty ? _notesController.text.trim() : null,
         price: double.parse(_priceController.text),
-        unitCostEstimate: _unitCostController.text.isNotEmpty
-            ? double.parse(_unitCostController.text)
-            : null,
         category: _selectedCategory,
         isUpcycled: _isUpcycled,
         isMade: _isMade,
@@ -613,57 +608,6 @@ class _AddProductModalState extends State<AddProductModal> {
                         ),
                       ),
                     ],
-                  ),
-                ),
-
-                const SizedBox(height: 16),
-
-                // Unit Cost Estimate (Optional)
-                Card(
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Unit Cost Estimate (₱) - Optional',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey[800],
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        TextFormField(
-                          controller: _unitCostController,
-                          keyboardType: TextInputType.numberWithOptions(decimal: true),
-                          decoration: InputDecoration(
-                            hintText: '0.00',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(color: Colors.grey[300]!),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(color: Colors.blue[600]!),
-                            ),
-                          ),
-                          validator: (value) {
-                            if (value != null && value.trim().isNotEmpty) {
-                              final cost = double.tryParse(value);
-                              if (cost == null || cost < 0) {
-                                return 'Enter valid cost';
-                              }
-                            }
-                            return null;
-                          },
-                        ),
-                      ],
-                    ),
                   ),
                 ),
 
