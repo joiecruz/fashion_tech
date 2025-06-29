@@ -26,7 +26,6 @@ class FormProductVariant extends ProductVariant {
     required String size,
     required String color,
     required int quantityInStock,
-    double? unitCostEstimate,
     required this.fabrics,
   }) : super(
     id: id,
@@ -34,7 +33,6 @@ class FormProductVariant extends ProductVariant {
     size: size,
     color: color,
     quantityInStock: quantityInStock,
-    unitCostEstimate: unitCostEstimate,
   );
 }
 
@@ -73,43 +71,126 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
   @override
   void initState() {
     super.initState();
+    print('DEBUG: Initializing AddJobOrderModal...');
     _fetchUserFabrics();
     _fetchSupplier();
     _quantityController.addListener(() {
       setState(() {});
     });
+    print('DEBUG: AddJobOrderModal initialization complete');
   }
 
   Future<void> _fetchUserFabrics() async {
-    final snapshot = await FirebaseFirestore.instance.collection('fabrics').get();
-    setState(() {
-      _userFabrics = snapshot.docs.map((doc) => {
-        'id': doc.id,
-        'fabricID': doc.id,
-        'name': doc['name'] ?? 'Unnamed',
-        'type': doc['type'] ?? 'Unknown',
-        'quantity': (doc['quantity'] ?? 0) as num,
-        'color': doc['color'] ?? '#FF0000',
-        'qualityGrade': doc['qualityGrade'] ?? 'Standard',
-        'expensePerYard': (doc['expensePerYard'] ?? 0.0) as num,
-        'swatchImageURL': doc['swatchImageURL'] ?? '',
-      }).toList();
-      _loadingFabrics = false;
-    });
+    try {
+      print('DEBUG: Fetching user fabrics...');
+      print('DEBUG: Firestore instance: ${FirebaseFirestore.instance}');
+      final snapshot = await FirebaseFirestore.instance
+          .collection('fabrics')
+          .get()
+          .timeout(Duration(seconds: 10));
+      print('DEBUG: Found ${snapshot.docs.length} fabric documents');
+      
+      if (snapshot.docs.isEmpty) {
+        print('DEBUG: No fabric documents found in Firestore');
+      }
+      
+      setState(() {
+        _userFabrics = snapshot.docs.map((doc) {
+          final data = doc.data();
+          print('DEBUG: Fabric document ${doc.id} fields: ${data.keys.toList()}');
+          
+          // Check for different possible field names for expense
+          double expenseValue = 0.0;
+          if (data.containsKey('expensePerYard')) {
+            expenseValue = ((data['expensePerYard'] ?? 0.0) as num).toDouble();
+          } else if (data.containsKey('expense')) {
+            expenseValue = ((data['expense'] ?? 0.0) as num).toDouble();
+          } else if (data.containsKey('costPerYard')) {
+            expenseValue = ((data['costPerYard'] ?? 0.0) as num).toDouble();
+          } else if (data.containsKey('pricePerYard')) {
+            expenseValue = ((data['pricePerYard'] ?? 0.0) as num).toDouble();
+          } else {
+            print('DEBUG: No expense field found for fabric ${doc.id}, using default 0.0');
+          }
+          
+          return {
+            'id': doc.id,
+            'fabricID': doc.id,
+            'name': data.containsKey('name') ? data['name'] ?? 'Unnamed' : 'Unnamed',
+            'type': data.containsKey('type') ? data['type'] ?? 'Unknown' : 'Unknown',
+            'quantity': data.containsKey('quantity') ? ((data['quantity'] ?? 0) as num).toDouble() : 0.0,
+            'color': data.containsKey('color') ? data['color'] ?? '#FF0000' : '#FF0000',
+            'qualityGrade': data.containsKey('qualityGrade') ? data['qualityGrade'] ?? 'Standard' : 'Standard',
+            'expensePerYard': expenseValue,
+            'swatchImageURL': data.containsKey('swatchImageURL') ? data['swatchImageURL'] ?? '' : '',
+          };
+        }).toList();
+        _loadingFabrics = false;
+      });
+      print('DEBUG: Successfully loaded ${_userFabrics.length} fabrics');
+    } catch (e, stackTrace) {
+      print('DEBUG: Error fetching fabrics: $e');
+      print('DEBUG: Stack trace: $stackTrace');
+      setState(() {
+        _userFabrics = [];
+        _loadingFabrics = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading fabrics: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 5),
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _fetchSupplier() async {
-    final snapshot = await FirebaseFirestore.instance.collection('suppliers').limit(1).get();
-    if (snapshot.docs.isNotEmpty) {
-      setState(() {
-        _supplier = snapshot.docs.first.data();
-        _loadingSupplier = false;
-      });
-    } else {
+    try {
+      print('DEBUG: Fetching suppliers...');
+      print('DEBUG: Firestore instance: ${FirebaseFirestore.instance}');
+      final snapshot = await FirebaseFirestore.instance
+          .collection('suppliers')
+          .limit(1)
+          .get()
+          .timeout(Duration(seconds: 10));
+      print('DEBUG: Found ${snapshot.docs.length} supplier documents');
+      
+      if (snapshot.docs.isEmpty) {
+        print('DEBUG: No supplier documents found in Firestore');
+      }
+      
+      if (snapshot.docs.isNotEmpty) {
+        setState(() {
+          _supplier = snapshot.docs.first.data();
+          _loadingSupplier = false;
+        });
+        print('DEBUG: Successfully loaded supplier: ${_supplier!['supplierName'] ?? 'Unknown'}');
+      } else {
+        setState(() {
+          _supplier = null;
+          _loadingSupplier = false;
+        });
+        print('DEBUG: No suppliers found in database');
+      }
+    } catch (e, stackTrace) {
+      print('DEBUG: Error fetching supplier: $e');
+      print('DEBUG: Stack trace: $stackTrace');
       setState(() {
         _supplier = null;
         _loadingSupplier = false;
       });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading supplier: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 5),
+          ),
+        );
+      }
     }
   }
 
@@ -149,96 +230,112 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
     }
   }
 
-  Future<void> _saveJobOrder() async {
-    if (_formKey.currentState == null || !_formKey.currentState!.validate()) return;
-    if (_variants.isEmpty) {
+Future<void> _saveJobOrder() async {
+  print('DEBUG: _saveJobOrder called');
+  if (_formKey.currentState == null || !_formKey.currentState!.validate()) {
+    print('DEBUG: Form not valid');
+    return;
+  }
+  if (_variants.isEmpty) {
+    print('DEBUG: No variants');
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Please add at least one product variant.')),
+    );
+    return;
+  }
+  for (final variant in _variants) {
+    if (variant.fabrics.isEmpty) {
+      print('DEBUG: Variant has no fabrics');
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please add at least one product variant.')),
+        const SnackBar(content: Text('Each variant must have at least one fabric.')),
       );
       return;
-    }
-    for (final variant in _variants) {
-      if (variant.fabrics.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Each variant must have at least one fabric.')),
-        );
-        return;
-      }
-    }
-    // --- Quantity sum validation ---
-    int globalQty = int.tryParse(_quantityController.text) ?? 0;
-    int sumVariants = _variants.fold(0, (sum, v) => sum + v.quantity);
-    if (globalQty != sumVariants) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Sum of variant quantities ($sumVariants) must equal global quantity ($globalQty).')),
-      );
-      return;
-    }
-
-    try {
-      final productRef = FirebaseFirestore.instance.collection('products').doc();
-      await productRef.set({
-        'name': _productNameController.text,
-        'price': double.tryParse(_priceController.text) ?? 0.0,
-        'category': 'Custom',
-        'isUpcycled': _isUpcycled,
-        'isMade': false,
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-
-      final jobOrderRef = FirebaseFirestore.instance.collection('joborders').doc();
-      await jobOrderRef.set({
-        'productID': productRef.id,
-        'quantity': int.tryParse(_quantityController.text) ?? 0,
-        'customerName': _assignedToController.text,
-        'status': _jobStatus,
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-        'dueDate': _dueDateController.text.isNotEmpty
-            ? Timestamp.fromDate(DateTime.parse(_dueDateController.text))
-            : FieldValue.serverTimestamp(),
-        'assignedTo': _assignedToController.text,
-        'createdBy': 'current_user_id', // Replace with actual user ID
-        'supplierID': _supplier?['supplierID'] ?? '',
-      });
-
-      for (int i = 0; i < _variants.length; i++) {
-        final variant = _variants[i];
-        final variantRef = FirebaseFirestore.instance.collection('productvariants').doc();
-        await variantRef.set({
-          'productID': productRef.id,
-          'size': variant.size,
-          'color': variant.color,
-          'quantityInStock': variant.quantityInStock,
-        });
-
-        for (final fabric in variant.fabrics) {
-          final jobOrderDetailRef = FirebaseFirestore.instance.collection('joborderdetails').doc();
-          await jobOrderDetailRef.set({
-            'jobOrderID': jobOrderRef.id,
-            'fabricID': fabric.fabricId,
-            'yardageUsed': fabric.yardsRequired,
-            'size': variant.size,
-            'color': variant.color,
-          });
-        }
-      }
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Job order saved!')),
-        );
-        Navigator.of(context).pop();
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error saving job order: $e')),
-        );
-      }
     }
   }
+  int globalQty = int.tryParse(_quantityController.text) ?? 0;
+  int sumVariants = _variants.fold(0, (sum, v) => sum + v.quantity);
+  if (globalQty != sumVariants) {
+    print('DEBUG: Quantity mismatch: global=$globalQty, sumVariants=$sumVariants');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Sum of variant quantities ($sumVariants) must equal global quantity ($globalQty).')),
+    );
+    return;
+  }
+
+  try {
+    print('Saving product...');
+    final productRef = FirebaseFirestore.instance.collection('products').doc();
+    await productRef.set({
+      'name': _productNameController.text,
+      'price': double.tryParse(_priceController.text) ?? 0.0,
+      'category': 'Custom',
+      'isUpcycled': _isUpcycled,
+      'isMade': false,
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    print('Saving job order...');
+    final jobOrderRef = FirebaseFirestore.instance.collection('jobOrders').doc();
+    await jobOrderRef.set({
+      'productID': productRef.id,
+      'quantity': globalQty,
+      'customerName': _assignedToController.text,
+      'status': _jobStatus,
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+      'dueDate': (_dueDateController.text.isNotEmpty && _dueDateController.text.length >= 10)
+          ? Timestamp.fromDate(DateTime.tryParse(_dueDateController.text) ?? DateTime.now())
+          : FieldValue.serverTimestamp(),
+      'assignedTo': _assignedToController.text,
+      'createdBy': 'current_user_id', // Replace with actual user ID
+      'supplierID': _supplier?['supplierID'] ?? _supplier?['id'] ?? '',
+      'specialInstructions': _specialInstructionsController.text,
+      'orderDate': (_orderDateController.text.isNotEmpty && _orderDateController.text.length >= 10)
+          ? Timestamp.fromDate(DateTime.tryParse(_orderDateController.text) ?? DateTime.now())
+          : FieldValue.serverTimestamp(),
+    });
+
+    for (int i = 0; i < _variants.length; i++) {
+      final variant = _variants[i];
+      print('Saving variant $i...');
+      final variantRef = FirebaseFirestore.instance.collection('productVariants').doc();
+      await variantRef.set({
+        'productID': productRef.id,
+        'size': variant.size,
+        'color': variant.color,
+        'quantityInStock': variant.quantity,
+      });
+
+      for (final fabric in variant.fabrics) {
+        print('Saving job order detail for fabric ${fabric.fabricId}...');
+        final jobOrderDetailRef = FirebaseFirestore.instance.collection('jobOrdersDetail').doc();
+        await jobOrderDetailRef.set({
+          'jobOrderID': jobOrderRef.id,
+          'fabricID': fabric.fabricId,
+          'yardageUsed': fabric.yardsRequired,
+          'size': variant.size,
+          'color': variant.color,
+        });
+      }
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Job order saved!')),
+      );
+      Navigator.of(context).pop();
+    }
+  } catch (e, stack) {
+    print('Error saving job order: $e');
+    print(stack);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error saving job order: $e')),
+      );
+    }
+  }
+}
 
   Color _parseColor(String colorValue) {
     return ColorUtils.parseColor(colorValue);
@@ -247,8 +344,96 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
   @override
   Widget build(BuildContext context) {
     if (_loadingFabrics || _loadingSupplier) {
-      return const Center(child: CircularProgressIndicator());
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('New Job Order'),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+        ),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Loading fabrics and suppliers...'),
+              SizedBox(height: 8),
+              Text(
+                _loadingFabrics ? 'Fetching fabrics...' : 'Fabrics loaded ✓',
+                style: TextStyle(
+                  color: _loadingFabrics ? Colors.grey : Colors.green,
+                  fontSize: 12,
+                ),
+              ),
+              Text(
+                _loadingSupplier ? 'Fetching suppliers...' : 'Suppliers loaded ✓',
+                style: TextStyle(
+                  color: _loadingSupplier ? Colors.grey : Colors.green,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
     }
+
+    // Show message if no fabrics are available, but still allow the form to be used
+    if (_userFabrics.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('New Job Order'),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+        ),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.inventory_2_outlined, size: 64, color: Colors.grey),
+              SizedBox(height: 16),
+              Text(
+                'No Fabrics Available',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              SizedBox(height: 8),
+              Text(
+                'Please add some fabrics before creating a job order.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey),
+              ),
+              SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: () {
+                  // Allow user to continue anyway for testing
+                  setState(() {
+                    _userFabrics = [
+                      {
+                        'id': 'test_fabric',
+                        'fabricID': 'test_fabric',
+                        'name': 'Test Fabric',
+                        'type': 'Cotton',
+                        'quantity': 100,
+                        'color': '#FF0000',
+                        'qualityGrade': 'Standard',
+                        'expensePerYard': 10.0,
+                        'swatchImageURL': '',
+                      }
+                    ];
+                  });
+                },
+                child: Text('Continue with Test Data'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return DraggableScrollableSheet(
       expand: false,
       initialChildSize: 0.95,
@@ -293,89 +478,123 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                           ),
                           const SizedBox(height: 16),
                           Form(
-                            key: _formKey,
-                            child: Column(
-                              children: [
-                                TextFormField(
-                                  controller: _productNameController,
-                                  decoration: const InputDecoration(labelText: 'Product Name', hintText: 'E.g., Summer Collection Dress'),
-                                  validator: (val) => val!.isEmpty ? 'Required' : null,
-                                ),
-                                const SizedBox(height: 12),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: TextFormField(
-                                        controller: _orderDateController,
-                                        readOnly: true,
-                                        onTap: () => _pickDate(_orderDateController),
-                                        decoration: const InputDecoration(
-                                          labelText: 'Order Date',
-                                          prefixIcon: Icon(Icons.calendar_today, size: 18),
-                                        ),
+                          key: _formKey,
+                          child: Column(
+                            children: [
+                              TextFormField(
+                                controller: _productNameController,
+                                decoration: const InputDecoration(labelText: 'Product Name', hintText: 'E.g., Summer Collection Dress'),
+                                validator: (val) {
+                                  print('DEBUG: Product Name validator: $val');
+                                  return val == null || val.isEmpty ? 'Required' : null;
+                                },
+                              ),
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: TextFormField(
+                                      controller: _orderDateController,
+                                      readOnly: true,
+                                      onTap: () => _pickDate(_orderDateController),
+                                      decoration: const InputDecoration(
+                                        labelText: 'Order Date',
+                                        prefixIcon: Icon(Icons.calendar_today, size: 18),
                                       ),
+                                      validator: (val) {
+                                        print('DEBUG: Order Date validator: $val');
+                                        return val == null || val.isEmpty ? 'Required' : null;
+                                      },
                                     ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: TextFormField(
-                                        controller: _dueDateController,
-                                        readOnly: true,
-                                        onTap: () => _pickDate(_dueDateController),
-                                        decoration: const InputDecoration(
-                                          labelText: 'Due Date',
-                                          prefixIcon: Icon(Icons.calendar_today, size: 18),
-                                        ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: TextFormField(
+                                      controller: _dueDateController,
+                                      readOnly: true,
+                                      onTap: () => _pickDate(_dueDateController),
+                                      decoration: const InputDecoration(
+                                        labelText: 'Due Date',
+                                        prefixIcon: Icon(Icons.calendar_today, size: 18),
                                       ),
+                                      validator: (val) {
+                                        print('DEBUG: Due Date validator: $val');
+                                        return val == null || val.isEmpty ? 'Required' : null;
+                                      },
                                     ),
-                                  ],
-                                ),
-                                const SizedBox(height: 12),
-                                TextFormField(
-                                  controller: _assignedToController,
-                                  decoration: const InputDecoration(labelText: 'Assigned To'),
-                                ),
-                                const SizedBox(height: 12),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: TextFormField(
-                                        controller: _quantityController,
-                                        decoration: const InputDecoration(labelText: 'Quantity'),
-                                        keyboardType: TextInputType.number,
-                                      ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              TextFormField(
+                                controller: _assignedToController,
+                                decoration: const InputDecoration(labelText: 'Assigned To'),
+                                validator: (val) {
+                                  print('DEBUG: Assigned To validator: $val');
+                                  return val == null || val.isEmpty ? 'Required' : null;
+                                },
+                              ),
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: TextFormField(
+                                      controller: _quantityController,
+                                      decoration: const InputDecoration(labelText: 'Quantity'),
+                                      keyboardType: TextInputType.number,
+                                      validator: (val) {
+                                        print('DEBUG: Quantity validator: $val');
+                                        if (val == null || val.isEmpty) return 'Required';
+                                        final n = int.tryParse(val);
+                                        if (n == null || n <= 0) return 'Must be a positive number';
+                                        return null;
+                                      },
                                     ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: TextFormField(
-                                        controller: _priceController,
-                                        decoration: const InputDecoration(labelText: 'Price (₱)'),
-                                        keyboardType: TextInputType.number,
-                                      ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: TextFormField(
+                                      controller: _priceController,
+                                      decoration: const InputDecoration(labelText: 'Price (₱)'),
+                                      keyboardType: TextInputType.number,
+                                      validator: (val) {
+                                        print('DEBUG: Price validator: $val');
+                                        if (val == null || val.isEmpty) return 'Required';
+                                        final n = double.tryParse(val);
+                                        if (n == null || n < 0) return 'Must be a number';
+                                        return null;
+                                      },
                                     ),
-                                  ],
-                                ),
-                                const SizedBox(height: 12),
-                                TextFormField(
-                                  controller: _specialInstructionsController,
-                                  decoration: const InputDecoration(labelText: 'Special Instructions', hintText: 'E.g., Custom embroidery on cuffs'),
-                                ),
-                                const SizedBox(height: 12),
-                                SwitchListTile(
-                                  value: _isUpcycled,
-                                  onChanged: (val) => setState(() => _isUpcycled = val),
-                                  title: const Text('Is Upcycled?'),
-                                  contentPadding: EdgeInsets.zero,
-                                ),
-                                const SizedBox(height: 12),
-                                DropdownButtonFormField<String>(
-                                  value: _jobStatus,
-                                  items: const [
-                                    DropdownMenuItem(value: 'Open', child: Text('Open')),
-                                    DropdownMenuItem(value: 'In Progress', child: Text('In Progress')),
-                                    DropdownMenuItem(value: 'Done', child: Text('Done')),
-                                  ],
-                                  onChanged: (val) => setState(() => _jobStatus = val ?? 'In Progress'),
-                                  decoration: const InputDecoration(labelText: 'Job Status'),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              TextFormField(
+                                controller: _specialInstructionsController,
+                                decoration: const InputDecoration(labelText: 'Special Instructions', hintText: 'E.g., Custom embroidery on cuffs'),
+                                // Optional, so no validator
+                              ),
+                              const SizedBox(height: 12),
+                              SwitchListTile(
+                                value: _isUpcycled,
+                                onChanged: (val) => setState(() => _isUpcycled = val),
+                                title: const Text('Is Upcycled?'),
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                              const SizedBox(height: 12),
+                              DropdownButtonFormField<String>(
+                                value: _jobStatus,
+                                items: const [
+                                  DropdownMenuItem(value: 'Open', child: Text('Open')),
+                                  DropdownMenuItem(value: 'In Progress', child: Text('In Progress')),
+                                  DropdownMenuItem(value: 'Done', child: Text('Done')),
+                                ],
+                                onChanged: (val) => setState(() => _jobStatus = val ?? 'In Progress'),
+                                decoration: const InputDecoration(labelText: 'Job Status'),
+                                validator: (val) {
+                                  print('DEBUG: Job Status validator: $val');
+                                  return val == null || val.isEmpty ? 'Required' : null;
+                                  }
                                 ),
                               ],
                             ),
@@ -694,7 +913,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                                                 const Text('Fabrics', style: TextStyle(fontWeight: FontWeight.bold)),
                                                 const Spacer(),
                                                 TextButton.icon(
-                                                  onPressed: () {
+                                                  onPressed: _userFabrics.isEmpty ? null : () {
                                                     setState(() {
                                                       _variants[idx].fabrics.add(VariantFabric(
                                                         fabricId: _userFabrics.first['id']!,
@@ -704,7 +923,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                                                     });
                                                   },
                                                   icon: const Icon(Icons.add, size: 18),
-                                                  label: const Text('Add Fabric'),
+                                                  label: Text(_userFabrics.isEmpty ? 'No Fabrics Available' : 'Add Fabric'),
                                                 ),
                                               ],
                                             ),
