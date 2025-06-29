@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:ui';
 import 'products/product_inventory_page.dart';
 import 'fabrics/fabric_logbook_page.dart';
-import '../../backend/fetch_suppliers.dart';
+import 'suppliers/supplier_dashboard_page.dart';
 
 class InventoryPage extends StatefulWidget {
   final Function(String)? onTabChanged;
@@ -23,7 +23,7 @@ class _InventoryPageState extends State<InventoryPage>
   final List<Widget> _pages = [
     const ProductInventoryPage(),
     const FabricLogbookPage(),
-    const SuppliersPage(),
+    const SupplierDashboardPage(),
   ];
 
   final List<Map<String, dynamic>> _tabs = [
@@ -224,103 +224,6 @@ class _InventoryPageState extends State<InventoryPage>
           ),
         ),
       ),
-    );
-  }
-}
-
-// Suppliers Page with Firestore fetching
-class SuppliersPage extends StatelessWidget {
-  const SuppliersPage({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<List<Map<String, dynamic>>>(
-      future: FetchSuppliersBackend.fetchAllSuppliers(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.hasError) {
-          return Center(
-            child: Text(
-              'Error loading suppliers',
-              style: TextStyle(color: Colors.red[700]),
-            ),
-          );
-        }
-        final suppliers = snapshot.data ?? [];
-        if (suppliers.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.local_shipping_outlined,
-                  size: 80,
-                  color: Colors.grey[400],
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  'No Suppliers Found',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey[700],
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Add suppliers to manage your supply chain.',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey[500],
-                  ),
-                ),
-              ],
-            ),
-          );
-        }
-        return ListView.builder(
-          padding: const EdgeInsets.all(24),
-          itemCount: suppliers.length,
-          itemBuilder: (context, index) {
-            final supplier = suppliers[index];
-            return Card(
-              elevation: 2,
-              margin: const EdgeInsets.only(bottom: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: Colors.purple[100],
-                  child: Icon(Icons.local_shipping, color: Colors.purple[700]),
-                ),
-                title: Text(
-                  supplier['supplierName'] ?? 'Unnamed Supplier',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (supplier['contactNum'] != null && supplier['contactNum'].toString().isNotEmpty)
-                    Text('Contact: ${supplier['contactNum']}'),
-                  if (supplier['location'] != null && supplier['location'].toString().isNotEmpty)
-                    Text('Location: ${supplier['location']}'),
-                  if (supplier['notes'] != null && supplier['notes'].toString().isNotEmpty)
-                    Text('Notes: ${supplier['notes']}'),
-                  if (supplier['email'] != null && supplier['email'].toString().isNotEmpty)
-                    Text('Email: ${supplier['email']}'),
-                ],
-              ),
-                trailing: supplier['email'] != null && supplier['email'].toString().isNotEmpty
-                    ? Icon(Icons.email, color: Colors.purple[400])
-                    : null,
-              ),
-            );
-          },
-        );
-      },
     );
   }
 }
