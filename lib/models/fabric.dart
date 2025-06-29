@@ -11,6 +11,7 @@ class Fabric {
   final String? swatchImageURL;
   final double minOrder; // minimum order quantity
   final bool isUpcycled;
+  final String createdBy; // New field in ERDv8
   final DateTime createdAt;
   final DateTime updatedAt;
   final DateTime? deletedAt; // soft delete support
@@ -26,6 +27,7 @@ class Fabric {
     this.swatchImageURL,
     required this.minOrder,
     required this.isUpcycled,
+    required this.createdBy, // Added createdBy field
     required this.createdAt,
     required this.updatedAt,
     this.deletedAt,
@@ -43,6 +45,7 @@ class Fabric {
       swatchImageURL: data['swatchImageURL'],
       minOrder: (data['minOrder'] ?? 0).toDouble(),
       isUpcycled: data['isUpcycled'] ?? false,
+      createdBy: data['createdBy'] ?? 'anonymous', // Handle legacy data
       createdAt: (data['createdAt'] is Timestamp)
           ? (data['createdAt'] as Timestamp).toDate()
           : DateTime.tryParse(data['createdAt'].toString()) ?? DateTime.now(),
@@ -68,6 +71,7 @@ class Fabric {
       'swatchImageURL': swatchImageURL,
       'minOrder': minOrder,
       'isUpcycled': isUpcycled,
+      'createdBy': createdBy, // Added createdBy field
       'createdAt': createdAt,
       'updatedAt': updatedAt,
       'deletedAt': deletedAt,

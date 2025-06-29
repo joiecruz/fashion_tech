@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:io';
@@ -252,6 +253,7 @@ class _AddFabricModalState extends State<AddFabricModal> {
     }
     
     if (_formKey.currentState!.validate()) {
+      final currentUser = FirebaseAuth.instance.currentUser;
       await FirebaseFirestore.instance.collection('fabrics').add({
         'name': _nameController.text,
         'type': _selectedType,
@@ -262,6 +264,7 @@ class _AddFabricModalState extends State<AddFabricModal> {
         'minOrder': int.tryParse(_minOrderController.text) ?? 0,
         'isUpcycled': _isUpcycled,
         'swatchImageURL': _swatchImageUrl,
+        'createdBy': currentUser?.uid ?? 'anonymous', // ERDv8 requirement
         'createdAt': Timestamp.now(),
         'lastEdited': Timestamp.now(),
       });

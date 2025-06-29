@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class AddSupplierModal extends StatefulWidget {
   const AddSupplierModal({Key? key}) : super(key: key);
@@ -66,12 +67,14 @@ class _AddSupplierModalState extends State<AddSupplierModal>
     });
 
     try {
+      final currentUser = FirebaseAuth.instance.currentUser;
       final supplierData = {
         'supplierName': _supplierNameController.text.trim(),
         'contactNum': _contactNumController.text.trim(),
         'location': _locationController.text.trim().isEmpty ? null : _locationController.text.trim(),
         'email': _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
         'notes': _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
+        'createdBy': currentUser?.uid ?? 'anonymous', // ERDv8 requirement
         'createdAt': FieldValue.serverTimestamp(),
       };
 

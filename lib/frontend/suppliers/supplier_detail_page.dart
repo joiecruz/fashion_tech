@@ -18,7 +18,9 @@ class _SupplierDetailPageState extends State<SupplierDetailPage>
   late Animation<Offset> _slideAnimation;
   
   List<Map<String, dynamic>> _suppliedProducts = [];
+  List<Map<String, dynamic>> _suppliedFabrics = [];
   bool _isLoadingProducts = true;
+  bool _isLoadingFabrics = true;
 
   @override
   void initState() {
@@ -43,6 +45,7 @@ class _SupplierDetailPageState extends State<SupplierDetailPage>
     ));
 
     _loadSuppliedProducts();
+    _loadSuppliedFabrics();
     _animationController.forward();
   }
 
@@ -96,6 +99,55 @@ class _SupplierDetailPageState extends State<SupplierDetailPage>
       print('Error loading supplied products: $e');
       setState(() {
         _isLoadingProducts = false;
+      });
+    }
+  }
+
+  Future<void> _loadSuppliedFabrics() async {
+    try {
+      final supplierId = widget.supplierData['supplierID'];
+      if (supplierId == null) return;
+
+      final snapshot = await FirebaseFirestore.instance
+          .collection('supplier_fabrics')
+          .where('supplierID', isEqualTo: supplierId)
+          .get();
+
+      // Fetch fabric details for each supplier fabric
+      List<Map<String, dynamic>> fabrics = [];
+      for (var doc in snapshot.docs) {
+        final supplierFabric = doc.data();
+        
+        // Get fabric details
+        final fabricDoc = await FirebaseFirestore.instance
+            .collection('fabrics')
+            .doc(supplierFabric['fabricID'])
+            .get();
+        
+        if (fabricDoc.exists) {
+          final fabricData = fabricDoc.data()!;
+          fabrics.add({
+            'supplierFabricID': doc.id,
+            'fabricID': supplierFabric['fabricID'],
+            'fabricName': fabricData['name'],
+            'fabricType': fabricData['type'],
+            'fabricColor': fabricData['color'],
+            'supplyPrice': supplierFabric['supplyPrice'],
+            'minOrder': supplierFabric['minOrder'],
+            'daysToDeliver': supplierFabric['daysToDeliver'],
+            ...supplierFabric,
+          });
+        }
+      }
+
+      setState(() {
+        _suppliedFabrics = fabrics;
+        _isLoadingFabrics = false;
+      });
+    } catch (e) {
+      print('Error loading supplied fabrics: $e');
+      setState(() {
+        _isLoadingFabrics = false;
       });
     }
   }
@@ -494,6 +546,101 @@ class _SupplierDetailPageState extends State<SupplierDetailPage>
                     ],
                   ),
                 ),
+                const SizedBox(height: 24),
+                
+                // Supplied Fabrics Section
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.04),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.green[100],
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Icon(
+                              Icons.texture,
+                              color: Colors.green[700],
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          const Text(
+                            'Fabrics This Supplier Provides',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      if (_isLoadingFabrics)
+                        const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(20),
+                            child: CircularProgressIndicator(),
+                          ),
+                        )
+                      else if (_suppliedFabrics.isEmpty)
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(24),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[50],
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.grey[200]!),
+                          ),
+                          child: Column(
+                            children: [
+                              Icon(
+                                Icons.texture_outlined,
+                                size: 48,
+                                color: Colors.grey[400],
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                'No Fabrics Available',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.grey[700],
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'This supplier doesn\'t have any fabrics listed yet.',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey[600],
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
+                        )
+                      else
+                        ...(_suppliedFabrics.map((fabric) => _buildFabricCard(fabric)).toList()),
+                    ],
+                  ),
+                ),
                 const SizedBox(height: 100), // Bottom padding
               ],
             ),
@@ -695,7 +842,148 @@ class _SupplierDetailPageState extends State<SupplierDetailPage>
     );
   }
 
+  Widget _buildFabricCard(Map<String, dynamic> fabric) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.green[100],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.texture,
+                  color: Colors.green[700],
+                  size: 16,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      fabric['fabricName'] ?? 'Unknown Fabric',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    if (fabric['fabricType'] != null)
+                      Text(
+                        fabric['fabricType'].toString().toUpperCase(),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[600],
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.green[100],
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  '₱${fabric['supplyPrice']?.toStringAsFixed(2) ?? '0.00'}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.green[700],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              if (fabric['minOrder'] != null) ...[
+                Expanded(
+                  child: _buildFabricDetail(
+                    icon: Icons.shopping_cart,
+                    label: 'Min Order',
+                    value: '${fabric['minOrder']} units',
+                  ),
+                ),
+              ],
+              if (fabric['daysToDeliver'] != null) ...[
+                if (fabric['minOrder'] != null) const SizedBox(width: 12),
+                Expanded(
+                  child: _buildFabricDetail(
+                    icon: Icons.schedule,
+                    label: 'Lead Time',
+                    value: '${fabric['daysToDeliver']} days',
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildProductDetail({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: Colors.grey[600], size: 14),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Colors.black87,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFabricDetail({
     required IconData icon,
     required String label,
     required String value,
