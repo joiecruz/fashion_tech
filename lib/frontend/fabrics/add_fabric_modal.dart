@@ -303,74 +303,60 @@ void _submitForm() async {
         return Colors.grey[400]!;
     }
   }
-
-  Widget _buildImagePreview() {
-    if (_uploading) {
-      return Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const CircularProgressIndicator(),
-          const SizedBox(height: 8),
-          Text(
-            'Uploading image...',
-            style: TextStyle(color: Colors.orange.shade700),
+Widget _buildImagePreview() {
+  if (_uploading) {
+    return const Center(child: CircularProgressIndicator());
+  } else if (kIsWeb && _swatchImageUrl != null) {
+    // On web, show the image from base64 url
+    return Image.network(
+      _swatchImageUrl!,
+      fit: BoxFit.cover,
+      width: double.infinity,
+      height: double.infinity,
+    );
+  } else if (!kIsWeb && _swatchImage != null) {
+    // On mobile/desktop, show the file image
+    return Image.file(
+      _swatchImage!,
+      fit: BoxFit.cover,
+      width: double.infinity,
+      height: double.infinity,
+    );
+  } else {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(Icons.camera_alt, color: Colors.orange, size: 40),
+        const SizedBox(height: 8),
+        Text(
+          'Tap to upload product image',
+          style: TextStyle(color: Colors.orange.shade700),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.orange.shade100,
+            borderRadius: BorderRadius.circular(20),
           ),
-        ],
-      );
-    } else if (_swatchImage != null) {
-      if (kIsWeb && _swatchImageUrl != null) {
-        // On web, show the base64 or network image
-        return Image.network(
-          _swatchImageUrl!,
-          fit: BoxFit.cover,
-          width: double.infinity,
-          height: double.infinity,
-        );
-      } else {
-        // On mobile/desktop, show the file image
-        return Image.file(
-          _swatchImage!,
-          fit: BoxFit.cover,
-          width: double.infinity,
-          height: double.infinity,
-        );
-      }
-    } else {
-      return Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.camera_alt, color: Colors.orange, size: 40),
-          const SizedBox(height: 8),
-          Text(
-            'Tap to upload fabric image',
-            style: TextStyle(color: Colors.orange.shade700),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: const [
+              Icon(Icons.upload, color: Colors.orange, size: 18),
+              SizedBox(width: 6),
+              Text('Upload Image', style: TextStyle(color: Colors.orange)),
+            ],
           ),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.orange.shade100,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: const [
-                Icon(Icons.upload, color: Colors.orange, size: 18),
-                SizedBox(width: 6),
-                Text('Upload Image', style: TextStyle(color: Colors.orange)),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Max size 2MB, JPG/PNG',
-            style: TextStyle(fontSize: 12, color: Colors.black54),
-          ),
-        ],
-      );
-    }
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Max size 5MB, JPG/PNG',
+          style: TextStyle(fontSize: 12, color: Colors.black54),
+        ),
+      ],
+    );
   }
-
+}
   @override
   Widget build(BuildContext context) {
     return Padding(
