@@ -856,6 +856,7 @@ class _FabricLogbookPageState extends State<FabricLogbookPage>
     final minOrder = fabric['minOrder'] ?? 0;
     final isUpcycled = fabric['isUpcycled'] ?? false;
     final reasons = fabric['reasons'] ?? '';
+    final supplierID = fabric['supplierID']; // Add supplier ID
     
     // Calculate total value and status
     final totalValue = quantity * pricePerUnit;
@@ -1039,6 +1040,36 @@ class _FabricLogbookPageState extends State<FabricLogbookPage>
                                       ),
                                     ),
                                 ],
+                              ),
+                            ],
+                            // Show supplier info if available
+                            if (supplierID != null) ...[
+                              const SizedBox(height: 6),
+                              FutureBuilder<String>(
+                                future: _getSupplierName(supplierID),
+                                builder: (context, snapshot) {
+                                  if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+                                    return Row(
+                                      children: [
+                                        Icon(
+                                          Icons.local_shipping_rounded,
+                                          size: 14,
+                                          color: Colors.blue[600],
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          'Supplier: ${snapshot.data}',
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            color: Colors.blue[700],
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ],
+                                    );
+                                  }
+                                  return const SizedBox.shrink();
+                                },
                               ),
                             ],
                             // Show notes/reasons if available
@@ -1284,6 +1315,24 @@ class _FabricLogbookPageState extends State<FabricLogbookPage>
         return Colors.grey[700]!;
       default:
         return Colors.grey[600]!;
+    }
+  }
+
+  Future<String> _getSupplierName(String supplierID) async {
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('suppliers')
+          .doc(supplierID)
+          .get();
+      
+      if (doc.exists) {
+        final data = doc.data();
+        return data?['supplierName'] ?? 'Unknown Supplier';
+      }
+      return '';
+    } catch (e) {
+      print('Error fetching supplier name: $e');
+      return '';
     }
   }
 

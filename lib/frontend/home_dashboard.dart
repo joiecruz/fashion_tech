@@ -5,8 +5,31 @@ import 'package:fashion_tech/frontend/auth/login_page.dart';
 import 'package:fashion_tech/frontend/auth/signup_page.dart';
 
 
-class HomeDashboard extends StatelessWidget {
+class HomeDashboard extends StatefulWidget {
   const HomeDashboard({super.key});
+
+  @override
+  State<HomeDashboard> createState() => _HomeDashboardState();
+}
+
+class _HomeDashboardState extends State<HomeDashboard> {
+  Future<String> _getSupplierName(String supplierID) async {
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('suppliers')
+          .doc(supplierID)
+          .get();
+      
+      if (doc.exists) {
+        final data = doc.data();
+        return data?['supplierName'] ?? 'Unknown Supplier';
+      }
+      return '';
+    } catch (e) {
+      print('Error fetching supplier name: $e');
+      return '';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -215,11 +238,12 @@ class HomeDashboard extends StatelessWidget {
                       final color = fabric['color'] ?? '';
                       final type = fabric['type'] ?? '';
                       final quantity = fabric['quantity'] ?? 0;
+                      final supplierID = fabric['supplierID'];
                       return Padding(
                         padding: const EdgeInsets.symmetric(vertical: 6.0),
                         child: Row(
                           children: [
-                            // Name and min order
+                            // Name and details
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -232,6 +256,23 @@ class HomeDashboard extends StatelessWidget {
                                     'Type: ${type.isEmpty ? 'N/A' : type}',
                                     style: const TextStyle(fontSize: 12, color: Colors.black54),
                                   ),
+                                  if (supplierID != null)
+                                    FutureBuilder<String>(
+                                      future: _getSupplierName(supplierID),
+                                      builder: (context, snapshot) {
+                                        if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+                                          return Text(
+                                            'Supplier: ${snapshot.data}',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              color: Colors.blue[600],
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          );
+                                        }
+                                        return const SizedBox.shrink();
+                                      },
+                                    ),
                                 ],
                               ),
                             ),
