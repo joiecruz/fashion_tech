@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/product_variant.dart';
 import '../../backend/fetch_variants.dart';
+import 'edit_product_modal.dart';
+import 'dart:convert';
 
 class ProductDetailPage extends StatefulWidget {
   final Map<String, dynamic> productData;
@@ -19,11 +22,14 @@ class _ProductDetailPageState extends State<ProductDetailPage>
   late TabController _tabController;
   List<ProductVariant> _variants = [];
   bool _isLoading = true;
+  late Map<String, dynamic> _productData;
 
   @override
   void initState() {
     super.initState();
+    _productData = Map<String, dynamic>.from(widget.productData);
     _tabController = TabController(length: 3, vsync: this);
+    _loadProductData();
     _loadVariants();
   }
 
@@ -33,15 +39,53 @@ class _ProductDetailPageState extends State<ProductDetailPage>
     super.dispose();
   }
 
+  Future<void> _openEditProductModal() async {
+    final result = await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        margin: const EdgeInsets.only(top: 60),
+        height: MediaQuery.of(context).size.height - 60,
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: EditProductModal(
+          productData: _productData,
+        ),
+      ),
+    );
+    if (result == true) {
+      await _loadProductData();
+      await _loadVariants();
+      setState(() {});
+    }
+  }
+
+  Future<void> _loadProductData() async {
+    final productId = _productData['productID'];
+    if (productId == null) return;
+    final doc = await FirebaseFirestore.instance.collection('products').doc(productId).get();
+    if (doc.exists) {
+      setState(() {
+        _productData = {
+          ..._productData,
+          ...doc.data()!,
+        };
+      });
+    }
+  }
+
   Future<void> _loadVariants() async {
     setState(() => _isLoading = true);
     try {
-      final variantMaps = await FetchVariantsBackend.fetchVariantsByProductID(widget.productData['productID']);
+      final variantMaps = await FetchVariantsBackend.fetchVariantsByProductID(_productData['productID']);
       setState(() {
         _variants = variantMaps
             .map((v) => ProductVariant(
                   id: v['variantID'],
-                  productID: widget.productData['productID'],
+                  productID: _productData['productID'],
                   size: v['size'],
                   color: v['color'],
                   quantityInStock: v['quantityInStock'],
@@ -57,6 +101,56 @@ class _ProductDetailPageState extends State<ProductDetailPage>
     }
   }
 
+  String _formatUpdatedAt(dynamic updatedAt) {
+    if (updatedAt == null) return 'Never';
+    DateTime date;
+    if (updatedAt is Timestamp) {
+      date = updatedAt.toDate();
+    } else if (updatedAt is DateTime) {
+      date = updatedAt;
+    } else if (updatedAt is String) {
+      date = DateTime.tryParse(updatedAt) ?? DateTime.now();
+    } else {
+      return 'Unknown';
+    }
+    final now = DateTime.now();
+    final diff = now.difference(date);
+    if (diff.inMinutes < 1) return 'Just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} min ago';
+    if (diff.inHours < 24) return '${diff.inHours} hr ago';
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+  }
+
+  Widget _buildProductImage(String? imageUrl) {
+    if (imageUrl == null || imageUrl.isEmpty) {
+      return Icon(Icons.image, size: 40, color: Colors.grey[400]);
+    }
+    if (imageUrl.startsWith('data:image')) {
+      // Base64 image
+      final base64Data = imageUrl.split(',').last;
+      try {
+        return Image.memory(
+          base64Decode(base64Data),
+          fit: BoxFit.cover,
+          width: 80,
+          height: 80,
+        );
+      } catch (e) {
+        return Icon(Icons.broken_image, size: 40, color: Colors.red[300]);
+      }
+    } else if (Uri.tryParse(imageUrl)?.isAbsolute == true) {
+      // Network image
+      return Image.network(
+        imageUrl,
+        fit: BoxFit.cover,
+        width: 80,
+        height: 80,
+      );
+    } else {
+      return Icon(Icons.image_not_supported, size: 40, color: Colors.grey[400]);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -65,7 +159,7 @@ class _ProductDetailPageState extends State<ProductDetailPage>
         backgroundColor: Colors.white,
         elevation: 0,
         title: Text(
-          widget.productData['name'],
+          _productData['name'] ?? '',
           style: const TextStyle(
             color: Colors.black87,
             fontSize: 18,
@@ -80,12 +174,7 @@ class _ProductDetailPageState extends State<ProductDetailPage>
         actions: [
           IconButton(
             icon: const Icon(Icons.edit, color: Colors.black87),
-            onPressed: () {
-              // TODO: Navigate to edit product page
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Edit functionality coming soon!')),
-              );
-            },
+            onPressed: _openEditProductModal,
           ),
         ],
         bottom: TabBar(
@@ -135,11 +224,7 @@ class _ProductDetailPageState extends State<ProductDetailPage>
                         color: Colors.grey[200],
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Icon(
-                        Icons.image,
-                        size: 40,
-                        color: Colors.grey[400],
-                      ),
+                      child: _buildProductImage(_productData['imageURL']),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
@@ -147,7 +232,7 @@ class _ProductDetailPageState extends State<ProductDetailPage>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            widget.productData['name'],
+                            _productData['name'] ?? '',
                             style: const TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
@@ -155,7 +240,7 @@ class _ProductDetailPageState extends State<ProductDetailPage>
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            widget.productData['category'],
+                            _productData['category'] ?? '',
                             style: TextStyle(
                               fontSize: 14,
                               color: Colors.grey[600],
@@ -163,7 +248,7 @@ class _ProductDetailPageState extends State<ProductDetailPage>
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            '₱${widget.productData['price'].toStringAsFixed(2)}',
+                            '₱${(_productData['price'] ?? 0).toStringAsFixed(2)}',
                             style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.w600,
@@ -175,13 +260,11 @@ class _ProductDetailPageState extends State<ProductDetailPage>
                     ),
                   ],
                 ),
-
                 const SizedBox(height: 20),
-
                 // Properties
                 Row(
                   children: [
-                    if (widget.productData['isUpcycled'])
+                    if (_productData['isUpcycled'] == true)
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(
@@ -208,16 +291,30 @@ class _ProductDetailPageState extends State<ProductDetailPage>
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
-                        color: widget.productData['lowStock'] ? Colors.red[100] : Colors.blue[100],
+                        color: _productData['lowStock'] == true ? Colors.red[100] : Colors.blue[100],
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
-                        '${widget.productData['stock']} in stock',
+                        '${_productData['stock'] ?? 0} in stock',
                         style: TextStyle(
                           fontSize: 12,
-                          color: widget.productData['lowStock'] ? Colors.red[700] : Colors.blue[700],
+                          color: _productData['lowStock'] == true ? Colors.red[700] : Colors.blue[700],
                           fontWeight: FontWeight.w500,
                         ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Icon(Icons.update, size: 16, color: Colors.grey[600]),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Last updated: ${_formatUpdatedAt(_productData['updatedAt'])}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
                       ),
                     ),
                   ],
@@ -226,9 +323,7 @@ class _ProductDetailPageState extends State<ProductDetailPage>
             ),
           ),
         ),
-
         const SizedBox(height: 16),
-
         // Stats Card
         Card(
           elevation: 2,
@@ -253,7 +348,7 @@ class _ProductDetailPageState extends State<ProductDetailPage>
                     Expanded(
                       child: _buildStatItem(
                         'Total Stock',
-                        widget.productData['stock'].toString(),
+                        (_productData['stock'] ?? 0).toString(),
                         Icons.inventory_2_outlined,
                         Colors.blue[600]!,
                       ),
@@ -261,7 +356,7 @@ class _ProductDetailPageState extends State<ProductDetailPage>
                     Expanded(
                       child: _buildStatItem(
                         'Price',
-                        '₱${widget.productData['price'].toStringAsFixed(2)}',
+                        '₱${(_productData['price'] ?? 0).toStringAsFixed(2)}',
                         Icons.attach_money_outlined,
                         Colors.green[600]!,
                       ),
@@ -282,7 +377,7 @@ class _ProductDetailPageState extends State<ProductDetailPage>
                     Expanded(
                       child: _buildStatItem(
                         'Total Stock',
-                        widget.productData['stock'].toString(),
+                        (_productData['stock'] ?? 0).toString(),
                         Icons.inventory_outlined,
                         Colors.blue[600]!,
                       ),
@@ -444,5 +539,5 @@ class _ProductDetailPageState extends State<ProductDetailPage>
         ),
       ],
     );
-  } 
-    }
+  }
+}

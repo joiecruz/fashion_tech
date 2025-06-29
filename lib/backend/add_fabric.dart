@@ -34,6 +34,7 @@ Future<void> addFabric({
     createdAt: now,
     updatedAt: now,
     deletedAt: null,
+    createdBy: 'currentUserID',
   );
   await _fabricService.addFabric(fabric);
 }

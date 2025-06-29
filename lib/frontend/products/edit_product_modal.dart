@@ -4,14 +4,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import '../../models/product.dart';
 import '../../models/product_image.dart';
 import '../../utils/utils.dart';
 
-// Helper class for product variant input
 class ProductVariantInput {
   String size;
   String color;
@@ -24,14 +22,15 @@ class ProductVariantInput {
   });
 }
 
-class AddProductModal extends StatefulWidget {
-  const AddProductModal({super.key});
+class EditProductModal extends StatefulWidget {
+  final Map<String, dynamic> productData;
+  const EditProductModal({super.key, required this.productData});
 
   @override
-  State<AddProductModal> createState() => _AddProductModalState();
+  State<EditProductModal> createState() => _EditProductModalState();
 }
 
-class _AddProductModalState extends State<AddProductModal> {
+class _EditProductModalState extends State<EditProductModal> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _priceController = TextEditingController();
@@ -43,9 +42,9 @@ class _AddProductModalState extends State<AddProductModal> {
   bool _isMade = false;
   bool _isLoading = false;
   bool _uploading = false;
-  DateTime? _acquisitionDate = DateTime.now();
+  DateTime? _acquisitionDate;
 
-  // Product Image
+  // Single image logic
   File? _productImage;
   String? _productImageUrl;
   bool _uploadingImage = false;
@@ -63,6 +62,43 @@ class _AddProductModalState extends State<AddProductModal> {
   final List<String> _sizeOptions = [
     'XS', 'S', 'M', 'L', 'XL', 'XXL', 'One Size'
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController.text = widget.productData['name'] ?? '';
+    _priceController.text = widget.productData['price']?.toString() ?? '';
+    _supplierController.text = widget.productData['supplier'] ?? '';
+    _notesController.text = widget.productData['notes'] ?? '';
+    _stockController.text = widget.productData['stock']?.toString() ?? '';
+    _selectedCategory = widget.productData['category'] ?? _categories.first;
+    _isUpcycled = widget.productData['isUpcycled'] ?? false;
+    _isMade = widget.productData['isMade'] ?? false;
+
+    // Acquisition date
+    final acquisitionRaw = widget.productData['acquisitionDate'];
+    if (acquisitionRaw is Timestamp) {
+      _acquisitionDate = acquisitionRaw.toDate();
+    } else if (acquisitionRaw is String) {
+      _acquisitionDate = DateTime.tryParse(acquisitionRaw) ?? DateTime.now();
+    } else {
+      _acquisitionDate = DateTime.now();
+    }
+
+    // Fetch the existing image (single image logic)
+    _productImageUrl = widget.productData['imageURL'];
+
+    // Fetch variants if any
+    if (widget.productData['variants'] != null) {
+      _variants = (widget.productData['variants'] as List)
+          .map((v) => ProductVariantInput(
+                size: v['size'],
+                color: v['color'],
+                quantityInStock: v['quantityInStock'],
+              ))
+          .toList();
+    }
+  }
 
   @override
   void dispose() {
@@ -102,7 +138,6 @@ class _AddProductModalState extends State<AddProductModal> {
         );
       }
     } catch (e) {
-      print('Base64 upload error: $e');
       setState(() => _uploading = false);
       _productImageUrl = null;
 
@@ -117,6 +152,7 @@ class _AddProductModalState extends State<AddProductModal> {
       }
     }
   }
+
 Future<void> _pickImage() async {
   try {
     final picker = ImagePicker();
@@ -128,36 +164,14 @@ Future<void> _pickImage() async {
     );
 
     if (picked != null) {
-      if (kIsWeb) {
-        // On web, use bytes and base64
-        final bytes = await picked.readAsBytes();
-        final mimeType = picked.name.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
-        setState(() {
-          _productImage = null; // Not used on web
-          _productImageUrl = 'data:$mimeType;base64,${base64Encode(bytes)}';
-        });
-      } else {
-        // On mobile/desktop, use File
-        setState(() {
-          _productImage = File(picked.path);
-          _productImageUrl = null;
-        });
-        if (await _productImage!.exists()) {
-          final fileSize = await _productImage!.length();
-          print('Image selected: ${_productImage!.path}');
-          print('File size: ${(fileSize / 1024 / 1024).toStringAsFixed(2)} MB');
-          if (_useFirebaseStorage) {
-            await _uploadImage();
-          } else {
-            await _uploadImageAsBase64();
-          }
-        } else {
-          throw Exception('Selected file does not exist or is not accessible');
-        }
-      }
+      final bytes = await picked.readAsBytes();
+      final mimeType = picked.name.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+      setState(() {
+        _productImage = null; // Not used
+        _productImageUrl = 'data:$mimeType;base64,${base64Encode(bytes)}';
+      });
     }
   } catch (e) {
-    print('Error picking image: $e');
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -169,7 +183,6 @@ Future<void> _pickImage() async {
     }
   }
 }
-
   Future<void> _uploadImage() async {
     if (_productImage == null) return;
 
@@ -181,23 +194,13 @@ Future<void> _pickImage() async {
         throw Exception('File size exceeds 5MB limit. Please choose a smaller image.');
       }
 
-      final fileName = 'swatches/${DateTime.now().millisecondsSinceEpoch}_${_productImage!.path.split('/').last}';
+      final fileName = 'products/${DateTime.now().millisecondsSinceEpoch}_${_productImage!.path.split('/').last}';
       final ref = FirebaseStorage.instance.ref().child(fileName);
-
-      print('Starting upload for file: $fileName');
-      print('File size: ${(fileSize / 1024 / 1024).toStringAsFixed(2)} MB');
 
       final uploadTask = ref.putFile(_productImage!);
 
-      uploadTask.snapshotEvents.listen((TaskSnapshot snapshot) {
-        double progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-        print('Upload progress: ${progress.toStringAsFixed(1)}%');
-      });
-
       await uploadTask;
       _productImageUrl = await ref.getDownloadURL();
-
-      print('Upload successful! URL: $_productImageUrl');
 
       setState(() => _uploading = false);
 
@@ -211,7 +214,6 @@ Future<void> _pickImage() async {
         );
       }
     } catch (e) {
-      print('Upload error: $e');
       setState(() => _uploading = false);
       _productImageUrl = null;
 
@@ -239,7 +241,6 @@ Future<void> _pickImage() async {
       }
 
       if (_useFirebaseStorage) {
-        print('Falling back to base64 upload...');
         _useFirebaseStorage = false;
         await _uploadImageAsBase64();
       } else if (mounted) {
@@ -262,138 +263,11 @@ Future<void> _pickImage() async {
     }
   }
 
-  Future<void> _saveProduct() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    if (_variants.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please add at least one product variant')),
-      );
-      return;
-    }
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    print('DEBUG: _saveProduct called');
-    print('DEBUG: _productImageUrl = $_productImageUrl');
-
-    try {
-      // Create consolidated description including supplier info and acquisition date
-      String consolidatedDescription = '';
-
-      // Add supplier info if provided
-      if (_supplierController.text.trim().isNotEmpty) {
-        consolidatedDescription += 'Supplier/Source: ${_supplierController.text.trim()}';
-      }
-
-      // Add acquisition date if provided
-      if (_acquisitionDate != null) {
-        if (consolidatedDescription.isNotEmpty) consolidatedDescription += '\n';
-        consolidatedDescription += 'Acquired: ${_acquisitionDate!.day}/${_acquisitionDate!.month}/${_acquisitionDate!.year}';
-      }
-
-      // Get current user ID for both product and image
-      final currentUser = FirebaseAuth.instance.currentUser;
-      final userId = currentUser?.uid ?? 'anonymous'; // Fallback to anonymous if no user
-      print('DEBUG: Current user ID: $userId');
-
-      // Create the product first
-      final productRef = FirebaseFirestore.instance.collection('products').doc();
-      final product = Product(
-        id: productRef.id,
-        name: _nameController.text.trim(),
-        description: consolidatedDescription.isNotEmpty ? consolidatedDescription : null,
-        notes: _notesController.text.trim().isNotEmpty ? _notesController.text.trim() : null,
-        price: double.parse(_priceController.text),
-        category: _selectedCategory,
-        isUpcycled: _isUpcycled,
-        isMade: _isMade,
-        createdBy: userId,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
-
-      await productRef.set(product.toMap());
-
-      // Create product variants
-      for (final variant in _variants) {
-        await FirebaseFirestore.instance
-            .collection('productVariants')
-            .add({
-          'productID': productRef.id,
-          'size': variant.size,
-          'color': variant.color,
-          'quantityInStock': variant.quantityInStock,
-        });
-      }
-
-      // Create product image if processed
-      if (_productImageUrl != null && _productImageUrl!.isNotEmpty) {
-        try {
-          final productImageRef = FirebaseFirestore.instance.collection('productImages').doc();
-          final productImage = ProductImage(
-            id: productImageRef.id,
-            productID: productRef.id,
-            imageURL: _productImageUrl!,
-            isPrimary: true,
-            uploadedBy: userId,
-            uploadedAt: DateTime.now(),
-          );
-          await FirebaseFirestore.instance
-              .collection('products')
-              .doc(productRef.id) // use the correct product ID
-              .update({'imageURL': _productImageUrl});
-          await productImageRef.set(productImage.toMap());
-        } catch (e, stackTrace) {
-          print('DEBUG: ERROR saving product images: $e');
-          print('DEBUG: Stack trace: $stackTrace');
-        }
-      }
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Product and variants added successfully!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        Navigator.of(context).pop(true);
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error adding product: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
 Widget _buildImagePreview() {
-  if (_uploading) {
-    return const Center(child: CircularProgressIndicator());
-  } else if (kIsWeb && _productImageUrl != null) {
-    // On web, show the image from base64 url
-    return Image.network(
-      _productImageUrl!,
-      fit: BoxFit.cover,
-      width: double.infinity,
-      height: double.infinity,
-    );
-  } else if (_productImage != null && _productImage!.existsSync()) {
-    // On mobile/desktop, show the file image
-    return Image.file(
-      _productImage!,
+  if (_productImageUrl != null && _productImageUrl!.startsWith('data:image')) {
+    final base64Data = _productImageUrl!.split(',').last;
+    return Image.memory(
+      base64Decode(base64Data),
       fit: BoxFit.cover,
       width: double.infinity,
       height: double.infinity,
@@ -408,31 +282,85 @@ Widget _buildImagePreview() {
           'Tap to upload product image',
           style: TextStyle(color: Colors.orange.shade700),
         ),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-          decoration: BoxDecoration(
-            color: Colors.orange.shade100,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: const [
-              Icon(Icons.upload, color: Colors.orange, size: 18),
-              SizedBox(width: 6),
-              Text('Upload Image', style: TextStyle(color: Colors.orange)),
-            ],
-          ),
-        ),
-        const SizedBox(height: 8),
-        const Text(
-          'Max size 5MB, JPG/PNG',
-          style: TextStyle(fontSize: 12, color: Colors.black54),
-        ),
       ],
     );
   }
 }
+
+  Future<void> _saveProduct() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    if (_variants.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please add at least one product variant')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+          final docId = widget.productData['id'] ?? widget.productData['productID'];
+          if (docId == null) {
+            throw Exception('No document ID provided for update.');
+          }
+
+      final Map<String, dynamic> productData = {
+        'name': _nameController.text.trim(),
+        'price': double.tryParse(_priceController.text) ?? 0,
+        'category': _selectedCategory,
+        'supplier': _supplierController.text.trim(),
+        'notes': _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
+        'isUpcycled': _isUpcycled,
+        'isMade': _isMade,
+        'imageURL': _productImageUrl,
+        'variants': _variants.map((v) => {
+          'size': v.size,
+          'color': v.color,
+          'quantityInStock': v.quantityInStock,
+        }).toList(),
+        'acquisitionDate': _acquisitionDate,
+        'updatedAt': DateTime.now(),
+      };
+
+      if (widget.productData['createdAt'] != null) {
+        productData['createdAt'] = widget.productData['createdAt'];
+      }
+
+      await FirebaseFirestore.instance
+          .collection('products')
+          .doc(docId)
+          .update(productData);
+      await Future.delayed(const Duration(milliseconds: 300));
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Product updated successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.of(context).pop(true);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error updating product: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -449,7 +377,7 @@ Widget _buildImagePreview() {
               ),
               const SizedBox(width: 8),
               const Text(
-                'Add New Product',
+                'Edit Product',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
               ),
             ],
@@ -482,7 +410,7 @@ Widget _buildImagePreview() {
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              'Product Images',
+                              'Product Image',
                               style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.w600,
@@ -493,27 +421,27 @@ Widget _buildImagePreview() {
                         ),
                         const SizedBox(height: 16),
                         GestureDetector(
-                          onTap: _uploadingImage ? null : _pickImage,
+                          onTap: _uploading ? null : _pickImage,
                           child: Container(
                             width: double.infinity,
-                          height: (_productImage != null || _productImageUrl != null) ? 220 : 160,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
+                            height: (_productImage != null || _productImageUrl != null) ? 220 : 160,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: (_productImage != null || _productImageUrl != null)
+                                    ? Colors.orange[300]!
+                                    : Colors.grey[300]!,
+                                width: 2,
+                                style: BorderStyle.solid,
+                              ),
                               color: (_productImage != null || _productImageUrl != null)
-                                  ? Colors.orange[300]!
-                                  : Colors.grey[300]!,
-                              width: 2,
-                              style: BorderStyle.solid,
+                                  ? Colors.orange[50]
+                                  : Colors.grey[50],
                             ),
-                            color: (_productImage != null || _productImageUrl != null)
-                                ? Colors.orange[50]
-                                : Colors.grey[50],
-                          ),
                             child: Stack(
                               children: [
                                 Positioned.fill(child: _buildImagePreview()),
-                                if (_productImage != null || !_uploadingImage)
+                                if (_productImage != null || _productImageUrl != null)
                                   Positioned(
                                     top: 8,
                                     right: 8,
@@ -530,7 +458,7 @@ Widget _buildImagePreview() {
                                       ),
                                     ),
                                   ),
-                                if (_productImageUrl != null && !_uploadingImage)
+                                if (_productImageUrl != null && !_uploading)
                                   Positioned(
                                     bottom: 8,
                                     left: 8,
@@ -581,7 +509,6 @@ Widget _buildImagePreview() {
                   ),
                 ),
                 const SizedBox(height: 16),
-
                 // Product Name
                 Card(
                   elevation: 2,
@@ -626,9 +553,7 @@ Widget _buildImagePreview() {
                     ),
                   ),
                 ),
-
                 const SizedBox(height: 16),
-
                 // Price and Category Row
                 IntrinsicHeight(
                   child: Row(
@@ -689,9 +614,7 @@ Widget _buildImagePreview() {
                           ),
                         ),
                       ),
-
                       const SizedBox(width: 12),
-
                       // Category
                       Expanded(
                         child: Card(
@@ -754,9 +677,7 @@ Widget _buildImagePreview() {
                     ],
                   ),
                 ),
-
                 const SizedBox(height: 16),
-
                 // Supplier/Source (Optional)
                 Card(
                   elevation: 2,
@@ -795,9 +716,7 @@ Widget _buildImagePreview() {
                     ),
                   ),
                 ),
-
                 const SizedBox(height: 16),
-
                 // Acquisition Date
                 Card(
                   elevation: 2,
@@ -822,7 +741,7 @@ Widget _buildImagePreview() {
                           onTap: () async {
                             final selectedDate = await showDatePicker(
                               context: context,
-                              initialDate: _acquisitionDate!,
+                              initialDate: _acquisitionDate ?? DateTime.now(),
                               firstDate: DateTime(2000),
                               lastDate: DateTime.now(),
                               builder: (context, child) {
@@ -868,9 +787,7 @@ Widget _buildImagePreview() {
                     ),
                   ),
                 ),
-
                 const SizedBox(height: 16),
-
                 // Additional Notes
                 Card(
                   elevation: 2,
@@ -910,9 +827,7 @@ Widget _buildImagePreview() {
                     ),
                   ),
                 ),
-
                 const SizedBox(height: 16),
-
                 // Product Properties
                 Card(
                   elevation: 2,
@@ -933,7 +848,6 @@ Widget _buildImagePreview() {
                           ),
                         ),
                         const SizedBox(height: 16),
-
                         // Upcycled Switch
                         Row(
                           children: [
@@ -975,9 +889,7 @@ Widget _buildImagePreview() {
                             ),
                           ],
                         ),
-
                         const SizedBox(height: 16),
-
                         // Made Switch
                         Row(
                           children: [
@@ -1023,9 +935,7 @@ Widget _buildImagePreview() {
                     ),
                   ),
                 ),
-
                 const SizedBox(height: 16),
-
                 // Product Variants Section
                 Card(
                   elevation: 2,
@@ -1200,9 +1110,7 @@ Widget _buildImagePreview() {
                     ),
                   ),
                 ),
-
                 const SizedBox(height: 32),
-
                 // Save Button
                 SizedBox(
                   width: double.infinity,
@@ -1228,12 +1136,11 @@ Widget _buildImagePreview() {
                           )
                         : const Icon(Icons.save, size: 20),
                     label: Text(
-                      _isLoading ? 'Saving...' : 'Save Product',
+                      _isLoading ? 'Saving...' : 'Save Changes',
                       style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                     ),
                   ),
                 ),
-
                 const SizedBox(height: 20),
               ],
             ),
