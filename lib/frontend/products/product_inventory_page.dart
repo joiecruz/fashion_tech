@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'add_product_modal.dart';
 import 'product_detail_page.dart';
 import 'package:fashion_tech/backend/fetch_products.dart';
+import '../../utils/image_utils.dart';
 
 class ProductInventoryPage extends StatefulWidget {
   const ProductInventoryPage({Key? key}) : super(key: key);
@@ -16,6 +17,7 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
   List<Map<String, dynamic>> _products = [];
   List<Map<String, dynamic>> _filteredProducts = [];
   bool _isLoading = true;
+  bool _isRefreshing = false;
   String _selectedCategory = 'All';
   bool _showUpcycledOnly = false;
   bool _showLowStockOnly = false;
@@ -50,10 +52,16 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
     super.dispose();
   }
 
-  Future<void> _loadProducts() async {
-    setState(() {
-      _isLoading = true;
-    });
+  Future<void> _loadProducts({bool isRefresh = false}) async {
+    if (isRefresh) {
+      setState(() {
+        _isRefreshing = true;
+      });
+    } else {
+      setState(() {
+        _isLoading = true;
+      });
+    }
 
     try {
       final products = await FetchProductsBackend.fetchProducts();
@@ -61,16 +69,72 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
       setState(() {
         _products = products;
         _filteredProducts = products;
-        _isLoading = false;
+        if (isRefresh) {
+          _isRefreshing = false;
+        } else {
+          _isLoading = false;
+        }
       });
 
       _animationController.forward();
+      
+      // Apply current filters after loading
+      _filterProducts();
+      
+      // Show success feedback only for pull-to-refresh
+      if (isRefresh && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white, size: 16),
+                const SizedBox(width: 8),
+                Text('${products.length} products refreshed'),
+              ],
+            ),
+            backgroundColor: Colors.green[600],
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+        );
+      }
     } catch (e) {
       print('Error loading products: $e');
       setState(() {
-        _isLoading = false;
+        if (isRefresh) {
+          _isRefreshing = false;
+        } else {
+          _isLoading = false;
+        }
       });
       _animationController.forward();
+      
+      // Show error feedback
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.error_outline, color: Colors.white, size: 16),
+                const SizedBox(width: 8),
+                Text(isRefresh ? 'Failed to refresh products' : 'Failed to load products'),
+              ],
+            ),
+            backgroundColor: Colors.red[600],
+            duration: const Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            action: SnackBarAction(
+              label: 'Retry',
+              textColor: Colors.white,
+              onPressed: () => _loadProducts(isRefresh: isRefresh),
+            ),
+          ),
+        );
+      }
     }
   }
 
@@ -131,32 +195,44 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
                       padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
                       child: SingleChildScrollView(
                         scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: [
-                            _buildFilterChip('Category', _selectedCategory, ['All', 'top', 'bottom', 'outerwear', 'accessories']),
-                            const SizedBox(width: 12),
-                            _buildToggleChip('Upcycled', _showUpcycledOnly, (value) {
-                              setState(() {
-                                _showUpcycledOnly = value;
-                                _filterProducts();
-                              });
-                            }),
-                            const SizedBox(width: 12),
-                            _buildToggleChip('Low Stock', _showLowStockOnly, (value) {
-                              setState(() {
-                                _showLowStockOnly = value;
-                                _filterProducts();
-                              });
-                            }),
-                          ],
+                        child: AnimatedOpacity(
+                          opacity: _isRefreshing ? 0.7 : 1.0,
+                          duration: const Duration(milliseconds: 300),
+                          child: Row(
+                            children: [
+                              _buildFilterChip('Category', _selectedCategory, ['All', 'top', 'bottom', 'outerwear', 'accessories']),
+                              const SizedBox(width: 12),
+                              _buildToggleChip('Upcycled', _showUpcycledOnly, (value) {
+                                setState(() {
+                                  _showUpcycledOnly = value;
+                                  _filterProducts();
+                                });
+                              }),
+                              const SizedBox(width: 12),
+                              _buildToggleChip('Low Stock', _showLowStockOnly, (value) {
+                                setState(() {
+                                  _showLowStockOnly = value;
+                                  _filterProducts();
+                                });
+                              }),
+                            ],
+                          ),
                         ),
                       ),
                     ),
                   ),
-                  // Scrollable Content
+                  // Scrollable Content with Pull-to-Refresh
                   Expanded(
-                    child: CustomScrollView(
-                      slivers: [
+                    child: RefreshIndicator(
+                      onRefresh: () => _loadProducts(isRefresh: true),
+                      color: Colors.blue[600],
+                      backgroundColor: Colors.white,
+                      strokeWidth: 3.0,
+                      displacement: 50,
+                      edgeOffset: 0,
+                      child: CustomScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(), // Ensures pull-to-refresh works even with small content
+                        slivers: [
                         // Collapsible Stats Cards
                         SliverToBoxAdapter(
                           child: Container(
@@ -237,32 +313,36 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
                                   child: AnimatedOpacity(
                                     duration: const Duration(milliseconds: 200),
                                     opacity: _isStatsExpanded ? 1.0 : 0.0,
-                                    child: Container(
-                                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-                                      child: Row(
-                                        children: [
-                                          Expanded(child: _buildStatCard(
-                                            icon: Icons.inventory_2_outlined,
-                                            iconColor: Colors.blue[600]!,
-                                            title: 'Total\nProducts',
-                                            value: _totalProducts.toString(),
-                                          )),
-                                          const SizedBox(width: 16),
-                                          Expanded(child: _buildStatCard(
-                                            icon: Icons.warning_outlined,
-                                            iconColor: Colors.red[600]!,
-                                            title: 'Low Stock\n(<5)',
-                                            value: _lowStockCount.toString(),
-                                          )),
-                                          const SizedBox(width: 16),
-                                          Expanded(child: _buildStatCard(
-                                            icon: Icons.attach_money,
-                                            iconColor: Colors.green[600]!,
-                                            title: 'Potential\nValue',
-                                            value: '₱${_totalPotentialValue.toStringAsFixed(2)}',
-                                            isLarge: true,
-                                          )),
-                                        ],
+                                    child: AnimatedOpacity(
+                                      opacity: _isRefreshing ? 0.6 : 1.0,
+                                      duration: const Duration(milliseconds: 300),
+                                      child: Container(
+                                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+                                        child: Row(
+                                          children: [
+                                            Expanded(child: _buildStatCard(
+                                              icon: Icons.inventory_2_outlined,
+                                              iconColor: Colors.blue[600]!,
+                                              title: 'Total\nProducts',
+                                              value: _totalProducts.toString(),
+                                            )),
+                                            const SizedBox(width: 16),
+                                            Expanded(child: _buildStatCard(
+                                              icon: Icons.warning_outlined,
+                                              iconColor: Colors.red[600]!,
+                                              title: 'Low Stock\n(<5)',
+                                              value: _lowStockCount.toString(),
+                                            )),
+                                            const SizedBox(width: 16),
+                                            Expanded(child: _buildStatCard(
+                                              icon: Icons.attach_money,
+                                              iconColor: Colors.green[600]!,
+                                              title: 'Potential\nValue',
+                                              value: '₱${_totalPotentialValue.toStringAsFixed(2)}',
+                                              isLarge: true,
+                                            )),
+                                          ],
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -316,7 +396,7 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
                                           );
 
                                           if (result == true) {
-                                            _loadProducts();
+                                            _loadProducts(isRefresh: true);
                                           }
                                         },
                                         borderRadius: BorderRadius.circular(12),
@@ -365,6 +445,7 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
                           ),
                         ),
                       ],
+                    ),
                     ),
                   ),
                 ],
@@ -625,16 +706,14 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
                           child: product['imageUrl'].isNotEmpty
                               ? ClipRRect(
                                   borderRadius: BorderRadius.circular(12),
-                                  child: Image.network(
-                                    product['imageUrl'],
+                                  child: ImageUtils.buildImageWidget(
+                                    imageUrl: product['imageUrl'],
                                     fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) {
-                                      return Icon(
-                                        Icons.image,
-                                        color: Colors.grey[400],
-                                        size: 30,
-                                      );
-                                    },
+                                    errorWidget: Icon(
+                                      Icons.image,
+                                      color: Colors.grey[400],
+                                      size: 30,
+                                    ),
                                   ),
                                 )
                               : Icon(

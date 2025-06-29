@@ -22,7 +22,6 @@ class _AddFabricModalState extends State<AddFabricModal> {
   final TextEditingController _expenseController = TextEditingController();
   String _selectedQuality = 'Good'; // Changed to dropdown
   final TextEditingController _minOrderController = TextEditingController();
-  final TextEditingController _reasonsController = TextEditingController();
   bool _isUpcycled = false;
 
   File? _swatchImage;
@@ -262,7 +261,6 @@ class _AddFabricModalState extends State<AddFabricModal> {
         'qualityGrade': _selectedQuality,
         'minOrder': int.tryParse(_minOrderController.text) ?? 0,
         'isUpcycled': _isUpcycled,
-        'reasons': _reasonsController.text.trim().isEmpty ? null : _reasonsController.text.trim(),
         'swatchImageURL': _swatchImageUrl,
         'createdAt': Timestamp.now(),
         'lastEdited': Timestamp.now(),
@@ -292,7 +290,6 @@ class _AddFabricModalState extends State<AddFabricModal> {
     _quantityController.dispose();
     _expenseController.dispose();
     _minOrderController.dispose();
-    _reasonsController.dispose();
     super.dispose();
   }
 
@@ -314,286 +311,701 @@ class _AddFabricModalState extends State<AddFabricModal> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 24.0, left: 16.0, right: 16.0, bottom: 16.0),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // --- Modal Header with Back Button ---
-          Row(
+    return Column(
+      children: [
+        // Header
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+          child: Row(
             children: [
               IconButton(
                 icon: const Icon(Icons.arrow_back),
                 onPressed: () => Navigator.of(context).pop(),
               ),
               const SizedBox(width: 8),
-              const Text('Add Fabric Entry', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
+              const Text(
+                'Add New Fabric',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+              ),
             ],
           ),
-          const SizedBox(height: 16),
-          Flexible(
+        ),
+        // Body
+        Expanded(
+          child: Form(
+            key: _formKey,
             child: ListView(
-              shrinkWrap: true,
+              padding: const EdgeInsets.all(20),
               children: [
-                // --- Swatch Image Upload Section ---
-                GestureDetector(
-                  onTap: _pickImage,
-                  child: Container(
-                    height: 150,
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: Colors.orange.shade200,
-                        style: BorderStyle.solid,
-                        width: 2,
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                      color: Colors.orange.shade50,
-                    ),
-                    child: Center(
-                      child: _uploading
-                          ? Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const CircularProgressIndicator(),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'Uploading image...',
-                                  style: TextStyle(color: Colors.orange.shade700),
-                                ),
-                              ],
-                            )
-                          : _swatchImage != null
-                              ? Stack(
-                                  children: [
-                                    ClipRRect(
+                // Swatch Image Upload Card
+                Card(
+                  elevation: 3,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.image,
+                              color: Colors.orange[600],
+                              size: 24,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Fabric Swatch Image',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey[800],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Image Upload Area
+                        GestureDetector(
+                          onTap: _uploading ? null : _pickImage,
+                          child: Container(
+                            width: double.infinity,
+                            height: _swatchImage != null ? 220 : 160,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: _swatchImage != null ? Colors.orange[300]! : Colors.grey[300]!,
+                                width: 2,
+                                style: BorderStyle.solid,
+                              ),
+                              color: _swatchImage != null ? Colors.orange[50] : Colors.grey[50],
+                            ),
+                            child: _uploading
+                                ? Container(
+                                    decoration: BoxDecoration(
                                       borderRadius: BorderRadius.circular(10),
-                                      child: Container(
-                                        width: double.infinity,
-                                        height: double.infinity,
-                                        child: Image.file(
-                                          _swatchImage!,
-                                          fit: BoxFit.cover,
-                                        ),
-                                      ),
+                                      color: Colors.black54,
                                     ),
-                                    Positioned(
-                                      top: 8,
-                                      right: 8,
-                                      child: Container(
-                                        decoration: BoxDecoration(
-                                          color: Colors.black54,
-                                          borderRadius: BorderRadius.circular(20),
-                                        ),
-                                        child: IconButton(
-                                          icon: const Icon(Icons.edit, color: Colors.white, size: 18),
-                                          onPressed: _pickImage,
-                                          padding: const EdgeInsets.all(4),
-                                          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                                        ),
-                                      ),
-                                    ),
-                                    if (_swatchImageUrl != null)
-                                      Positioned(
-                                        bottom: 8,
-                                        left: 8,
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                          decoration: BoxDecoration(
-                                            color: Colors.green,
-                                            borderRadius: BorderRadius.circular(12),
+                                    child: const Center(
+                                      child: Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          CircularProgressIndicator(
+                                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                                           ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: const [
-                                              Icon(Icons.check, color: Colors.white, size: 14),
-                                              SizedBox(width: 4),
-                                              Text(
-                                                'Uploaded',
-                                                style: TextStyle(color: Colors.white, fontSize: 12),
-                                              ),
-                                            ],
+                                          SizedBox(height: 12),
+                                          Text(
+                                            'Uploading...',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.w500,
+                                            ),
                                           ),
-                                        ),
-                                      ),
-                                    if (_swatchImage != null && _swatchImageUrl == null && !_uploading)
-                                      Positioned(
-                                        bottom: 8,
-                                        left: 8,
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                          decoration: BoxDecoration(
-                                            color: Colors.red,
-                                            borderRadius: BorderRadius.circular(12),
-                                          ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: const [
-                                              Icon(Icons.error, color: Colors.white, size: 14),
-                                              SizedBox(width: 4),
-                                              Text(
-                                                'Upload Failed',
-                                                style: TextStyle(color: Colors.white, fontSize: 12),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                  ],
-                                )
-                              : Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(Icons.camera_alt, color: Colors.orange, size: 40),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      'Tap to upload fabric image',
-                                      style: TextStyle(color: Colors.orange.shade700),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                                      decoration: BoxDecoration(
-                                        color: Colors.orange.shade100,
-                                        borderRadius: BorderRadius.circular(20),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: const [
-                                          Icon(Icons.upload, color: Colors.orange, size: 18),
-                                          SizedBox(width: 6),
-                                          Text('Upload Image', style: TextStyle(color: Colors.orange)),
                                         ],
                                       ),
                                     ),
-                                    const SizedBox(height: 8),
-                                    const Text(
-                                      'Max size 2MB, JPG/PNG',
-                                      style: TextStyle(fontSize: 12, color: Colors.black54),
-                                    ),
-                                  ],
-                                ),
+                                  )
+                                : (_swatchImage != null && _swatchImage!.existsSync())
+                                    ? Stack(
+                                        children: [
+                                          ClipRRect(
+                                            borderRadius: BorderRadius.circular(10),
+                                            child: Image.file(
+                                              _swatchImage!,
+                                              width: double.infinity,
+                                              height: double.infinity,
+                                              fit: BoxFit.cover,
+                                            ),
+                                          ),
+                                          if (_swatchImageUrl != null)
+                                            Positioned(
+                                              top: 8,
+                                              left: 8,
+                                              child: Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.green,
+                                                  borderRadius: BorderRadius.circular(12),
+                                                  boxShadow: [
+                                                    BoxShadow(
+                                                      color: Colors.black26,
+                                                      blurRadius: 4,
+                                                      offset: Offset(0, 2),
+                                                    ),
+                                                  ],
+                                                ),
+                                                child: Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: const [
+                                                    Icon(Icons.check, color: Colors.white, size: 14),
+                                                    SizedBox(width: 4),
+                                                    Text(
+                                                      'Uploaded',
+                                                      style: TextStyle(color: Colors.white, fontSize: 12),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          if (_swatchImage != null && _swatchImageUrl == null && !_uploading)
+                                            Positioned(
+                                              top: 8,
+                                              left: 8,
+                                              child: Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.red,
+                                                  borderRadius: BorderRadius.circular(12),
+                                                  boxShadow: [
+                                                    BoxShadow(
+                                                      color: Colors.black26,
+                                                      blurRadius: 4,
+                                                      offset: Offset(0, 2),
+                                                    ),
+                                                  ],
+                                                ),
+                                                child: Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: const [
+                                                    Icon(Icons.error, color: Colors.white, size: 14),
+                                                    SizedBox(width: 4),
+                                                    Text(
+                                                      'Upload Failed',
+                                                      style: TextStyle(color: Colors.white, fontSize: 12),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          Positioned(
+                                            top: 8,
+                                            right: 8,
+                                            child: Container(
+                                              decoration: BoxDecoration(
+                                                color: Colors.white,
+                                                shape: BoxShape.circle,
+                                                boxShadow: [
+                                                  BoxShadow(
+                                                    color: Colors.black26,
+                                                    blurRadius: 4,
+                                                    offset: Offset(0, 2),
+                                                  ),
+                                                ],
+                                              ),
+                                              child: IconButton(
+                                                icon: Icon(Icons.edit, color: Colors.orange[600], size: 20),
+                                                onPressed: _uploading ? null : _pickImage,
+                                                padding: const EdgeInsets.all(8),
+                                                constraints: const BoxConstraints(),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      )
+                                    : Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.all(16),
+                                            decoration: BoxDecoration(
+                                              color: Colors.orange[100],
+                                              shape: BoxShape.circle,
+                                            ),
+                                            child: Icon(
+                                              Icons.add_a_photo,
+                                              size: 32,
+                                              color: Colors.orange[600],
+                                            ),
+                                          ),
+                                          const SizedBox(height: 12),
+                                          Text(
+                                            'Tap to upload fabric swatch',
+                                            style: TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w500,
+                                              color: Colors.orange[700],
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            'Max size 2MB, JPG/PNG',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey[600],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 8),
+                        Center(
+                          child: Text(
+                            'Upload a clear image of the fabric swatch for easy identification',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey[500],
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
-                const SizedBox(height: 24),
 
-                // --- Fabric Details Form ---
-                Form(
-                  key: _formKey,
-                  child: Column(
+                const SizedBox(height: 16),
+
+                // Fabric Name Card
+                Card(
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Fabric Name',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey[800],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        TextFormField(
+                          controller: _nameController,
+                          decoration: InputDecoration(
+                            hintText: 'Enter fabric name',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(color: Colors.grey[300]!),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(color: Colors.blue[600]!),
+                            ),
+                          ),
+                          validator: (val) => val!.isEmpty ? 'Please enter a fabric name' : null,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Type and Color Row
+                IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      TextFormField(
-                        controller: _nameController,
-                        decoration: const InputDecoration(labelText: 'Fabric Name'),
-                        validator: (val) => val!.isEmpty ? 'Required' : null,
-                      ),
-                      const SizedBox(height: 8),
-                      DropdownButtonFormField<String>(
-                        value: _selectedType,
-                        decoration: const InputDecoration(labelText: 'Fabric Type'),
-                        items: [
-                          'Cotton',
-                          'Silk',
-                          'Wool',
-                          'Linen',
-                          'Polyester',
-                          'Denim',
-                          'Chiffon',
-                          'Velvet',
-                          'Lace',
-                          'Leather',
-                          'Blend',
-                          'Other'
-                        ].map((String type) {
-                          return DropdownMenuItem<String>(
-                            value: type,
-                            child: Text(type),
-                          );
-                        }).toList(),
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedType = value!;
-                          });
-                        },
-                        validator: (val) => val == null ? 'Required' : null,
-                      ),
-                      DropdownButtonFormField<String>(
-                        value: _selectedColor,
-                        decoration: const InputDecoration(labelText: 'Color'),
-                        selectedItemBuilder: (context) {
-                          return ColorUtils.buildColorSelectedItems(context, size: 16);
-                        },
-                        items: ColorUtils.buildColorDropdownItems(),
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedColor = value!;
-                          });
-                        },
-                      ),
-                      TextFormField(
-                        controller: _quantityController,
-                        decoration: const InputDecoration(labelText: 'Quantity (yards)'),
-                        keyboardType: TextInputType.number,
-                      ),
-                      TextFormField(
-                        controller: _expenseController,
-                        decoration: const InputDecoration(labelText: 'Expense per yard (₱)'),
-                        keyboardType: TextInputType.number,
-                      ),
-                      const SizedBox(height: 8),
-                      DropdownButtonFormField<String>(
-                        value: _selectedQuality,
-                        decoration: const InputDecoration(labelText: 'Quality Grade'),
-                        items: [
-                          'Premium',
-                          'High',
-                          'Good',
-                          'Standard',
-                          'Low'
-                        ].map((String quality) {
-                          return DropdownMenuItem<String>(
-                            value: quality,
-                            child: Row(
+                      // Fabric Type
+                      Expanded(
+                        child: Card(
+                          elevation: 2,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
                               children: [
-                                Container(
-                                  width: 12,
-                                  height: 12,
-                                  decoration: BoxDecoration(
-                                    color: _getQualityPreviewColor(quality),
-                                    borderRadius: BorderRadius.circular(3),
+                                Text(
+                                  'Fabric Type',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.grey[800],
                                   ),
                                 ),
-                                const SizedBox(width: 8),
-                                Text(quality),
+                                const SizedBox(height: 8),
+                                Flexible(
+                                  child: DropdownButtonFormField<String>(
+                                    value: _selectedType,
+                                    isExpanded: true,
+                                    decoration: InputDecoration(
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: BorderSide(color: Colors.grey[300]!),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: BorderSide(color: Colors.blue[600]!),
+                                      ),
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                    ),
+                                    items: [
+                                      'Cotton',
+                                      'Silk',
+                                      'Wool',
+                                      'Linen',
+                                      'Polyester',
+                                      'Denim',
+                                      'Chiffon',
+                                      'Velvet',
+                                      'Lace',
+                                      'Leather',
+                                      'Blend',
+                                      'Other'
+                                    ].map((String type) {
+                                      return DropdownMenuItem(
+                                        value: type,
+                                        child: Text(
+                                          type,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(fontSize: 14),
+                                        ),
+                                      );
+                                    }).toList(),
+                                    onChanged: (value) {
+                                      setState(() {
+                                        _selectedType = value!;
+                                      });
+                                    },
+                                    validator: (val) => val == null ? 'Required' : null,
+                                  ),
+                                ),
                               ],
                             ),
-                          );
-                        }).toList(),
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedQuality = value!;
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 8),
-                      TextFormField(
-                        controller: _minOrderController,
-                        decoration: const InputDecoration(
-                          labelText: 'Minimum Order Quantity',
-                          hintText: 'Enter minimum order amount',
+                          ),
                         ),
-                        keyboardType: TextInputType.number,
                       ),
-                      const SizedBox(height: 16),
-                      // Upcycled toggle
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.green[50],
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.green[200]!),
+
+                      const SizedBox(width: 12),
+
+                      // Color
+                      Expanded(
+                        child: Card(
+                          elevation: 2,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  'Color',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.grey[800],
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Flexible(
+                                  child: DropdownButtonFormField<String>(
+                                    value: _selectedColor,
+                                    isExpanded: true,
+                                    decoration: InputDecoration(
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: BorderSide(color: Colors.grey[300]!),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: BorderSide(color: Colors.blue[600]!),
+                                      ),
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                    ),
+                                    selectedItemBuilder: (context) {
+                                      return ColorUtils.buildColorSelectedItems(context, size: 16);
+                                    },
+                                    items: ColorUtils.buildColorDropdownItems(),
+                                    onChanged: (value) {
+                                      setState(() {
+                                        _selectedColor = value!;
+                                      });
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
-                        child: Row(
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Quantity and Expense Row
+                IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Quantity
+                      Expanded(
+                        child: Card(
+                          elevation: 2,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  'Quantity (yards)',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.grey[800],
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Flexible(
+                                  child: TextFormField(
+                                    controller: _quantityController,
+                                    keyboardType: TextInputType.number,
+                                    decoration: InputDecoration(
+                                      hintText: '0',
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: BorderSide(color: Colors.grey[300]!),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: BorderSide(color: Colors.blue[600]!),
+                                      ),
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(width: 12),
+
+                      // Expense
+                      Expanded(
+                        child: Card(
+                          elevation: 2,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  'Expense per yard (₱)',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.grey[800],
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Flexible(
+                                  child: TextFormField(
+                                    controller: _expenseController,
+                                    keyboardType: TextInputType.number,
+                                    decoration: InputDecoration(
+                                      hintText: '0.00',
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: BorderSide(color: Colors.grey[300]!),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: BorderSide(color: Colors.blue[600]!),
+                                      ),
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Quality Grade and Min Order Row
+                IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Quality Grade
+                      Expanded(
+                        child: Card(
+                          elevation: 2,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  'Quality Grade',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.grey[800],
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Flexible(
+                                  child: DropdownButtonFormField<String>(
+                                    value: _selectedQuality,
+                                    isExpanded: true,
+                                    decoration: InputDecoration(
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: BorderSide(color: Colors.grey[300]!),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: BorderSide(color: Colors.blue[600]!),
+                                      ),
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                    ),
+                                    items: [
+                                      'Premium',
+                                      'High',
+                                      'Good',
+                                      'Standard',
+                                      'Low'
+                                    ].map((String quality) {
+                                      return DropdownMenuItem<String>(
+                                        value: quality,
+                                        child: Row(
+                                          children: [
+                                            Container(
+                                              width: 12,
+                                              height: 12,
+                                              decoration: BoxDecoration(
+                                                color: _getQualityPreviewColor(quality),
+                                                borderRadius: BorderRadius.circular(3),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              quality,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(fontSize: 14),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    }).toList(),
+                                    onChanged: (value) {
+                                      setState(() {
+                                        _selectedQuality = value!;
+                                      });
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(width: 12),
+
+                      // Minimum Order
+                      Expanded(
+                        child: Card(
+                          elevation: 2,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  'Min Order Qty',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.grey[800],
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Flexible(
+                                  child: TextFormField(
+                                    controller: _minOrderController,
+                                    keyboardType: TextInputType.number,
+                                    decoration: InputDecoration(
+                                      hintText: '0',
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: BorderSide(color: Colors.grey[300]!),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: BorderSide(color: Colors.blue[600]!),
+                                      ),
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Sustainability Properties Card
+                Card(
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Sustainability Properties',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey[800],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Upcycled Switch
+                        Row(
                           children: [
                             Icon(
                               Icons.eco,
@@ -605,19 +1017,18 @@ class _AddFabricModalState extends State<AddFabricModal> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
+                                  const Text(
                                     'Upcycled Fabric',
                                     style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.green[800],
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
                                     ),
                                   ),
                                   Text(
-                                    'Is this fabric made from recycled materials?',
+                                    'Made from recycled materials',
                                     style: TextStyle(
                                       fontSize: 12,
-                                      color: Colors.green[600],
+                                      color: Colors.grey[600],
                                     ),
                                   ),
                                 ],
@@ -634,62 +1045,86 @@ class _AddFabricModalState extends State<AddFabricModal> {
                             ),
                           ],
                         ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 32),
+
+                // Save Button
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: (_uploading || (_swatchImage != null && _swatchImageUrl == null)) 
+                        ? null 
+                        : _submitForm,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue[600],
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: _reasonsController,
-                        decoration: const InputDecoration(
-                          labelText: 'Notes & Reasons',
-                          hintText: 'Any additional notes about this fabric...',
-                          alignLabelWithHint: true,
-                        ),
-                        maxLines: 3,
-                        maxLength: 200,
-                      ),
-                      const SizedBox(height: 16),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: (_uploading || (_swatchImage != null && _swatchImageUrl == null)) 
-                              ? null 
-                              : _submitForm,
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
+                      elevation: 2,
+                    ),
+                    icon: _uploading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                             ),
-                          ),
-                          child: _uploading
-                              ? Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: const [
-                                    SizedBox(
-                                      width: 16,
-                                      height: 16,
-                                      child: CircularProgressIndicator(strokeWidth: 2),
-                                    ),
-                                    SizedBox(width: 8),
-                                    Text('Uploading Image...'),
-                                  ],
-                                )
-                              : const Text('Add Fabric'),
-                        ),
+                          )
+                        : const Icon(Icons.save, size: 20),
+                    label: Text(
+                      _uploading ? 'Uploading Image...' : 'Save Fabric',
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ),
+
+                // Retry Upload Section
+                if (_swatchImage != null && _swatchImageUrl == null && !_uploading)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 16),
+                    child: Card(
+                      elevation: 2,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      if (_swatchImage != null && _swatchImageUrl == null && !_uploading)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: Column(
-                            children: [
-                              Text(
-                                'Image upload failed. Please try again.',
-                                style: TextStyle(
-                                  color: Colors.red[600],
-                                  fontSize: 12,
+                      color: Colors.orange[50],
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.warning, color: Colors.orange[600], size: 20),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Image Upload Failed',
+                                  style: TextStyle(
+                                    color: Colors.orange[800],
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
-                                textAlign: TextAlign.center,
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'The image upload failed. Please try uploading again.',
+                              style: TextStyle(
+                                color: Colors.orange[700],
+                                fontSize: 12,
                               ),
-                              const SizedBox(height: 8),
-                              ElevatedButton.icon(
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 12),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton.icon(
                                 onPressed: () {
                                   _useFirebaseStorage = false; // Use base64 directly
                                   _uploadImageAsBase64();
@@ -699,20 +1134,25 @@ class _AddFabricModalState extends State<AddFabricModal> {
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.orange,
                                   foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
                                 ),
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
-                    ],
+                      ),
+                    ),
                   ),
-                ),
+
+                const SizedBox(height: 20),
               ],
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

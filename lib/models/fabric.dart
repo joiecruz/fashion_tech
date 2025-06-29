@@ -11,7 +11,6 @@ class Fabric {
   final String? swatchImageURL;
   final double minOrder; // minimum order quantity
   final bool isUpcycled;
-  final String? reasons; // reasons for material choice
   final DateTime createdAt;
   final DateTime updatedAt;
   final DateTime? deletedAt; // soft delete support
@@ -27,7 +26,6 @@ class Fabric {
     this.swatchImageURL,
     required this.minOrder,
     required this.isUpcycled,
-    this.reasons,
     required this.createdAt,
     required this.updatedAt,
     this.deletedAt,
@@ -45,7 +43,6 @@ class Fabric {
       swatchImageURL: data['swatchImageURL'],
       minOrder: (data['minOrder'] ?? 0).toDouble(),
       isUpcycled: data['isUpcycled'] ?? false,
-      reasons: data['reasons'],
       createdAt: (data['createdAt'] is Timestamp)
           ? (data['createdAt'] as Timestamp).toDate()
           : DateTime.tryParse(data['createdAt'].toString()) ?? DateTime.now(),
@@ -71,7 +68,6 @@ class Fabric {
       'swatchImageURL': swatchImageURL,
       'minOrder': minOrder,
       'isUpcycled': isUpcycled,
-      'reasons': reasons,
       'createdAt': createdAt,
       'updatedAt': updatedAt,
       'deletedAt': deletedAt,

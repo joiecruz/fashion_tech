@@ -13,7 +13,6 @@ Future<void> addFabric({
   String? swatchImageURL,
   required double minOrder,
   required bool isUpcycled,
-  String? reasons,
 }) async {
   final fabricID = await _fabricService.createFabricID();
   final now = DateTime.now();
@@ -28,7 +27,6 @@ Future<void> addFabric({
     swatchImageURL: swatchImageURL,
     minOrder: minOrder,
     isUpcycled: isUpcycled,
-    reasons: reasons,
     createdAt: now,
     updatedAt: now,
     deletedAt: null,
