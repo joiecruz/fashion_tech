@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'add_product_modal.dart';
 import 'product_detail_page.dart';
 import 'package:fashion_tech/backend/fetch_products.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../utils/image_utils.dart';
 
 class ProductInventoryPage extends StatefulWidget {
@@ -66,6 +67,26 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
     try {
       final products = await FetchProductsBackend.fetchProducts();
 
+      // Sort by updatedAt descending (most recent first)
+      products.sort((a, b) {
+        final aTime = a['updatedAt'];
+        final bTime = b['updatedAt'];
+        if (aTime == null && bTime == null) return 0;
+        if (aTime == null) return 1;
+        if (bTime == null) return -1;
+        final aDate = aTime is DateTime
+            ? aTime
+            : (aTime is Timestamp
+                ? aTime.toDate()
+                : DateTime.tryParse(aTime.toString()) ?? DateTime(1970));
+        final bDate = bTime is DateTime
+            ? bTime
+            : (bTime is Timestamp
+                ? bTime.toDate()
+                : DateTime.tryParse(bTime.toString()) ?? DateTime(1970));
+        return bDate.compareTo(aDate);
+      });
+
       setState(() {
         _products = products;
         _filteredProducts = products;
@@ -77,10 +98,10 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
       });
 
       _animationController.forward();
-      
+
       // Apply current filters after loading
       _filterProducts();
-      
+
       // Show success feedback only for pull-to-refresh
       if (isRefresh && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -110,7 +131,7 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
         }
       });
       _animationController.forward();
-      
+
       // Show error feedback
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -231,221 +252,225 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
                       displacement: 50,
                       edgeOffset: 0,
                       child: CustomScrollView(
-                        physics: const AlwaysScrollableScrollPhysics(), // Ensures pull-to-refresh works even with small content
+                        physics: const AlwaysScrollableScrollPhysics(),
                         slivers: [
-                        // Collapsible Stats Cards
-                        SliverToBoxAdapter(
-                          child: Container(
-                            color: Colors.white,
-                            child: Column(
-                              children: [
-                                // Collapse/Expand Button
-                                InkWell(
-                                  onTap: () {
-                                    setState(() {
-                                      _isStatsExpanded = !_isStatsExpanded;
-                                    });
-                                  },
-                                  child: Container(
-                                    width: double.infinity,
-                                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                                    decoration: BoxDecoration(
-                                      color: Colors.grey[50],
-                                      border: Border(
-                                        bottom: BorderSide(color: Colors.grey[200]!, width: 1),
-                                      ),
-                                    ),
-                                    child: Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Row(
-                                          children: [
-                                            Icon(
-                                              Icons.analytics_outlined,
-                                              color: Colors.grey[600],
-                                              size: 20,
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Text(
-                                              'Statistics',
-                                              style: TextStyle(
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.w600,
-                                                color: Colors.grey[800],
-                                              ),
-                                            ),
-                                          ],
+                          // Collapsible Stats Cards
+                          SliverToBoxAdapter(
+                            child: Container(
+                              color: Colors.white,
+                              child: Column(
+                                children: [
+                                  // Collapse/Expand Button
+                                  InkWell(
+                                    onTap: () {
+                                      setState(() {
+                                        _isStatsExpanded = !_isStatsExpanded;
+                                      });
+                                    },
+                                    child: Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey[50],
+                                        border: Border(
+                                          bottom: BorderSide(color: Colors.grey[200]!, width: 1),
                                         ),
-                                        Row(
-                                          children: [
-                                            if (!_isStatsExpanded) ...[
-                                              Text(
-                                                '${_totalProducts} products • ${_lowStockCount} low stock',
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  color: Colors.grey[600],
-                                                ),
-                                              ),
-                                              const SizedBox(width: 8),
-                                            ],
-                                            AnimatedRotation(
-                                              turns: _isStatsExpanded ? 0.5 : 0.0,
-                                              duration: const Duration(milliseconds: 200),
-                                              child: Icon(
-                                                Icons.keyboard_arrow_down,
+                                      ),
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Icon(
+                                                Icons.analytics_outlined,
                                                 color: Colors.grey[600],
                                                 size: 20,
                                               ),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
+                                              const SizedBox(width: 8),
+                                              Text(
+                                                'Statistics',
+                                                style: TextStyle(
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: Colors.grey[800],
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          Row(
+                                            children: [
+                                              if (!_isStatsExpanded) ...[
+                                                Text(
+                                                  '${_totalProducts} products • ${_lowStockCount} low stock',
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    color: Colors.grey[600],
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 8),
+                                              ],
+                                              AnimatedRotation(
+                                                turns: _isStatsExpanded ? 0.5 : 0.0,
+                                                duration: const Duration(milliseconds: 200),
+                                                child: Icon(
+                                                  Icons.keyboard_arrow_down,
+                                                  color: Colors.grey[600],
+                                                  size: 20,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ),
-                                ),
-                                // Animated Stats Content
-                                AnimatedContainer(
-                                  duration: const Duration(milliseconds: 300),
-                                  curve: Curves.easeInOut,
-                                  constraints: BoxConstraints(
-                                    maxHeight: _isStatsExpanded ? 200 : 0,
-                                  ),
-                                  child: AnimatedOpacity(
-                                    duration: const Duration(milliseconds: 200),
-                                    opacity: _isStatsExpanded ? 1.0 : 0.0,
+                                  // Animated Stats Content
+                                  AnimatedContainer(
+                                    duration: const Duration(milliseconds: 300),
+                                    curve: Curves.easeInOut,
+                                    constraints: BoxConstraints(
+                                      maxHeight: _isStatsExpanded ? 200 : 0,
+                                    ),
                                     child: AnimatedOpacity(
-                                      opacity: _isRefreshing ? 0.6 : 1.0,
-                                      duration: const Duration(milliseconds: 300),
-                                      child: Container(
-                                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-                                        child: Row(
-                                          children: [
-                                            Expanded(child: _buildStatCard(
-                                              icon: Icons.inventory_2_outlined,
-                                              iconColor: Colors.blue[600]!,
-                                              title: 'Total\nProducts',
-                                              value: _totalProducts.toString(),
-                                            )),
-                                            const SizedBox(width: 16),
-                                            Expanded(child: _buildStatCard(
-                                              icon: Icons.warning_outlined,
-                                              iconColor: Colors.red[600]!,
-                                              title: 'Low Stock\n(<5)',
-                                              value: _lowStockCount.toString(),
-                                            )),
-                                            const SizedBox(width: 16),
-                                            Expanded(child: _buildStatCard(
-                                              icon: Icons.attach_money,
-                                              iconColor: Colors.green[600]!,
-                                              title: 'Potential\nValue',
-                                              value: '₱${_totalPotentialValue.toStringAsFixed(2)}',
-                                              isLarge: true,
-                                            )),
-                                          ],
+                                      duration: const Duration(milliseconds: 200),
+                                      opacity: _isStatsExpanded ? 1.0 : 0.0,
+                                      child: AnimatedOpacity(
+                                        opacity: _isRefreshing ? 0.6 : 1.0,
+                                        duration: const Duration(milliseconds: 300),
+                                        child: Container(
+                                          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+                                          child: Row(
+                                            children: [
+                                              Expanded(child: _buildStatCard(
+                                                icon: Icons.inventory_2_outlined,
+                                                iconColor: Colors.blue[600]!,
+                                                title: 'Total\nProducts',
+                                                value: _totalProducts.toString(),
+                                              )),
+                                              const SizedBox(width: 16),
+                                              Expanded(child: _buildStatCard(
+                                                icon: Icons.warning_outlined,
+                                                iconColor: Colors.red[600]!,
+                                                title: 'Low Stock\n(<5)',
+                                                value: _lowStockCount.toString(),
+                                              )),
+                                              const SizedBox(width: 16),
+                                              Expanded(child: _buildStatCard(
+                                                icon: Icons.attach_money,
+                                                iconColor: Colors.green[600]!,
+                                                title: 'Potential\nValue',
+                                                value: '₱${_totalPotentialValue.toStringAsFixed(2)}',
+                                                isLarge: true,
+                                              )),
+                                            ],
+                                          ),
                                         ),
                                       ),
                                     ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
-                        ),
-                        // Add New Item Button
-                        SliverToBoxAdapter(
-                          child: Container(
-                            color: Colors.white,
-                            padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Container(
-                                    height: 48,
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(
-                                        colors: [Colors.blue[600]!, Colors.blue[700]!],
-                                        begin: Alignment.centerLeft,
-                                        end: Alignment.centerRight,
-                                      ),
-                                      borderRadius: BorderRadius.circular(12),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.blue[600]!.withOpacity(0.3),
-                                          blurRadius: 8,
-                                          offset: const Offset(0, 4),
+                          // Add New Item Button
+                          SliverToBoxAdapter(
+                            child: Container(
+                              color: Colors.white,
+                              padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Container(
+                                      height: 48,
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          colors: [Colors.blue[600]!, Colors.blue[700]!],
+                                          begin: Alignment.centerLeft,
+                                          end: Alignment.centerRight,
                                         ),
-                                      ],
-                                    ),
-                                    child: Material(
-                                      color: Colors.transparent,
-                                      child: InkWell(
-                                        onTap: () async {
-                                          final result = await showModalBottomSheet<bool>(
-                                            context: context,
-                                            isScrollControlled: true,
-                                            backgroundColor: Colors.transparent,
-                                            builder: (context) => Container(
-                                              margin: const EdgeInsets.only(top: 100),
-                                              height: MediaQuery.of(context).size.height - 100,
-                                              decoration: const BoxDecoration(
-                                                color: Colors.white,
-                                                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                                              ),
-                                              child: const AddProductModal(),
-                                            ),
-                                          );
-
-                                          if (result == true) {
-                                            _loadProducts(isRefresh: true);
-                                          }
-                                        },
                                         borderRadius: BorderRadius.circular(12),
-                                        child: const Row(
-                                          mainAxisAlignment: MainAxisAlignment.center,
-                                          children: [
-                                            Icon(
-                                              Icons.add_circle_outline,
-                                              color: Colors.white,
-                                              size: 18,
-                                            ),
-                                            SizedBox(width: 8),
-                                            Text(
-                                              'Add New Product',
-                                              style: TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 14,
-                                                fontWeight: FontWeight.w600,
-                                                letterSpacing: 0.5,
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.blue[600]!.withOpacity(0.3),
+                                            blurRadius: 8,
+                                            offset: const Offset(0, 4),
+                                          ),
+                                        ],
+                                      ),
+                                      child: Material(
+                                        color: Colors.transparent,
+                                        child: InkWell(
+                                          onTap: () async {
+                                            final result = await showModalBottomSheet<bool>(
+                                              context: context,
+                                              isScrollControlled: true,
+                                              backgroundColor: Colors.transparent,
+                                              builder: (context) => Container(
+                                                margin: const EdgeInsets.only(top: 100),
+                                                height: MediaQuery.of(context).size.height - 100,
+                                                decoration: const BoxDecoration(
+                                                  color: Colors.white,
+                                                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                                                ),
+                                                child: const AddProductModal(),
                                               ),
-                                            ),
-                                          ],
+                                            );
+
+                                            if (result == true) {
+                                              _selectedCategory = 'All';
+                                              _showUpcycledOnly = false;
+                                              _showLowStockOnly = false;
+                                              _searchController.clear();
+                                              await _loadProducts(isRefresh: true);
+                                            }
+                                          },
+                                          borderRadius: BorderRadius.circular(12),
+                                          child: const Row(
+                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            children: [
+                                              Icon(
+                                                Icons.add_circle_outline,
+                                                color: Colors.white,
+                                                size: 18,
+                                              ),
+                                              SizedBox(width: 8),
+                                              Text(
+                                                'Add New Product',
+                                                style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w600,
+                                                  letterSpacing: 0.5,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
                                         ),
                                       ),
                                     ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
-                        ),
-                        // Product List
-                        SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
-                          sliver: SliverList(
-                            delegate: SliverChildBuilderDelegate(
-                              (context, index) {
-                                final product = _filteredProducts[index];
-                                return Padding(
-                                  padding: const EdgeInsets.only(bottom: 16),
-                                  child: _buildProductCard(product, index),
-                                );
-                              },
-                              childCount: _filteredProducts.length,
+                          // Product List
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
+                            sliver: SliverList(
+                              delegate: SliverChildBuilderDelegate(
+                                (context, index) {
+                                  final product = _filteredProducts[index];
+                                  return Padding(
+                                    padding: const EdgeInsets.only(bottom: 16),
+                                    child: _buildProductCard(product, index),
+                                  );
+                                },
+                                childCount: _filteredProducts.length,
+                              ),
                             ),
                           ),
-                        ),
-                      ],
-                    ),
+                        ],
+                      ),
                     ),
                   ),
                 ],
@@ -680,12 +705,15 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
                 ],
               ),
               child: InkWell(
-                onTap: () {
-                  Navigator.of(context).push(
+                onTap: () async {
+                  final result = await Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (context) => ProductDetailPage(productData: product),
                     ),
                   );
+                  if (result == true) {
+                    await _loadProducts(isRefresh: true);
+                  }
                 },
                 borderRadius: BorderRadius.circular(16),
                 child: Padding(
@@ -986,12 +1014,19 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
                         const SizedBox(width: 8),
                         Expanded(
                           child: OutlinedButton.icon(
-                            onPressed: () {
-                              Navigator.of(context).push(
+                            onPressed: () async {
+                              final result = await Navigator.of(context).push(
                                 MaterialPageRoute(
                                   builder: (context) => ProductDetailPage(productData: product),
                                 ),
                               );
+                              if (result == true) {
+                                _selectedCategory = 'All';
+                                _showUpcycledOnly = false;
+                                _showLowStockOnly = false;
+                                _searchController.clear();
+                                await _loadProducts(isRefresh: true);
+                              }
                             },
                             style: OutlinedButton.styleFrom(
                               foregroundColor: Colors.black87,
