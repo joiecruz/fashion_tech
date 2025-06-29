@@ -80,7 +80,7 @@ class FetchProductsBackend {
           'updatedAt': productData['updatedAt'],
         });
       }
-
+      print("try");
       print('DEBUG: Returning ${products.length} products');
       return products;
     } catch (e) {
