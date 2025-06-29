@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 // 🚨 TEMPORARY DEV IMPORTS - Remove before production
 import 'package:fashion_tech/frontend/auth/login_page.dart';
 import 'package:fashion_tech/frontend/auth/signup_page.dart';
-
+import 'package:fashion_tech/frontend/profit/profit_checker.dart';
 
 class HomeDashboard extends StatelessWidget {
   const HomeDashboard({super.key});
@@ -163,7 +163,10 @@ class HomeDashboard extends StatelessWidget {
                       ),
                       ElevatedButton(
                         onPressed: () {
-                          // Navigate to Sell or Detailed Report
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const ProfitReportPage()),
+                        );
                         },
                         child: const Text('View Report'),
                       ),
