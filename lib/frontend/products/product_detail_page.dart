@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/product_variant.dart';
 import '../../backend/fetch_variants.dart';
+import 'edit_product_modal.dart'; 
 
 class ProductDetailPage extends StatefulWidget {
   final Map<String, dynamic> productData;
@@ -31,6 +32,29 @@ class _ProductDetailPageState extends State<ProductDetailPage>
   void dispose() {
     _tabController.dispose();
     super.dispose();
+  }
+
+  Future<void> _openEditProductModal() async {
+    final result = await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        margin: const EdgeInsets.only(top: 60),
+        height: MediaQuery.of(context).size.height - 60,
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: EditProductModal(
+          productData: widget.productData,
+        ),
+      ),
+    );
+    if (result == true) {
+      // Optionally reload product data here
+      setState(() {});
+    }
   }
 
   Future<void> _loadVariants() async {
@@ -80,12 +104,7 @@ class _ProductDetailPageState extends State<ProductDetailPage>
         actions: [
           IconButton(
             icon: const Icon(Icons.edit, color: Colors.black87),
-            onPressed: () {
-              // TODO: Navigate to edit product page
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Edit functionality coming soon!')),
-              );
-            },
+            onPressed: _openEditProductModal, // <-- Connect to edit modal
           ),
         ],
         bottom: TabBar(

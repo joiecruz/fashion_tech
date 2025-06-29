@@ -17,7 +17,8 @@ class _SupplierDetailPageState extends State<SupplierDetailPage>
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
-  
+
+  late Map<String, dynamic> _supplierData;
   List<Map<String, dynamic>> _suppliedProducts = [];
   List<Map<String, dynamic>> _suppliedFabrics = [];
   bool _isLoadingProducts = true;
@@ -26,6 +27,7 @@ class _SupplierDetailPageState extends State<SupplierDetailPage>
   @override
   void initState() {
     super.initState();
+    _supplierData = Map<String, dynamic>.from(widget.supplierData);
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 800),
       vsync: this,
@@ -56,9 +58,23 @@ class _SupplierDetailPageState extends State<SupplierDetailPage>
     super.dispose();
   }
 
+  Future<void> _reloadSupplierData() async {
+    final supplierId = _supplierData['supplierID'];
+    if (supplierId == null) return;
+    final doc = await FirebaseFirestore.instance.collection('suppliers').doc(supplierId).get();
+    if (doc.exists) {
+      setState(() {
+        _supplierData = {
+          ..._supplierData, // keep supplierID if not in doc
+          ...doc.data()!,
+        };
+      });
+    }
+  }
+
   Future<void> _loadSuppliedProducts() async {
     try {
-      final supplierId = widget.supplierData['supplierID'];
+      final supplierId = _supplierData['supplierID'];
       if (supplierId == null) return;
 
       final snapshot = await FirebaseFirestore.instance
@@ -66,17 +82,15 @@ class _SupplierDetailPageState extends State<SupplierDetailPage>
           .where('supplierID', isEqualTo: supplierId)
           .get();
 
-      // Fetch product details for each supplier product
       List<Map<String, dynamic>> products = [];
       for (var doc in snapshot.docs) {
         final supplierProduct = doc.data();
-        
-        // Get product details
+
         final productDoc = await FirebaseFirestore.instance
             .collection('products')
             .doc(supplierProduct['productID'])
             .get();
-        
+
         if (productDoc.exists) {
           final productData = productDoc.data()!;
           products.add({
@@ -106,7 +120,7 @@ class _SupplierDetailPageState extends State<SupplierDetailPage>
 
   Future<void> _loadSuppliedFabrics() async {
     try {
-      final supplierId = widget.supplierData['supplierID'];
+      final supplierId = _supplierData['supplierID'];
       if (supplierId == null) return;
 
       final snapshot = await FirebaseFirestore.instance
@@ -114,17 +128,15 @@ class _SupplierDetailPageState extends State<SupplierDetailPage>
           .where('supplierID', isEqualTo: supplierId)
           .get();
 
-      // Fetch fabric details for each supplier fabric
       List<Map<String, dynamic>> fabrics = [];
       for (var doc in snapshot.docs) {
         final supplierFabric = doc.data();
-        
-        // Get fabric details
+
         final fabricDoc = await FirebaseFirestore.instance
             .collection('fabrics')
             .doc(supplierFabric['fabricID'])
             .get();
-        
+
         if (fabricDoc.exists) {
           final fabricData = fabricDoc.data()!;
           fabrics.add({
@@ -231,7 +243,7 @@ class _SupplierDetailPageState extends State<SupplierDetailPage>
               ),
             ),
             onPressed: () async {
-              final supplierId = widget.supplierData['supplierID'];
+              final supplierId = _supplierData['supplierID'];
               final result = await showModalBottomSheet(
                 context: context,
                 isScrollControlled: true,
@@ -244,13 +256,15 @@ class _SupplierDetailPageState extends State<SupplierDetailPage>
                     borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
                   ),
                   child: EditSupplierModal(
-                    supplierData: widget.supplierData,
+                    supplierData: _supplierData,
                     supplierId: supplierId,
                   ),
                 ),
               );
               if (result == true) {
-                // Optionally reload supplier data here
+                await _reloadSupplierData();
+                await _loadSuppliedProducts();
+                await _loadSuppliedFabrics();
               }
             },
           ),
@@ -311,7 +325,7 @@ class _SupplierDetailPageState extends State<SupplierDetailPage>
                       const SizedBox(height: 16),
                       // Supplier Name
                       Text(
-                        widget.supplierData['supplierName'] ?? 'Unnamed Supplier',
+                        _supplierData['supplierName'] ?? 'Unnamed Supplier',
                         style: const TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.bold,
@@ -338,7 +352,7 @@ class _SupplierDetailPageState extends State<SupplierDetailPage>
                           _buildQuickStat(
                             icon: Icons.location_on_outlined,
                             label: 'Location',
-                            value: (widget.supplierData['location'] ?? 'Not specified').toString().split(',').first,
+                            value: (_supplierData['location'] ?? 'Not specified').toString().split(',').first,
                             color: Colors.green[600]!,
                           ),
                           Container(
@@ -349,7 +363,7 @@ class _SupplierDetailPageState extends State<SupplierDetailPage>
                           _buildQuickStat(
                             icon: Icons.email_outlined,
                             label: 'Contact',
-                            value: (widget.supplierData['email'] != null && widget.supplierData['email'].toString().isNotEmpty) ? 'Available' : 'None',
+                            value: (_supplierData['email'] != null && _supplierData['email'].toString().isNotEmpty) ? 'Available' : 'None',
                             color: Colors.orange[600]!,
                           ),
                         ],
@@ -358,7 +372,7 @@ class _SupplierDetailPageState extends State<SupplierDetailPage>
                   ),
                 ),
                 const SizedBox(height: 24),
-                
+
                 // Supplier Information
                 Container(
                   width: double.infinity,
@@ -404,29 +418,29 @@ class _SupplierDetailPageState extends State<SupplierDetailPage>
                       ),
                       const SizedBox(height: 20),
                       // Contact Information
-                      if (widget.supplierData['contactNum'] != null && widget.supplierData['contactNum'].toString().isNotEmpty)
+                      if (_supplierData['contactNum'] != null && _supplierData['contactNum'].toString().isNotEmpty)
                         _buildInfoRow(
                           icon: Icons.phone,
                           label: 'Contact Number',
-                          value: widget.supplierData['contactNum'],
-                          onTap: () => _copyToClipboard(widget.supplierData['contactNum'], 'Contact number'),
+                          value: _supplierData['contactNum'] ?? '',
+                          onTap: () => _copyToClipboard(_supplierData['contactNum'] ?? '', 'Contact number'),
                         ),
-                      if (widget.supplierData['email'] != null && widget.supplierData['email'].toString().isNotEmpty)
+                      if (_supplierData['email'] != null && _supplierData['email'].toString().isNotEmpty)
                         _buildInfoRow(
                           icon: Icons.email,
                           label: 'Email Address',
-                          value: widget.supplierData['email'],
-                          onTap: () => _copyToClipboard(widget.supplierData['email'], 'Email address'),
+                          value: _supplierData['email'] ?? '',
+                          onTap: () => _copyToClipboard(_supplierData['email'] ?? '', 'Email address'),
                         ),
-                      if (widget.supplierData['location'] != null && widget.supplierData['location'].toString().isNotEmpty)
+                      if (_supplierData['location'] != null && _supplierData['location'].toString().isNotEmpty)
                         _buildInfoRow(
                           icon: Icons.location_on,
                           label: 'Location',
-                          value: widget.supplierData['location'],
-                          onTap: () => _copyToClipboard(widget.supplierData['location'], 'Location'),
+                          value: _supplierData['location'] ?? '',
+                          onTap: () => _copyToClipboard(_supplierData['location'] ?? '', 'Location'),
                         ),
                       // Notes
-                      if (widget.supplierData['notes'] != null && widget.supplierData['notes'].toString().trim().isNotEmpty) ...[
+                      if (_supplierData['notes'] != null && _supplierData['notes'].toString().trim().isNotEmpty) ...[
                         const SizedBox(height: 16),
                         Container(
                           width: double.infinity,
@@ -455,7 +469,7 @@ class _SupplierDetailPageState extends State<SupplierDetailPage>
                               ),
                               const SizedBox(height: 8),
                               Text(
-                                widget.supplierData['notes'],
+                                _supplierData['notes'] ?? '',
                                 style: TextStyle(
                                   fontSize: 14,
                                   color: Colors.grey[700],
@@ -470,7 +484,7 @@ class _SupplierDetailPageState extends State<SupplierDetailPage>
                   ),
                 ),
                 const SizedBox(height: 24),
-                
+
                 // Supplied Products Section
                 Container(
                   width: double.infinity,
@@ -565,7 +579,7 @@ class _SupplierDetailPageState extends State<SupplierDetailPage>
                   ),
                 ),
                 const SizedBox(height: 24),
-                
+
                 // Supplied Fabrics Section
                 Container(
                   width: double.infinity,
