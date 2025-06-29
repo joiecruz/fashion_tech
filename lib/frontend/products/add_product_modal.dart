@@ -4,6 +4,9 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+import 'dart:typed_data';
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import '../../models/product.dart';
 import '../../models/product_image.dart';
 import '../../utils/utils.dart';
@@ -46,8 +49,10 @@ class _AddProductModalState extends State<AddProductModal> {
 
   // Product Image
   File? _productImage;
+  Uint8List? _productImageBytes; // For web
   String? _productImageUrl;
   bool _uploadingImage = false;
+  bool _useFirebaseStorage = true; // You can set to false to fallback to base64 for web
 
   // Product Variants
   List<ProductVariantInput> _variants = [];
@@ -75,36 +80,163 @@ class _AddProductModalState extends State<AddProductModal> {
   }
 
   Future<void> _pickImage() async {
-    final picker = ImagePicker();
-    final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
-    if (picked != null) {
-      setState(() {
-        _productImage = File(picked.path);
-      });
-      await _uploadImage();
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 80,
+        maxWidth: 800,
+        maxHeight: 800,
+      );
+      if (picked != null) {
+        if (kIsWeb) {
+          final bytes = await picked.readAsBytes();
+          final mimeType = picked.name.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+          if (_useFirebaseStorage) {
+            setState(() {
+              _productImageBytes = bytes;
+              _productImage = null;
+            });
+            await _uploadImageWeb(bytes, picked.name);
+          } else {
+            setState(() {
+              _productImageBytes = bytes;
+              _productImage = null;
+              _productImageUrl = 'data:$mimeType;base64,${base64Encode(bytes)}';
+            });
+          }
+        } else {
+          setState(() {
+            _productImage = File(picked.path);
+            _productImageBytes = null;
+          });
+          if (await _productImage!.exists()) {
+            final fileSize = await _productImage!.length();
+            print('Image selected: ${_productImage!.path}');
+            print('File size: ${(fileSize / 1024 / 1024).toStringAsFixed(2)} MB');
+            if (_useFirebaseStorage) {
+              await _uploadImage();
+            } else {
+              await _uploadImageAsBase64();
+            }
+          } else {
+            throw Exception('Selected file does not exist or is not accessible');
+          }
+        }
+      }
+    } catch (e) {
+      print('Error picking image: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error selecting image: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
     }
   }
 
-  Future<void> _uploadImage() async {
-    if (_productImage == null) return;
+  Future<void> _uploadImageWeb(Uint8List bytes, String filename) async {
     setState(() => _uploadingImage = true);
     try {
-      print('DEBUG: Starting image upload...');
-      final fileName = 'products/${DateTime.now().millisecondsSinceEpoch}_${_productImage!.path.split('/').last}';
-      print('DEBUG: Uploading to Firebase Storage with filename: $fileName');
+      print('DEBUG: Starting web image upload...');
+      final fileName = 'products/${DateTime.now().millisecondsSinceEpoch}_$filename';
       final ref = FirebaseStorage.instance.ref().child(fileName);
-      await ref.putFile(_productImage!);
+      print('DEBUG: Calling putData...');
+      final uploadTask = ref.putData(bytes);
+      await uploadTask;
+      print('DEBUG: Getting download URL...');
       _productImageUrl = await ref.getDownloadURL();
       print('DEBUG: Image uploaded successfully, download URL: $_productImageUrl');
     } catch (e) {
-      print('DEBUG: Error uploading image: $e');
+      print('DEBUG: Error uploading image (web): $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to upload image: $e')),
         );
       }
+      if (_useFirebaseStorage) {
+        print('Falling back to base64 upload...');
+        _useFirebaseStorage = false;
+        await _uploadImageAsBase64();
+      }
     } finally {
       setState(() => _uploadingImage = false);
+    }
+  }
+
+  Future<void> _uploadImageAsBase64() async {
+    if (_productImage == null) return;
+    try {
+      setState(() => _uploadingImage = true);
+      final fileSize = await _productImage!.length();
+      if (fileSize > 2 * 1024 * 1024) {
+        throw Exception('File size exceeds 2MB limit. Please choose a smaller image or reduce quality.');
+      }
+      final bytes = await _productImage!.readAsBytes();
+      final mimeType = _productImage!.path.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+      _productImageUrl = 'data:$mimeType;base64,${base64Encode(bytes)}';
+      setState(() => _uploadingImage = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Image processed successfully!'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      print('Base64 upload error: $e');
+      setState(() => _uploadingImage = false);
+      _productImageUrl = null;
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to process image: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _uploadImage() async {
+    if (_productImage == null) return;
+    try {
+      setState(() => _uploadingImage = true);
+      final fileSize = await _productImage!.length();
+      if (fileSize > 5 * 1024 * 1024) {
+        throw Exception('File size exceeds 5MB limit. Please choose a smaller image.');
+      }
+      final fileName = 'products/${DateTime.now().millisecondsSinceEpoch}_${_productImage!.path.split('/').last}';
+      final ref = FirebaseStorage.instance.ref().child(fileName);
+      final uploadTask = ref.putFile(_productImage!);
+      await uploadTask;
+      _productImageUrl = await ref.getDownloadURL();
+      print('Upload successful! URL: $_productImageUrl');
+      setState(() => _uploadingImage = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Image uploaded successfully!'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      print('Upload error: $e');
+      setState(() => _uploadingImage = false);
+      _productImageUrl = null;
+      if (_useFirebaseStorage) {
+        print('Falling back to base64 upload...');
+        _useFirebaseStorage = false;
+        await _uploadImageAsBase64();
+      }
     }
   }
 
@@ -159,10 +291,9 @@ class _AddProductModalState extends State<AddProductModal> {
         category: _selectedCategory,
         isUpcycled: _isUpcycled,
         isMade: _isMade,
-        createdBy: userId, // Add user ID to product
+        createdBy: userId,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
-        // deletedAt is null for new products (not deleted)
       );
 
       await productRef.set(product.toMap());
@@ -183,50 +314,20 @@ class _AddProductModalState extends State<AddProductModal> {
       // Create product image if uploaded
       if (_productImageUrl != null && _productImageUrl!.isNotEmpty) {
         try {
-          print('DEBUG: Attempting to save product image with URL: $_productImageUrl');
-          print('DEBUG: URL length: ${_productImageUrl!.length}');
-          print('DEBUG: URL starts with https: ${_productImageUrl!.startsWith('https')}');
-          print('DEBUG: Product ID: ${productRef.id}');
-          print('DEBUG: User ID: $userId');
-          
           final productImageRef = FirebaseFirestore.instance.collection('productImages').doc();
-          print('DEBUG: Generated image document ID: ${productImageRef.id}');
-          
           final productImage = ProductImage(
             id: productImageRef.id,
             productID: productRef.id,
             imageURL: _productImageUrl!,
             isPrimary: true,
-            uploadedBy: userId, // Use the same user ID from above
+            uploadedBy: userId,
             uploadedAt: DateTime.now(),
           );
-          
-          final imageData = productImage.toMap();
-          print('DEBUG: Product image data to save: $imageData');
-          print('DEBUG: Image data types: ${imageData.map((k, v) => MapEntry(k, v.runtimeType))}');
-          
-          // Try the save operation with more detailed error handling
-          print('DEBUG: About to call Firestore set...');
-          await productImageRef.set(imageData);
-          print('DEBUG: Firestore set completed successfully');
-          
-          // Verify the document was created
-          final savedDoc = await productImageRef.get();
-          if (savedDoc.exists) {
-            print('DEBUG: SUCCESS - Product image saved and verified with ID: ${productImageRef.id}');
-            print('DEBUG: Saved document data: ${savedDoc.data()}');
-          } else {
-            print('DEBUG: ERROR - Document was not found after saving');
-          }
-          
+          await productImageRef.set(productImage.toMap());
         } catch (e, stackTrace) {
           print('DEBUG: ERROR saving product image: $e');
           print('DEBUG: Stack trace: $stackTrace');
-          // Don't throw here, just log the error so the product still gets created
         }
-      } else {
-        print('DEBUG: No product image URL to save (_productImageUrl is null or empty)');
-        print('DEBUG: _productImageUrl value: $_productImageUrl');
       }
 
       if (mounted) {
@@ -236,7 +337,7 @@ class _AddProductModalState extends State<AddProductModal> {
             backgroundColor: Colors.green,
           ),
         );
-        Navigator.of(context).pop(true); // Return true to indicate success
+        Navigator.of(context).pop(true);
       }
     } catch (e) {
       if (mounted) {
@@ -253,6 +354,63 @@ class _AddProductModalState extends State<AddProductModal> {
           _isLoading = false;
         });
       }
+    }
+  }
+
+  Widget _buildImagePreview() {
+    if (_uploadingImage) {
+      return const Center(
+        child: CircularProgressIndicator(),
+      );
+    } else if (kIsWeb && _productImageBytes != null) {
+      // On web, show the image from bytes
+      return Image.memory(
+        _productImageBytes!,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+      );
+    } else if (_productImage != null && _productImage!.existsSync()) {
+      // On mobile/desktop, show the file image
+      return Image.file(
+        _productImage!,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+      );
+    } else {
+      return Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.camera_alt, color: Colors.orange, size: 40),
+          const SizedBox(height: 8),
+          Text(
+            'Tap to upload product image',
+            style: TextStyle(color: Colors.orange.shade700),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.orange.shade100,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: const [
+                Icon(Icons.upload, color: Colors.orange, size: 18),
+                SizedBox(width: 6),
+                Text('Upload Image', style: TextStyle(color: Colors.orange)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Max size 5MB, JPG/PNG',
+            style: TextStyle(fontSize: 12, color: Colors.black54),
+          ),
+        ],
+      );
     }
   }
 
@@ -314,121 +472,71 @@ class _AddProductModalState extends State<AddProductModal> {
                           ],
                         ),
                         const SizedBox(height: 16),
-
-                        // Image Upload Area (fixed: check file existence)
                         GestureDetector(
                           onTap: _uploadingImage ? null : _pickImage,
                           child: Container(
                             width: double.infinity,
-                            height: _productImage != null ? 220 : 160,
+                            height: (_productImage != null || _productImageBytes != null) ? 220 : 160,
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                color: _productImage != null ? Colors.orange[300]! : Colors.grey[300]!,
+                                color: (_productImage != null || _productImageBytes != null)
+                                    ? Colors.orange[300]!
+                                    : Colors.grey[300]!,
                                 width: 2,
                                 style: BorderStyle.solid,
                               ),
-                              color: _productImage != null ? Colors.orange[50] : Colors.grey[50],
+                              color: (_productImage != null || _productImageBytes != null)
+                                  ? Colors.orange[50]
+                                  : Colors.grey[50],
                             ),
-                            child: (_productImage != null && _productImage!.existsSync())
-                                ? Stack(
-                                    children: [
-                                      ClipRRect(
-                                        borderRadius: BorderRadius.circular(10),
-                                        child: Image.file(
-                                          _productImage!,
-                                          width: double.infinity,
-                                          height: double.infinity,
-                                          fit: BoxFit.cover,
-                                        ),
+                            child: Stack(
+                              children: [
+                                Positioned.fill(child: _buildImagePreview()),
+                                if ((_productImage != null || _productImageBytes != null) && !_uploadingImage)
+                                  Positioned(
+                                    top: 8,
+                                    right: 8,
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        color: Colors.black54,
+                                        borderRadius: BorderRadius.circular(20),
                                       ),
-                                      if (_uploadingImage)
-                                        Container(
-                                          decoration: BoxDecoration(
-                                            borderRadius: BorderRadius.circular(10),
-                                            color: Colors.black54,
-                                          ),
-                                          child: const Center(
-                                            child: Column(
-                                              mainAxisAlignment: MainAxisAlignment.center,
-                                              children: [
-                                                CircularProgressIndicator(
-                                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                                ),
-                                                SizedBox(height: 12),
-                                                Text(
-                                                  'Uploading...',
-                                                  style: TextStyle(
-                                                    color: Colors.white,
-                                                    fontWeight: FontWeight.w500,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ),
-                                      Positioned(
-                                        top: 8,
-                                        right: 8,
-                                        child: Container(
-                                          decoration: BoxDecoration(
-                                            color: Colors.white,
-                                            shape: BoxShape.circle,
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: Colors.black26,
-                                                blurRadius: 4,
-                                                offset: Offset(0, 2),
-                                              ),
-                                            ],
-                                          ),
-                                          child: IconButton(
-                                            icon: Icon(Icons.edit, color: Colors.orange[600], size: 20),
-                                            onPressed: _uploadingImage ? null : _pickImage,
-                                            padding: const EdgeInsets.all(8),
-                                            constraints: const BoxConstraints(),
-                                          ),
-                                        ),
+                                      child: IconButton(
+                                        icon: const Icon(Icons.edit, color: Colors.white, size: 18),
+                                        onPressed: _pickImage,
+                                        padding: const EdgeInsets.all(4),
+                                        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                                       ),
-                                    ],
-                                  )
-                                : Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.all(16),
-                                        decoration: BoxDecoration(
-                                          color: Colors.orange[100],
-                                          shape: BoxShape.circle,
-                                        ),
-                                        child: Icon(
-                                          Icons.add_a_photo,
-                                          size: 32,
-                                          color: Colors.orange[600],
-                                        ),
-                                      ),
-                                      const SizedBox(height: 12),
-                                      Text(
-                                        'Tap to upload product image',
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w500,
-                                          color: Colors.orange[700],
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        'Max size 5MB, JPG/PNG',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.grey[600],
-                                        ),
-                                      ),
-                                    ],
+                                    ),
                                   ),
+                                if (_productImageUrl != null && !_uploadingImage)
+                                  Positioned(
+                                    bottom: 8,
+                                    left: 8,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.green,
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: const [
+                                          Icon(Icons.check, color: Colors.white, size: 14),
+                                          SizedBox(width: 4),
+                                          Text(
+                                            'Uploaded',
+                                            style: TextStyle(color: Colors.white, fontSize: 12),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
                           ),
                         ),
-
                         const SizedBox(height: 8),
                         Center(
                           child: Text(
