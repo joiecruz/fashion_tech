@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:io';
 import 'dart:convert';
+import 'package:flutter/foundation.dart'; // For kIsWeb
 import '../../utils/utils.dart';
 
 class AddFabricModal extends StatefulWidget {
@@ -17,12 +18,13 @@ class AddFabricModal extends StatefulWidget {
 class _AddFabricModalState extends State<AddFabricModal> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _nameController = TextEditingController();
-  String _selectedType = 'Cotton'; // Changed to dropdown
+  String _selectedType = 'Cotton';
   String _selectedColor = ColorUtils.colorOptions.first;
   final TextEditingController _quantityController = TextEditingController();
   final TextEditingController _expenseController = TextEditingController();
-  String _selectedQuality = 'Good'; // Changed to dropdown
+  String _selectedQuality = 'Good';
   final TextEditingController _minOrderController = TextEditingController();
+  final TextEditingController _reasonsController = TextEditingController();
   bool _isUpcycled = false;
 
   File? _swatchImage;
@@ -32,22 +34,22 @@ class _AddFabricModalState extends State<AddFabricModal> {
 
   Future<void> _uploadImageAsBase64() async {
     if (_swatchImage == null) return;
-    
+
     try {
-      setState(() => _uploading = true);          // Check file size (2MB limit for base64 to avoid large document sizes)
-          final fileSize = await _swatchImage!.length();
-          if (fileSize > 2 * 1024 * 1024) { // 2MB in bytes
-            throw Exception('File size exceeds 2MB limit. Please choose a smaller image or reduce quality.');
-          }
-      
+      setState(() => _uploading = true);
+      final fileSize = await _swatchImage!.length();
+      if (fileSize > 2 * 1024 * 1024) {
+        throw Exception('File size exceeds 2MB limit. Please choose a smaller image or reduce quality.');
+      }
+
       final bytes = await _swatchImage!.readAsBytes();
       final base64String = base64Encode(bytes);
       final mimeType = _swatchImage!.path.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
-      
+
       _swatchImageUrl = 'data:$mimeType;base64,$base64String';
-      
+
       setState(() => _uploading = false);
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -57,12 +59,11 @@ class _AddFabricModalState extends State<AddFabricModal> {
           ),
         );
       }
-      
     } catch (e) {
       print('Base64 upload error: $e');
       setState(() => _uploading = false);
       _swatchImageUrl = null;
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -74,88 +75,90 @@ class _AddFabricModalState extends State<AddFabricModal> {
       }
     }
   }
+Future<void> _pickImage() async {
+  try {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 80,
+      maxWidth: 800,
+      maxHeight: 800,
+    );
 
-  Future<void> _pickImage() async {
-    try {
-      final picker = ImagePicker();
-      final picked = await picker.pickImage(
-        source: ImageSource.gallery, 
-        imageQuality: 80,
-        maxWidth: 800,
-        maxHeight: 800,
-      );
-      
-      if (picked != null) {
+    if (picked != null) {
+      if (kIsWeb) {
+        // On web, use bytes and base64
+        final bytes = await picked.readAsBytes();
+        final mimeType = picked.name.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+        setState(() {
+          _swatchImage = null; // Not used on web
+          _swatchImageUrl = 'data:$mimeType;base64,${base64Encode(bytes)}';
+        });
+      } else {
+        // On mobile/desktop, use File
         setState(() {
           _swatchImage = File(picked.path);
-          _swatchImageUrl = null; // Reset URL when new image is picked
+          _swatchImageUrl = null;
         });
-        
-        // Check if file exists and is readable
         if (await _swatchImage!.exists()) {
           final fileSize = await _swatchImage!.length();
           print('Image selected: ${_swatchImage!.path}');
           print('File size: ${(fileSize / 1024 / 1024).toStringAsFixed(2)} MB');
-          
-          // Try Firebase Storage first, fallback to base64 if it fails
           if (_useFirebaseStorage) {
             await _uploadImage();
           } else {
-            // Use base64 encoding directly (no Firebase Storage needed)
             await _uploadImageAsBase64();
           }
         } else {
           throw Exception('Selected file does not exist or is not accessible');
         }
       }
-    } catch (e) {
-      print('Error picking image: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error selecting image: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
+    }
+  } catch (e) {
+    print('Error picking image: $e');
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error selecting image: $e'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
     }
   }
+}
 
   Future<void> _uploadImage() async {
     if (_swatchImage == null) return;
-    
+
     try {
       setState(() => _uploading = true);
-      
-      // Check file size (5MB limit)
+
       final fileSize = await _swatchImage!.length();
-      if (fileSize > 5 * 1024 * 1024) { // 5MB in bytes
+      if (fileSize > 5 * 1024 * 1024) {
         throw Exception('File size exceeds 5MB limit. Please choose a smaller image.');
       }
-      
+
       final fileName = 'swatches/${DateTime.now().millisecondsSinceEpoch}_${_swatchImage!.path.split('/').last}';
       final ref = FirebaseStorage.instance.ref().child(fileName);
-      
+
       print('Starting upload for file: $fileName');
       print('File size: ${(fileSize / 1024 / 1024).toStringAsFixed(2)} MB');
-      
+
       final uploadTask = ref.putFile(_swatchImage!);
-      
-      // Monitor upload progress
+
       uploadTask.snapshotEvents.listen((TaskSnapshot snapshot) {
         double progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
         print('Upload progress: ${progress.toStringAsFixed(1)}%');
       });
-      
+
       await uploadTask;
       _swatchImageUrl = await ref.getDownloadURL();
-      
+
       print('Upload successful! URL: $_swatchImageUrl');
-      
+
       setState(() => _uploading = false);
-      
-      // Show success feedback
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -165,14 +168,11 @@ class _AddFabricModalState extends State<AddFabricModal> {
           ),
         );
       }
-      
     } catch (e) {
       print('Upload error: $e');
       setState(() => _uploading = false);
-      
-      // Clear the failed upload
       _swatchImageUrl = null;
-      
+
       String errorMessage;
       if (e.toString().contains('File size exceeds')) {
         errorMessage = e.toString().replaceAll('Exception: ', '');
@@ -185,7 +185,7 @@ class _AddFabricModalState extends State<AddFabricModal> {
       } else {
         errorMessage = 'Upload failed. Trying alternative upload method...';
       }
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -195,8 +195,7 @@ class _AddFabricModalState extends State<AddFabricModal> {
           ),
         );
       }
-      
-      // Fallback to base64 upload if Firebase Storage fails
+
       if (_useFirebaseStorage) {
         print('Falling back to base64 upload...');
         _useFirebaseStorage = false;
@@ -211,7 +210,7 @@ class _AddFabricModalState extends State<AddFabricModal> {
               label: 'Retry',
               textColor: Colors.white,
               onPressed: () {
-                _useFirebaseStorage = true; // Reset to try Firebase Storage again
+                _useFirebaseStorage = true;
                 _uploadImage();
               },
             ),
@@ -221,37 +220,31 @@ class _AddFabricModalState extends State<AddFabricModal> {
     }
   }
 
-  void _submitForm() async {
-    // Check if image is selected and uploaded
-    if (_swatchImage == null || _swatchImageUrl == null) {
-      FocusScope.of(context).unfocus(); // Dismiss keyboard if open
-      await Future.delayed(const Duration(milliseconds: 100)); // Ensure dialog is visible
-      
-      String message;
-      if (_swatchImage == null) {
-        message = 'Please select a fabric swatch image.';
-      } else if (_uploading) {
-        message = 'Image is still uploading. Please wait for upload to complete.';
-      } else {
-        message = 'Image upload failed. Please try uploading the image again.';
-      }
-      
-      await showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Missing Swatch Image'),
-          content: Text(message),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('OK'),
-            ),
-          ],
-        ),
-      );
-      return;
-    }
-    
+void _submitForm() async {
+  if (_swatchImageUrl == null) {
+    FocusScope.of(context).unfocus();
+    await Future.delayed(const Duration(milliseconds: 100));
+
+    String message = _uploading
+        ? 'Image is still uploading. Please wait for upload to complete.'
+        : 'Please select a fabric swatch image.';
+
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Missing Swatch Image'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+    return;
+  }
+
     if (_formKey.currentState!.validate()) {
       final currentUser = FirebaseAuth.instance.currentUser;
       await FirebaseFirestore.instance.collection('fabrics').add({
@@ -283,16 +276,16 @@ class _AddFabricModalState extends State<AddFabricModal> {
         ),
       );
 
-      Navigator.pop(context); // Go back after adding
+      Navigator.pop(context);
     }
   }
-
   @override
   void dispose() {
     _nameController.dispose();
     _quantityController.dispose();
     _expenseController.dispose();
     _minOrderController.dispose();
+    _reasonsController.dispose();
     super.dispose();
   }
 
@@ -309,6 +302,61 @@ class _AddFabricModalState extends State<AddFabricModal> {
         return Colors.grey[600]!;
       default:
         return Colors.grey[400]!;
+    }
+  }
+
+  Widget _buildImagePreview() {
+    if (_uploading) {
+      return const Center(child: CircularProgressIndicator());
+    } else if (kIsWeb && _swatchImageUrl != null) {
+      // On web, show the image from base64 url
+      return Image.network(
+        _swatchImageUrl!,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+      );
+    } else if (!kIsWeb && _swatchImage != null) {
+      // On mobile/desktop, show the file image
+      return Image.file(
+        _swatchImage!,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+      );
+    } else {
+      return Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.camera_alt, color: Colors.orange, size: 40),
+          const SizedBox(height: 8),
+          Text(
+            'Tap to upload product image',
+            style: TextStyle(color: Colors.orange.shade700),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.orange.shade100,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: const [
+                Icon(Icons.upload, color: Colors.orange, size: 18),
+                SizedBox(width: 6),
+                Text('Upload Image', style: TextStyle(color: Colors.orange)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Max size 5MB, JPG/PNG',
+            style: TextStyle(fontSize: 12, color: Colors.black54),
+          ),
+        ],
+      );
     }
   }
 
@@ -340,223 +388,89 @@ class _AddFabricModalState extends State<AddFabricModal> {
             child: ListView(
               padding: const EdgeInsets.all(20),
               children: [
-                // Swatch Image Upload Card
-                Card(
-                  elevation: 3,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.image,
-                              color: Colors.orange[600],
-                              size: 24,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Fabric Swatch Image',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.grey[800],
+                // --- Swatch Image Upload Section ---
+                GestureDetector(
+                  onTap: _pickImage,
+                  child: Container(
+                    height: 150,
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: Colors.orange.shade200,
+                        style: BorderStyle.solid,
+                        width: 2,
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      color: Colors.orange.shade50,
+                    ),
+                    child: Center(
+                      child: Stack(
+                        children: [
+                          Positioned.fill(child: _buildImagePreview()),
+                          if (_swatchImage != null)
+                            Positioned(
+                              top: 8,
+                              right: 8,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.black54,
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: IconButton(
+                                  icon: const Icon(Icons.edit, color: Colors.white, size: 18),
+                                  onPressed: _pickImage,
+                                  padding: const EdgeInsets.all(4),
+                                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                                ),
                               ),
                             ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-
-                        // Image Upload Area
-                        GestureDetector(
-                          onTap: _uploading ? null : _pickImage,
-                          child: Container(
-                            width: double.infinity,
-                            height: _swatchImage != null ? 220 : 160,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: _swatchImage != null ? Colors.orange[300]! : Colors.grey[300]!,
-                                width: 2,
-                                style: BorderStyle.solid,
+                          if (_swatchImageUrl != null)
+                            Positioned(
+                              bottom: 8,
+                              left: 8,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.green,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: const [
+                                    Icon(Icons.check, color: Colors.white, size: 14),
+                                    SizedBox(width: 4),
+                                    Text(
+                                      'Uploaded',
+                                      style: TextStyle(color: Colors.white, fontSize: 12),
+                                    ),
+                                  ],
+                                ),
                               ),
-                              color: _swatchImage != null ? Colors.orange[50] : Colors.grey[50],
                             ),
-                            child: _uploading
-                                ? Container(
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(10),
-                                      color: Colors.black54,
+                          if (_swatchImage != null && _swatchImageUrl == null && !_uploading)
+                            Positioned(
+                              bottom: 8,
+                              left: 8,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.red,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: const [
+                                    Icon(Icons.error, color: Colors.white, size: 14),
+                                    SizedBox(width: 4),
+                                    Text(
+                                      'Upload Failed',
+                                      style: TextStyle(color: Colors.white, fontSize: 12),
                                     ),
-                                    child: const Center(
-                                      child: Column(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: [
-                                          CircularProgressIndicator(
-                                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                          ),
-                                          SizedBox(height: 12),
-                                          Text(
-                                            'Uploading...',
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  )
-                                : (_swatchImage != null && _swatchImage!.existsSync())
-                                    ? Stack(
-                                        children: [
-                                          ClipRRect(
-                                            borderRadius: BorderRadius.circular(10),
-                                            child: Image.file(
-                                              _swatchImage!,
-                                              width: double.infinity,
-                                              height: double.infinity,
-                                              fit: BoxFit.cover,
-                                            ),
-                                          ),
-                                          if (_swatchImageUrl != null)
-                                            Positioned(
-                                              top: 8,
-                                              left: 8,
-                                              child: Container(
-                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                                decoration: BoxDecoration(
-                                                  color: Colors.green,
-                                                  borderRadius: BorderRadius.circular(12),
-                                                  boxShadow: [
-                                                    BoxShadow(
-                                                      color: Colors.black26,
-                                                      blurRadius: 4,
-                                                      offset: Offset(0, 2),
-                                                    ),
-                                                  ],
-                                                ),
-                                                child: Row(
-                                                  mainAxisSize: MainAxisSize.min,
-                                                  children: const [
-                                                    Icon(Icons.check, color: Colors.white, size: 14),
-                                                    SizedBox(width: 4),
-                                                    Text(
-                                                      'Uploaded',
-                                                      style: TextStyle(color: Colors.white, fontSize: 12),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ),
-                                          if (_swatchImage != null && _swatchImageUrl == null && !_uploading)
-                                            Positioned(
-                                              top: 8,
-                                              left: 8,
-                                              child: Container(
-                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                                decoration: BoxDecoration(
-                                                  color: Colors.red,
-                                                  borderRadius: BorderRadius.circular(12),
-                                                  boxShadow: [
-                                                    BoxShadow(
-                                                      color: Colors.black26,
-                                                      blurRadius: 4,
-                                                      offset: Offset(0, 2),
-                                                    ),
-                                                  ],
-                                                ),
-                                                child: Row(
-                                                  mainAxisSize: MainAxisSize.min,
-                                                  children: const [
-                                                    Icon(Icons.error, color: Colors.white, size: 14),
-                                                    SizedBox(width: 4),
-                                                    Text(
-                                                      'Upload Failed',
-                                                      style: TextStyle(color: Colors.white, fontSize: 12),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ),
-                                          Positioned(
-                                            top: 8,
-                                            right: 8,
-                                            child: Container(
-                                              decoration: BoxDecoration(
-                                                color: Colors.white,
-                                                shape: BoxShape.circle,
-                                                boxShadow: [
-                                                  BoxShadow(
-                                                    color: Colors.black26,
-                                                    blurRadius: 4,
-                                                    offset: Offset(0, 2),
-                                                  ),
-                                                ],
-                                              ),
-                                              child: IconButton(
-                                                icon: Icon(Icons.edit, color: Colors.orange[600], size: 20),
-                                                onPressed: _uploading ? null : _pickImage,
-                                                padding: const EdgeInsets.all(8),
-                                                constraints: const BoxConstraints(),
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      )
-                                    : Column(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: [
-                                          Container(
-                                            padding: const EdgeInsets.all(16),
-                                            decoration: BoxDecoration(
-                                              color: Colors.orange[100],
-                                              shape: BoxShape.circle,
-                                            ),
-                                            child: Icon(
-                                              Icons.add_a_photo,
-                                              size: 32,
-                                              color: Colors.orange[600],
-                                            ),
-                                          ),
-                                          const SizedBox(height: 12),
-                                          Text(
-                                            'Tap to upload fabric swatch',
-                                            style: TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.w500,
-                                              color: Colors.orange[700],
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            'Max size 2MB, JPG/PNG',
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              color: Colors.grey[600],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                          ),
-                        ),
-
-                        const SizedBox(height: 8),
-                        Center(
-                          child: Text(
-                            'Upload a clear image of the fabric swatch for easy identification',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.grey[500],
+                                  ],
+                                ),
+                              ),
                             ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -1062,6 +976,11 @@ class _AddFabricModalState extends State<AddFabricModal> {
                     onPressed: (_uploading || (_swatchImage != null && _swatchImageUrl == null)) 
                         ? null 
                         : _submitForm,
+                    icon: const Icon(Icons.save, size: 20),
+                    label: Text(
+                      _uploading ? 'Uploading Image...' : 'Save Fabric',
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.blue[600],
                       foregroundColor: Colors.white,
@@ -1069,23 +988,21 @@ class _AddFabricModalState extends State<AddFabricModal> {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      elevation: 2,
-                    ),
-                    icon: _uploading
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                            ),
-                          )
-                        : const Icon(Icons.save, size: 20),
-                    label: Text(
-                      _uploading ? 'Uploading Image...' : 'Save Fabric',
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                     ),
                   ),
+                ),
+
+                const SizedBox(height: 16),
+
+                TextFormField(
+                  controller: _reasonsController,
+                  decoration: const InputDecoration(
+                    labelText: 'Notes & Reasons',
+                    hintText: 'Any additional notes about this fabric...',
+                    alignLabelWithHint: true,
+                  ),
+                  maxLines: 3,
+                  maxLength: 200,
                 ),
 
                 // Retry Upload Section
@@ -1129,7 +1046,7 @@ class _AddFabricModalState extends State<AddFabricModal> {
                               width: double.infinity,
                               child: ElevatedButton.icon(
                                 onPressed: () {
-                                  _useFirebaseStorage = false; // Use base64 directly
+                                  _useFirebaseStorage = false;
                                   _uploadImageAsBase64();
                                 },
                                 icon: const Icon(Icons.refresh, size: 16),
