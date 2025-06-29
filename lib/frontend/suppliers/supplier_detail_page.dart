@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'edit_supplier_modal.dart';
 
 class SupplierDetailPage extends StatefulWidget {
   final Map<String, dynamic> supplierData;
@@ -229,11 +230,28 @@ class _SupplierDetailPageState extends State<SupplierDetailPage>
                 size: 18,
               ),
             ),
-            onPressed: () {
-              // TODO: Implement edit functionality
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Edit supplier feature coming soon!')),
+            onPressed: () async {
+              final supplierId = widget.supplierData['supplierID'];
+              final result = await showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (context) => Container(
+                  margin: const EdgeInsets.only(top: 100),
+                  height: MediaQuery.of(context).size.height - 100,
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                  ),
+                  child: EditSupplierModal(
+                    supplierData: widget.supplierData,
+                    supplierId: supplierId,
+                  ),
+                ),
               );
+              if (result == true) {
+                // Optionally reload supplier data here
+              }
             },
           ),
           const SizedBox(width: 16),
