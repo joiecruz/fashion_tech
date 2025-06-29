@@ -352,6 +352,155 @@ class _FabricLogbookPageState extends State<FabricLogbookPage>
     );
   }
 
+  void _showDeleteConfirmation(Map<String, dynamic> fabric) {
+    final name = fabric['name'] ?? 'Unnamed Fabric';
+    
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.red[600], size: 24),
+              const SizedBox(width: 8),
+              const Text('Delete Fabric'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Are you sure you want to delete this fabric?'),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey[200]!),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.palette_outlined, color: Colors.grey[600], size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        name,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'This action cannot be undone.',
+                style: TextStyle(
+                  color: Colors.red[600],
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(
+                'Cancel',
+                style: TextStyle(color: Colors.grey[600]),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.of(context).pop();
+                await _deleteFabric(fabric);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red[600],
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _deleteFabric(Map<String, dynamic> fabric) async {
+    try {
+      final fabricId = fabric['id'];
+      if (fabricId != null) {
+        await FirebaseFirestore.instance
+            .collection('fabrics')
+            .doc(fabricId)
+            .delete();
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.white, size: 16),
+                  const SizedBox(width: 8),
+                  Text('${fabric['name'] ?? 'Fabric'} deleted successfully'),
+                ],
+              ),
+              backgroundColor: Colors.green[600],
+              duration: const Duration(seconds: 2),
+              behavior: SnackBarBehavior.floating,
+              margin: const EdgeInsets.all(16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.error_outline, color: Colors.white, size: 16),
+                const SizedBox(width: 8),
+                Text('Failed to delete fabric: ${e.toString()}'),
+              ],
+            ),
+            backgroundColor: Colors.red[600],
+            duration: const Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+        );
+      }
+    }
+  }
+
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date);
+    
+    if (difference.inDays == 0) {
+      if (difference.inHours == 0) {
+        return '${difference.inMinutes}m ago';
+      }
+      return '${difference.inHours}h ago';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays}d ago';
+    } else if (difference.inDays < 30) {
+      return '${(difference.inDays / 7).floor()}w ago';
+    } else {
+      return '${date.day}/${date.month}/${date.year}';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -824,7 +973,7 @@ class _FabricLogbookPageState extends State<FabricLogbookPage>
                                               borderRadius: BorderRadius.circular(12),
                                             ),
                                             child: Text(
-                                              'Eco',
+                                              'Upcycled',
                                               style: TextStyle(
                                                 fontSize: 10,
                                                 fontWeight: FontWeight.w600,
@@ -832,43 +981,6 @@ class _FabricLogbookPageState extends State<FabricLogbookPage>
                                               ),
                                             ),
                                           ),
-                                        if (isUpcycled) const SizedBox(width: 4),
-                                        PopupMenuButton<String>(
-                                          icon: Container(
-                                            padding: const EdgeInsets.all(6),
-                                            decoration: BoxDecoration(
-                                              color: Colors.grey[100],
-                                              borderRadius: BorderRadius.circular(8),
-                                            ),
-                                            child: Icon(Icons.more_vert, color: Colors.grey[600], size: 16),
-                                          ),
-                                          onSelected: (value) {
-                                            // Handle edit/delete actions
-                                          },
-                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                          itemBuilder: (context) => [
-                                            const PopupMenuItem(
-                                              value: 'edit',
-                                              child: Row(
-                                                children: [
-                                                  Icon(Icons.edit_outlined, size: 16),
-                                                  SizedBox(width: 8),
-                                                  Text('Edit Fabric'),
-                                                ],
-                                              ),
-                                            ),
-                                            const PopupMenuItem(
-                                              value: 'delete',
-                                              child: Row(
-                                                children: [
-                                                  Icon(Icons.delete_outline, size: 16, color: Colors.red),
-                                                  SizedBox(width: 8),
-                                                  Text('Delete', style: TextStyle(color: Colors.red)),
-                                                ],
-                                              ),
-                                            ),
-                                          ],
-                                        ),
                                       ],
                                     ),
                                     if (isLowStock || isOutOfStock) ...[
@@ -896,77 +1008,52 @@ class _FabricLogbookPageState extends State<FabricLogbookPage>
                                 ),
                               ],
                             ),
-                            // Show color, quality and notes if available
-                            if (color.isNotEmpty || quality.isNotEmpty || (reasons != null && reasons.toString().trim().isNotEmpty)) ...[
+                            // Show fabric details if available
+                            if (color.isNotEmpty || quality.isNotEmpty) ...[
                               const SizedBox(height: 6),
-                              // Color and Quality as a cohesive visual unit
-                              if (color.isNotEmpty || quality.isNotEmpty)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey[50],
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(color: Colors.grey[200]!),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      if (color.isNotEmpty) ...[
-                                        Icon(
-                                          Icons.palette,
-                                          size: 14,
-                                          color: Colors.grey[600],
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          color,
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.grey[700],
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ],
-                                      if (color.isNotEmpty && quality.isNotEmpty) ...[
-                                        Container(
-                                          width: 1,
-                                          height: 14,
-                                          margin: const EdgeInsets.symmetric(horizontal: 8),
-                                          color: Colors.grey[300],
-                                        ),
-                                      ],
-                                      if (quality.isNotEmpty) ...[
-                                        Icon(
-                                          Icons.star,
-                                          size: 14,
-                                          color: _getQualityTextColor(quality),
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          quality,
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: _getQualityTextColor(quality),
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ],
-                                    ],
-                                  ),
+                              Row(
+                                children: [
+                                  if (color.isNotEmpty)
+                                    Text(
+                                      color.toUpperCase(),
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                  if (color.isNotEmpty && quality.isNotEmpty)
+                                    Text(
+                                      ' • ',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.grey[400],
+                                      ),
+                                    ),
+                                  if (quality.isNotEmpty)
+                                    Text(
+                                      quality.toUpperCase(),
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: _getQualityTextColor(quality),
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ],
+                            // Show notes/reasons if available
+                            if (reasons != null && reasons.toString().trim().isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                reasons.toString().length > 60 
+                                    ? '${reasons.toString().substring(0, 60)}...'
+                                    : reasons.toString(),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[700],
+                                  fontStyle: FontStyle.italic,
                                 ),
-                              if (reasons != null && reasons.toString().trim().isNotEmpty) ...[
-                                const SizedBox(height: 4),
-                                Text(
-                                  reasons.toString().length > 60 
-                                      ? '${reasons.toString().substring(0, 60)}...'
-                                      : reasons.toString(),
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey[600],
-                                    fontStyle: FontStyle.italic,
-                                  ),
-                                ),
-                              ],
+                              ),
                             ],
                           ],
                         ),
@@ -979,26 +1066,59 @@ class _FabricLogbookPageState extends State<FabricLogbookPage>
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (pricePerUnit > 0)
-                            Text(
-                              '₱${pricePerUnit.toStringAsFixed(2)}',
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
-                              ),
+                          Text(
+                            '₱${pricePerUnit.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
                             ),
+                          ),
                           const SizedBox(height: 2),
-                          // Stock and minOrder as a cohesive visual unit
+                          Text(
+                            minOrder > 0 
+                                ? 'Total Value: ₱${totalValue.toStringAsFixed(2)} • Min Order: $minOrder'
+                                : 'Total Value: ₱${totalValue.toStringAsFixed(2)}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const Spacer(),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          // Date information
+                          if (fabric['createdAt'] != null || fabric['lastEdited'] != null) ...[
+                            if (fabric['lastEdited'] != null)
+                              Text(
+                                'Edited ${_formatDate((fabric['lastEdited'] as Timestamp).toDate())}',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.grey[500],
+                                ),
+                              )
+                            else if (fabric['createdAt'] != null)
+                              Text(
+                                'Created ${_formatDate((fabric['createdAt'] as Timestamp).toDate())}',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.grey[500],
+                                ),
+                              ),
+                            const SizedBox(height: 4),
+                          ],
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
                               color: isOutOfStock 
                                   ? Colors.red[50]
                                   : isLowStock 
                                       ? Colors.orange[50]
                                       : Colors.blue[50],
-                              borderRadius: BorderRadius.circular(6),
+                              borderRadius: BorderRadius.circular(8),
                               border: Border.all(
                                 color: isOutOfStock 
                                     ? Colors.red[200]!
@@ -1007,82 +1127,92 @@ class _FabricLogbookPageState extends State<FabricLogbookPage>
                                         : Colors.blue[200]!,
                               ),
                             ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.inventory_2,
-                                  size: 14,
-                                  color: isOutOfStock 
-                                      ? Colors.red[600]
-                                      : isLowStock 
-                                          ? Colors.orange[600]
-                                          : Colors.blue[600],
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  '$quantity units',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: isOutOfStock 
-                                        ? Colors.red[600]
-                                        : isLowStock 
-                                            ? Colors.orange[600]
-                                            : Colors.blue[600],
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                if (minOrder > 0) ...[
-                                  Container(
-                                    width: 1,
-                                    height: 12,
-                                    margin: const EdgeInsets.symmetric(horizontal: 8),
-                                    color: Colors.grey[300],
-                                  ),
-                                  Icon(
-                                    Icons.shopping_cart,
-                                    size: 12,
-                                    color: Colors.blue[600],
-                                  ),
-                                  const SizedBox(width: 3),
-                                  Text(
-                                    'Min $minOrder',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: Colors.blue[600],
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ],
-                              ],
+                            child: Text(
+                              'Stock: $quantity units',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: isOutOfStock 
+                                    ? Colors.red[700]
+                                    : isLowStock 
+                                        ? Colors.orange[700]
+                                        : Colors.blue[700],
+                              ),
                             ),
                           ),
                         ],
                       ),
-                      const Spacer(),
-                      if (totalValue > 0)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [Colors.green[50]!, Colors.green[100]!],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    height: 1,
+                    width: double.infinity,
+                    color: Colors.grey[200],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            // TODO: Implement delete fabric functionality
+                            _showDeleteConfirmation(fabric);
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red[600],
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
                             ),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: Colors.green[200]!),
                           ),
-                          child: Text(
-                            'Value: ₱${totalValue.toStringAsFixed(2)}',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.green[700],
-                            ),
-                          ),
+                          icon: const Icon(Icons.delete, size: 16),
+                          label: const Text('Delete', style: TextStyle(fontWeight: FontWeight.w600)),
                         ),
-                      // Date info
-                      _buildDateInfo(fabric),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            // TODO: Implement edit functionality
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Edit ${name} feature coming soon!')),
+                            );
+                          },
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.black87,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            side: BorderSide(color: Colors.grey[300]!),
+                          ),
+                          icon: const Icon(Icons.edit, size: 16),
+                          label: const Text('Edit', style: TextStyle(fontWeight: FontWeight.w600)),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            // TODO: Implement order functionality
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Order ${name} feature coming soon!')),
+                            );
+                          },
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.black87,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            side: BorderSide(color: Colors.grey[300]!),
+                          ),
+                          icon: const Icon(Icons.shopping_cart, size: 16),
+                          label: const Text('Order', style: TextStyle(fontWeight: FontWeight.w600)),
+                        ),
+                      ),
                     ],
                   ),
                 ],
@@ -1183,55 +1313,5 @@ class _FabricLogbookPageState extends State<FabricLogbookPage>
       default:
         return Colors.grey[600]!;
     }
-  }
-
-  Widget _buildDateInfo(Map<String, dynamic> fabric) {
-    final createdAt = fabric['createdAt'] as Timestamp?;
-    final lastEdited = fabric['lastEdited'] as Timestamp?;
-    
-    if (createdAt == null && lastEdited == null) {
-      return const SizedBox.shrink();
-    }
-
-    final now = DateTime.now();
-    String formatDate(DateTime date) {
-      final difference = now.difference(date);
-      if (difference.inDays == 0) {
-        if (difference.inHours == 0) {
-          return '${difference.inMinutes}m ago';
-        }
-        return '${difference.inHours}h ago';
-      } else if (difference.inDays < 7) {
-        return '${difference.inDays}d ago';
-      } else if (difference.inDays < 30) {
-        return '${(difference.inDays / 7).floor()}w ago';
-      } else {
-        return '${date.day}/${date.month}/${date.year}';
-      }
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        if (createdAt != null)
-          Text(
-            'Created ${formatDate(createdAt.toDate())}',
-            style: TextStyle(
-              fontSize: 10,
-              color: Colors.grey[500],
-            ),
-          ),
-        if (lastEdited != null) ...[
-          if (createdAt != null) const SizedBox(height: 2),
-          Text(
-            'Edited ${formatDate(lastEdited.toDate())}',
-            style: TextStyle(
-              fontSize: 10,
-              color: Colors.grey[500],
-            ),
-          ),
-        ],
-      ],
-    );
   }
 }

@@ -863,7 +863,7 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              'Price: ₱${product['price'].toStringAsFixed(2)}',
+                              'Total Value: ₱${(product['price'] * product['stock']).toStringAsFixed(2)}',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.grey[600],
