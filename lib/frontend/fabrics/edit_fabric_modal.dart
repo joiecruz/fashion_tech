@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:io';
 import 'dart:convert';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class EditFabricModal extends StatefulWidget {
   final Map<String, dynamic> fabric;
@@ -95,15 +96,26 @@ class _EditFabricModalState extends State<EditFabricModal> {
         maxHeight: 800,
       );
       if (picked != null) {
-        setState(() {
-          _swatchImage = File(picked.path);
-          _swatchImageUrl = null;
-        });
-        if (await _swatchImage!.exists()) {
-          if (_useFirebaseStorage) {
-            await _uploadImage();
-          } else {
-            await _uploadImageAsBase64();
+        // For web, use bytes directly; for mobile, use File
+        if (kIsWeb) {
+          final bytes = await picked.readAsBytes();
+          final base64String = base64Encode(bytes);
+          final mimeType = picked.name.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+          setState(() {
+            _swatchImage = null;
+            _swatchImageUrl = 'data:$mimeType;base64,$base64String';
+          });
+        } else {
+          setState(() {
+            _swatchImage = File(picked.path);
+            _swatchImageUrl = null;
+          });
+          if (await _swatchImage!.exists()) {
+            if (_useFirebaseStorage) {
+              await _uploadImage();
+            } else {
+              await _uploadImageAsBase64();
+            }
           }
         }
       }
@@ -296,16 +308,14 @@ class _EditFabricModalState extends State<EditFabricModal> {
                               borderRadius: BorderRadius.circular(10),
                               border: Border.all(color: Colors.grey[300]!),
                             ),
-                            child: _swatchImage != null
-                                ? Image.file(_swatchImage!, fit: BoxFit.cover)
-                                : (_swatchImageUrl != null
-                                    ? (Uri.tryParse(_swatchImageUrl!)?.isAbsolute == true
-                                        ? Image.network(_swatchImageUrl!, fit: BoxFit.cover)
-                                        : Image.memory(
-                                            base64Decode(_swatchImageUrl!.split(',').last),
-                                            fit: BoxFit.cover,
-                                          ))
-                                    : Icon(Icons.add_a_photo, color: Colors.grey[400], size: 48)),
+                            child: (_swatchImageUrl != null && _swatchImageUrl!.startsWith('data:image'))
+                                ? Image.memory(
+                                    base64Decode(_swatchImageUrl!.split(',').last),
+                                    fit: BoxFit.cover,
+                                  )
+                                : (_swatchImageUrl != null && Uri.tryParse(_swatchImageUrl!)?.isAbsolute == true)
+                                    ? Image.network(_swatchImageUrl!, fit: BoxFit.cover)
+                                    : Icon(Icons.add_a_photo, color: Colors.grey[400], size: 48),
                           ),
                         ),
                         if (_uploading)
