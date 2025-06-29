@@ -782,16 +782,14 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
                                 color: Colors.black87,
                               ),
                             ),
-                            if (product['unitCostEstimate'] != null && product['unitCostEstimate'] > 0) ...[
-                              const SizedBox(height: 2),
-                              Text(
-                                'Cost: ₱${product['unitCostEstimate'].toStringAsFixed(2)}',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey[600],
-                                ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Price: ₱${product['price'].toStringAsFixed(2)}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[600],
                               ),
-                            ],
+                            ),
                           ],
                         ),
                         const Spacer(),

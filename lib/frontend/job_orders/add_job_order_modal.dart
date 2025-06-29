@@ -26,7 +26,6 @@ class FormProductVariant extends ProductVariant {
     required String size,
     required String color,
     required int quantityInStock,
-    double? unitCostEstimate,
     required this.fabrics,
   }) : super(
     id: id,
@@ -34,7 +33,6 @@ class FormProductVariant extends ProductVariant {
     size: size,
     color: color,
     quantityInStock: quantityInStock,
-    unitCostEstimate: unitCostEstimate,
   );
 }
 

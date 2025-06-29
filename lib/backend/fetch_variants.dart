@@ -15,7 +15,6 @@ class FetchVariantsBackend {
           'size': data['size'] ?? '',
           'color': data['color'] ?? '',
           'quantityInStock': data['quantityInStock'] ?? 0,
-          'unitCostEstimate': (data['unitCostEstimate'] ?? 0.0).toDouble(),
         };
       }).toList();
     } catch (e) {

@@ -9,8 +9,12 @@ class Fabric {
   final double quantity; // in yards
   final double expensePerYard;
   final String? swatchImageURL;
+  final double minOrder; // minimum order quantity
+  final bool isUpcycled;
+  final String? reasons; // reasons for material choice
   final DateTime createdAt;
   final DateTime updatedAt;
+  final DateTime? deletedAt; // soft delete support
 
   Fabric({
     required this.id,
@@ -21,8 +25,12 @@ class Fabric {
     required this.quantity,
     required this.expensePerYard,
     this.swatchImageURL,
+    required this.minOrder,
+    required this.isUpcycled,
+    this.reasons,
     required this.createdAt,
     required this.updatedAt,
+    this.deletedAt,
   });
 
   factory Fabric.fromMap(String id, Map<String, dynamic> data) {
@@ -35,12 +43,20 @@ class Fabric {
       quantity: (data['quantity'] ?? 0).toDouble(),
       expensePerYard: (data['expensePerYard'] ?? 0).toDouble(),
       swatchImageURL: data['swatchImageURL'],
+      minOrder: (data['minOrder'] ?? 0).toDouble(),
+      isUpcycled: data['isUpcycled'] ?? false,
+      reasons: data['reasons'],
       createdAt: (data['createdAt'] is Timestamp)
           ? (data['createdAt'] as Timestamp).toDate()
           : DateTime.tryParse(data['createdAt'].toString()) ?? DateTime.now(),
       updatedAt: (data['updatedAt'] is Timestamp)
           ? (data['updatedAt'] as Timestamp).toDate()
           : DateTime.tryParse(data['updatedAt'].toString()) ?? DateTime.now(),
+      deletedAt: data['deletedAt'] != null
+          ? (data['deletedAt'] is Timestamp)
+              ? (data['deletedAt'] as Timestamp).toDate()
+              : DateTime.tryParse(data['deletedAt'].toString())
+          : null,
     );
   }
 
@@ -53,8 +69,12 @@ class Fabric {
       'quantity': quantity,
       'expensePerYard': expensePerYard,
       'swatchImageURL': swatchImageURL,
+      'minOrder': minOrder,
+      'isUpcycled': isUpcycled,
+      'reasons': reasons,
       'createdAt': createdAt,
       'updatedAt': updatedAt,
+      'deletedAt': deletedAt,
     };
   }
 }

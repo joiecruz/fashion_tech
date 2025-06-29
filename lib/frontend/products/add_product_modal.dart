@@ -13,13 +13,11 @@ class ProductVariantInput {
   String size;
   String color;
   int quantityInStock;
-  double? unitCostEstimate;
 
   ProductVariantInput({
     required this.size,
     required this.color,
     required this.quantityInStock,
-    this.unitCostEstimate,
   });
 }
 
@@ -176,7 +174,6 @@ class _AddProductModalState extends State<AddProductModal> {
           'size': variant.size,
           'color': variant.color,
           'quantityInStock': variant.quantityInStock,
-          'unitCostEstimate': variant.unitCostEstimate,
         });
       }
 
@@ -1101,24 +1098,6 @@ class _AddProductModalState extends State<AddProductModal> {
                                             final qty = int.tryParse(value) ?? 0;
                                             setState(() {
                                               _variants[index].quantityInStock = qty;
-                                            });
-                                          },
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      // Unit Cost (Optional)
-                                      Expanded(
-                                        child: TextFormField(
-                                          initialValue: variant.unitCostEstimate?.toString() ?? '',
-                                          decoration: const InputDecoration(
-                                            labelText: 'Unit Cost (₱) - Optional',
-                                            border: OutlineInputBorder(),
-                                          ),
-                                          keyboardType: TextInputType.numberWithOptions(decimal: true),
-                                          onChanged: (value) {
-                                            final cost = value.isEmpty ? null : double.tryParse(value);
-                                            setState(() {
-                                              _variants[index].unitCostEstimate = cost;
                                             });
                                           },
                                         ),

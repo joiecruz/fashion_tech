@@ -4,7 +4,6 @@ class ProductVariant {
   String size;
   String color;
   int quantityInStock;
-  double? unitCostEstimate;
 
   int get quantity => quantityInStock;
   set quantity(int value) => quantityInStock = value;
@@ -15,7 +14,6 @@ class ProductVariant {
     required this.size,
     required this.color,
     required this.quantityInStock,
-    this.unitCostEstimate,
   });
 
   factory ProductVariant.fromMap(String id, Map<String, dynamic> data) {
@@ -25,7 +23,6 @@ class ProductVariant {
       size: data['size'] ?? '',
       color: data['color'] ?? '',
       quantityInStock: data['quantityInStock'] ?? 0,
-      unitCostEstimate: data['unitCostEstimate']?.toDouble(),
     );
   }
 
@@ -35,7 +32,6 @@ class ProductVariant {
       'size': size,
       'color': color,
       'quantityInStock': quantityInStock,
-      'unitCostEstimate': unitCostEstimate,
     };
   }
 }

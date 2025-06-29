@@ -1,10 +1,13 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class SupplierProduct {
   final String id;
   final String supplierID;
   final String productID;
   final double supplyPrice;
   final int? minOrderQty;
-  final int? leadTimeDays;
+  final int? daysToDeliver; // renamed from leadTimeDays
+  final DateTime createdAt;
 
   SupplierProduct({
     required this.id,
@@ -12,7 +15,8 @@ class SupplierProduct {
     required this.productID,
     required this.supplyPrice,
     this.minOrderQty,
-    this.leadTimeDays,
+    this.daysToDeliver,
+    required this.createdAt,
   });
 
   factory SupplierProduct.fromMap(String id, Map<String, dynamic> data) {
@@ -22,7 +26,10 @@ class SupplierProduct {
       productID: data['productID'] ?? '',
       supplyPrice: (data['supplyPrice'] ?? 0).toDouble(),
       minOrderQty: data['minOrderQty'],
-      leadTimeDays: data['leadTimeDays'],
+      daysToDeliver: data['daysToDeliver'] ?? data['leadTimeDays'], // support both for migration
+      createdAt: (data['createdAt'] is Timestamp)
+          ? (data['createdAt'] as Timestamp).toDate()
+          : DateTime.tryParse(data['createdAt'].toString()) ?? DateTime.now(),
     );
   }
 
@@ -32,7 +39,8 @@ class SupplierProduct {
       'productID': productID,
       'supplyPrice': supplyPrice,
       'minOrderQty': minOrderQty,
-      'leadTimeDays': leadTimeDays,
+      'daysToDeliver': daysToDeliver,
+      'createdAt': createdAt,
     };
   }
 }

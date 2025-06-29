@@ -3,12 +3,16 @@ class Supplier {
   final String supplierName;
   final String contactNum;
   final String? location;
+  final String email;
+  final String? notes;
 
   Supplier({
     required this.id,
     required this.supplierName,
     required this.contactNum,
     this.location,
+    required this.email,
+    this.notes,
   });
 
   factory Supplier.fromMap(String id, Map<String, dynamic> data) {
@@ -17,6 +21,8 @@ class Supplier {
       supplierName: data['supplierName'] ?? '',
       contactNum: data['contactNum'] ?? '',
       location: data['location'],
+      email: data['email'] ?? '',
+      notes: data['notes'],
     );
   }
 
@@ -25,6 +31,8 @@ class Supplier {
       'supplierName': supplierName,
       'contactNum': contactNum,
       'location': location,
+      'email': email,
+      'notes': notes,
     };
   }
 }

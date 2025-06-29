@@ -35,7 +35,6 @@ class FetchProductsBackend {
             'size': variantData['size'] ?? '',
             'color': variantData['color'] ?? '',
             'quantityInStock': variantData['quantityInStock'] ?? 0,
-            'unitCostEstimate': (variantData['unitCostEstimate'] ?? 0.0).toDouble(),
           });
         }
 
@@ -69,7 +68,6 @@ class FetchProductsBackend {
           'notes': productData['notes'],
           'category': productData['category'] ?? 'Uncategorized',
           'price': price,
-          'unitCostEstimate': (productData['unitCostEstimate'] ?? 0.0).toDouble(),
           'isUpcycled': productData['isUpcycled'] ?? false,
           'isMade': productData['isMade'] ?? false,
           'createdBy': productData['createdBy'] ?? 'anonymous',

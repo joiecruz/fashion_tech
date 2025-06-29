@@ -45,7 +45,6 @@ class _ProductDetailPageState extends State<ProductDetailPage>
                   size: v['size'],
                   color: v['color'],
                   quantityInStock: v['quantityInStock'],
-                  unitCostEstimate: v['unitCostEstimate'],
                 ))
             .toList();
         _isLoading = false;
@@ -282,10 +281,10 @@ class _ProductDetailPageState extends State<ProductDetailPage>
                     ),
                     Expanded(
                       child: _buildStatItem(
-                        'Unit Cost Estimate',
-                        '₱${widget.productData['unitCostEstimate'].toStringAsFixed(2)}',
-                        Icons.local_offer_outlined,
-                        Colors.orange[600]!,
+                        'Total Stock',
+                        widget.productData['stock'].toString(),
+                        Icons.inventory_outlined,
+                        Colors.blue[600]!,
                       ),
                     ),
                   ],

@@ -12,6 +12,7 @@ class User {
   final String email;
   final String? profileImageURL;
   final DateTime createdAt;
+  final bool isActive;
 
   User({
     required this.id,
@@ -23,6 +24,7 @@ class User {
     required this.email,
     this.profileImageURL,
     required this.createdAt,
+    required this.isActive,
   });
 
   factory User.fromMap(String id, Map<String, dynamic> data) {
@@ -38,6 +40,7 @@ class User {
       createdAt: (data['createdAt'] is Timestamp)
           ? (data['createdAt'] as Timestamp).toDate()
           : DateTime.tryParse(data['createdAt'].toString()) ?? DateTime.now(),
+      isActive: data['isActive'] ?? true,
     );
   }
 
@@ -51,6 +54,7 @@ class User {
       'email': email,
       'profileImageURL': profileImageURL,
       'createdAt': createdAt,
+      'isActive': isActive,
     };
   }
 

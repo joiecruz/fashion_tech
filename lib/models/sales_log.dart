@@ -7,6 +7,7 @@ class SalesLog {
   final int qtySold;
   final double sellingPrice;
   final DateTime dateSold;
+  final double totalRevenue; // computed field: qtySold × sellingPrice
 
   SalesLog({
     required this.id,
@@ -15,18 +16,22 @@ class SalesLog {
     required this.qtySold,
     required this.sellingPrice,
     required this.dateSold,
+    required this.totalRevenue,
   });
 
   factory SalesLog.fromMap(String id, Map<String, dynamic> data) {
+    final qtySold = data['qtySold'] ?? 0;
+    final sellingPrice = (data['sellingPrice'] ?? 0).toDouble();
     return SalesLog(
       id: id,
       productID: data['productID'] ?? '',
       variantID: data['variantID'] ?? '',
-      qtySold: data['qtySold'] ?? 0,
-      sellingPrice: (data['sellingPrice'] ?? 0).toDouble(),
+      qtySold: qtySold,
+      sellingPrice: sellingPrice,
       dateSold: (data['dateSold'] is Timestamp)
           ? (data['dateSold'] as Timestamp).toDate()
           : DateTime.tryParse(data['dateSold'].toString()) ?? DateTime.now(),
+      totalRevenue: data['totalRevenue']?.toDouble() ?? (qtySold * sellingPrice),
     );
   }
 
@@ -37,6 +42,7 @@ class SalesLog {
       'qtySold': qtySold,
       'sellingPrice': sellingPrice,
       'dateSold': dateSold,
+      'totalRevenue': totalRevenue,
     };
   }
 }
