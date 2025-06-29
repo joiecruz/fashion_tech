@@ -45,16 +45,15 @@ class _AddProductModalState extends State<AddProductModal> {
   bool _isUpcycled = false;
   bool _isMade = false;
   bool _isLoading = false;
+  bool _uploading = false;
   DateTime? _acquisitionDate = DateTime.now();
 
   // Product Image
   File? _productImage;
-  Uint8List? _productImageBytes; // For web
   String? _productImageUrl;
   bool _uploadingImage = false;
-  bool _useFirebaseStorage = true; // You can set to false to fallback to base64 for web
+  bool _useFirebaseStorage = true;
 
-  // Product Variants
   List<ProductVariantInput> _variants = [];
 
   final List<String> _categories = [
@@ -79,106 +78,24 @@ class _AddProductModalState extends State<AddProductModal> {
     super.dispose();
   }
 
-  Future<void> _pickImage() async {
-    try {
-      final picker = ImagePicker();
-      final picked = await picker.pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 80,
-        maxWidth: 800,
-        maxHeight: 800,
-      );
-      if (picked != null) {
-        if (kIsWeb) {
-          final bytes = await picked.readAsBytes();
-          final mimeType = picked.name.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
-          if (_useFirebaseStorage) {
-            setState(() {
-              _productImageBytes = bytes;
-              _productImage = null;
-            });
-            await _uploadImageWeb(bytes, picked.name);
-          } else {
-            setState(() {
-              _productImageBytes = bytes;
-              _productImage = null;
-              _productImageUrl = 'data:$mimeType;base64,${base64Encode(bytes)}';
-            });
-          }
-        } else {
-          setState(() {
-            _productImage = File(picked.path);
-            _productImageBytes = null;
-          });
-          if (await _productImage!.exists()) {
-            final fileSize = await _productImage!.length();
-            print('Image selected: ${_productImage!.path}');
-            print('File size: ${(fileSize / 1024 / 1024).toStringAsFixed(2)} MB');
-            if (_useFirebaseStorage) {
-              await _uploadImage();
-            } else {
-              await _uploadImageAsBase64();
-            }
-          } else {
-            throw Exception('Selected file does not exist or is not accessible');
-          }
-        }
-      }
-    } catch (e) {
-      print('Error picking image: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error selecting image: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _uploadImageWeb(Uint8List bytes, String filename) async {
-    setState(() => _uploadingImage = true);
-    try {
-      print('DEBUG: Starting web image upload...');
-      final fileName = 'products/${DateTime.now().millisecondsSinceEpoch}_$filename';
-      final ref = FirebaseStorage.instance.ref().child(fileName);
-      print('DEBUG: Calling putData...');
-      final uploadTask = ref.putData(bytes);
-      await uploadTask;
-      print('DEBUG: Getting download URL...');
-      _productImageUrl = await ref.getDownloadURL();
-      print('DEBUG: Image uploaded successfully, download URL: $_productImageUrl');
-    } catch (e) {
-      print('DEBUG: Error uploading image (web): $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to upload image: $e')),
-        );
-      }
-      if (_useFirebaseStorage) {
-        print('Falling back to base64 upload...');
-        _useFirebaseStorage = false;
-        await _uploadImageAsBase64();
-      }
-    } finally {
-      setState(() => _uploadingImage = false);
-    }
-  }
-
   Future<void> _uploadImageAsBase64() async {
     if (_productImage == null) return;
+
     try {
-      setState(() => _uploadingImage = true);
+      setState(() => _uploading = true);
       final fileSize = await _productImage!.length();
       if (fileSize > 2 * 1024 * 1024) {
         throw Exception('File size exceeds 2MB limit. Please choose a smaller image or reduce quality.');
       }
+
       final bytes = await _productImage!.readAsBytes();
+      final base64String = base64Encode(bytes);
       final mimeType = _productImage!.path.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
-      _productImageUrl = 'data:$mimeType;base64,${base64Encode(bytes)}';
-      setState(() => _uploadingImage = false);
+
+      _productImageUrl = 'data:$mimeType;base64,$base64String';
+
+      setState(() => _uploading = false);
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -190,8 +107,9 @@ class _AddProductModalState extends State<AddProductModal> {
       }
     } catch (e) {
       print('Base64 upload error: $e');
-      setState(() => _uploadingImage = false);
+      setState(() => _uploading = false);
       _productImageUrl = null;
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -203,22 +121,90 @@ class _AddProductModalState extends State<AddProductModal> {
       }
     }
   }
+Future<void> _pickImage() async {
+  try {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 80,
+      maxWidth: 800,
+      maxHeight: 800,
+    );
+
+    if (picked != null) {
+      if (kIsWeb) {
+        // On web, use bytes and base64
+        final bytes = await picked.readAsBytes();
+        final mimeType = picked.name.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+        setState(() {
+          _productImage = null; // Not used on web
+          _productImageUrl = 'data:$mimeType;base64,${base64Encode(bytes)}';
+        });
+      } else {
+        // On mobile/desktop, use File
+        setState(() {
+          _productImage = File(picked.path);
+          _productImageUrl = null;
+        });
+        if (await _productImage!.exists()) {
+          final fileSize = await _productImage!.length();
+          print('Image selected: ${_productImage!.path}');
+          print('File size: ${(fileSize / 1024 / 1024).toStringAsFixed(2)} MB');
+          if (_useFirebaseStorage) {
+            await _uploadImage();
+          } else {
+            await _uploadImageAsBase64();
+          }
+        } else {
+          throw Exception('Selected file does not exist or is not accessible');
+        }
+      }
+    }
+  } catch (e) {
+    print('Error picking image: $e');
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error selecting image: $e'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+}
 
   Future<void> _uploadImage() async {
     if (_productImage == null) return;
+
     try {
-      setState(() => _uploadingImage = true);
+      setState(() => _uploading = true);
+
       final fileSize = await _productImage!.length();
       if (fileSize > 5 * 1024 * 1024) {
         throw Exception('File size exceeds 5MB limit. Please choose a smaller image.');
       }
-      final fileName = 'products/${DateTime.now().millisecondsSinceEpoch}_${_productImage!.path.split('/').last}';
+
+      final fileName = 'swatches/${DateTime.now().millisecondsSinceEpoch}_${_productImage!.path.split('/').last}';
       final ref = FirebaseStorage.instance.ref().child(fileName);
+
+      print('Starting upload for file: $fileName');
+      print('File size: ${(fileSize / 1024 / 1024).toStringAsFixed(2)} MB');
+
       final uploadTask = ref.putFile(_productImage!);
+
+      uploadTask.snapshotEvents.listen((TaskSnapshot snapshot) {
+        double progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+        print('Upload progress: ${progress.toStringAsFixed(1)}%');
+      });
+
       await uploadTask;
       _productImageUrl = await ref.getDownloadURL();
+
       print('Upload successful! URL: $_productImageUrl');
-      setState(() => _uploadingImage = false);
+
+      setState(() => _uploading = false);
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -230,12 +216,52 @@ class _AddProductModalState extends State<AddProductModal> {
       }
     } catch (e) {
       print('Upload error: $e');
-      setState(() => _uploadingImage = false);
+      setState(() => _uploading = false);
       _productImageUrl = null;
+
+      String errorMessage;
+      if (e.toString().contains('File size exceeds')) {
+        errorMessage = e.toString().replaceAll('Exception: ', '');
+      } else if (e.toString().contains('network')) {
+        errorMessage = 'Network error. Trying alternative upload method...';
+      } else if (e.toString().contains('permission')) {
+        errorMessage = 'Permission denied. Trying alternative upload method...';
+      } else if (e.toString().contains('storage/unauthorized')) {
+        errorMessage = 'Unauthorized access. Trying alternative upload method...';
+      } else {
+        errorMessage = 'Upload failed. Trying alternative upload method...';
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+
       if (_useFirebaseStorage) {
         print('Falling back to base64 upload...');
         _useFirebaseStorage = false;
         await _uploadImageAsBase64();
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('All upload methods failed: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: 'Retry',
+              textColor: Colors.white,
+              onPressed: () {
+                _useFirebaseStorage = true;
+                _uploadImage();
+              },
+            ),
+          ),
+        );
       }
     }
   }
@@ -357,62 +383,60 @@ class _AddProductModalState extends State<AddProductModal> {
     }
   }
 
-  Widget _buildImagePreview() {
-    if (_uploadingImage) {
-      return const Center(
-        child: CircularProgressIndicator(),
-      );
-    } else if (kIsWeb && _productImageBytes != null) {
-      // On web, show the image from bytes
-      return Image.memory(
-        _productImageBytes!,
-        fit: BoxFit.cover,
-        width: double.infinity,
-        height: double.infinity,
-      );
-    } else if (_productImage != null && _productImage!.existsSync()) {
-      // On mobile/desktop, show the file image
-      return Image.file(
-        _productImage!,
-        fit: BoxFit.cover,
-        width: double.infinity,
-        height: double.infinity,
-      );
-    } else {
-      return Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.camera_alt, color: Colors.orange, size: 40),
-          const SizedBox(height: 8),
-          Text(
-            'Tap to upload product image',
-            style: TextStyle(color: Colors.orange.shade700),
+Widget _buildImagePreview() {
+  if (_uploading) {
+    return const Center(child: CircularProgressIndicator());
+  } else if (kIsWeb && _productImageUrl != null) {
+    // On web, show the image from base64 url
+    return Image.network(
+      _productImageUrl!,
+      fit: BoxFit.cover,
+      width: double.infinity,
+      height: double.infinity,
+    );
+  } else if (_productImage != null && _productImage!.existsSync()) {
+    // On mobile/desktop, show the file image
+    return Image.file(
+      _productImage!,
+      fit: BoxFit.cover,
+      width: double.infinity,
+      height: double.infinity,
+    );
+  } else {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(Icons.camera_alt, color: Colors.orange, size: 40),
+        const SizedBox(height: 8),
+        Text(
+          'Tap to upload product image',
+          style: TextStyle(color: Colors.orange.shade700),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.orange.shade100,
+            borderRadius: BorderRadius.circular(20),
           ),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.orange.shade100,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: const [
-                Icon(Icons.upload, color: Colors.orange, size: 18),
-                SizedBox(width: 6),
-                Text('Upload Image', style: TextStyle(color: Colors.orange)),
-              ],
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: const [
+              Icon(Icons.upload, color: Colors.orange, size: 18),
+              SizedBox(width: 6),
+              Text('Upload Image', style: TextStyle(color: Colors.orange)),
+            ],
           ),
-          const SizedBox(height: 8),
-          const Text(
-            'Max size 5MB, JPG/PNG',
-            style: TextStyle(fontSize: 12, color: Colors.black54),
-          ),
-        ],
-      );
-    }
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Max size 5MB, JPG/PNG',
+          style: TextStyle(fontSize: 12, color: Colors.black54),
+        ),
+      ],
+    );
   }
+}
 
   @override
   Widget build(BuildContext context) {
@@ -476,24 +500,24 @@ class _AddProductModalState extends State<AddProductModal> {
                           onTap: _uploadingImage ? null : _pickImage,
                           child: Container(
                             width: double.infinity,
-                            height: (_productImage != null || _productImageBytes != null) ? 220 : 160,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: (_productImage != null || _productImageBytes != null)
-                                    ? Colors.orange[300]!
-                                    : Colors.grey[300]!,
-                                width: 2,
-                                style: BorderStyle.solid,
-                              ),
-                              color: (_productImage != null || _productImageBytes != null)
-                                  ? Colors.orange[50]
-                                  : Colors.grey[50],
+                          height: (_productImage != null || _productImageUrl != null) ? 220 : 160,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: (_productImage != null || _productImageUrl != null)
+                                  ? Colors.orange[300]!
+                                  : Colors.grey[300]!,
+                              width: 2,
+                              style: BorderStyle.solid,
                             ),
+                            color: (_productImage != null || _productImageUrl != null)
+                                ? Colors.orange[50]
+                                : Colors.grey[50],
+                          ),
                             child: Stack(
                               children: [
                                 Positioned.fill(child: _buildImagePreview()),
-                                if ((_productImage != null || _productImageBytes != null) && !_uploadingImage)
+                                if (_productImage != null || !_uploadingImage)
                                   Positioned(
                                     top: 8,
                                     right: 8,
