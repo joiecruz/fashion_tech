@@ -15,8 +15,6 @@ class AddJobOrderModal extends StatefulWidget {
 
 class _AddJobOrderModalState extends State<AddJobOrderModal> {
   final _formKey = GlobalKey<FormState>();
-  final ScrollController _scrollController = ScrollController();
-  final GlobalKey _variantsSectionKey = GlobalKey();
   final TextEditingController _productNameController = TextEditingController();
   final TextEditingController _customerNameController = TextEditingController();
   final TextEditingController _orderDateController = TextEditingController();
@@ -82,76 +80,20 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
 
   Future<void> _fetchFabricSuppliers() async {
     try {
-      print('Fetching fabric suppliers...');
       final snapshot = await FirebaseFirestore.instance
           .collection('suppliersFabric')
           .get()
           .timeout(Duration(seconds: 10));
       
-      print('Found ${snapshot.docs.length} supplier-fabric documents');
-      
       final Map<String, Map<String, dynamic>> suppliers = {};
-      final Set<String> supplierIds = {};
       
-      // First pass: collect all supplier IDs
       for (final doc in snapshot.docs) {
         final data = doc.data();
         final fabricId = data['fabricID'] as String?;
-        final supplierId = data['supplierID'] as String?;
-        
-        print('Processing doc ${doc.id}: fabricID = $fabricId, supplierID = $supplierId');
-        print('Document data: $data');
-        
-        if (fabricId != null && supplierId != null) {
+        if (fabricId != null) {
           suppliers[fabricId] = data;
-          supplierIds.add(supplierId);
-        } else {
-          print('Warning: Document ${doc.id} missing fabricID or supplierID field');
         }
       }
-      
-      print('Collected supplier IDs: $supplierIds');
-      
-      // Second pass: fetch actual supplier details
-      final Map<String, Map<String, dynamic>> supplierDetails = {};
-      if (supplierIds.isNotEmpty) {
-        print('Fetching supplier details...');
-        final supplierSnapshot = await FirebaseFirestore.instance
-            .collection('suppliers')
-            .get()
-            .timeout(Duration(seconds: 10));
-        
-        print('Found ${supplierSnapshot.docs.length} supplier documents');
-        
-        for (final doc in supplierSnapshot.docs) {
-          final data = doc.data();
-          final supplierId = doc.id;
-          
-          print('Supplier doc $supplierId: $data');
-          
-          if (supplierIds.contains(supplierId)) {
-            supplierDetails[supplierId] = data;
-          }
-        }
-      }
-      
-      print('Fetched supplier details: $supplierDetails');
-      
-      // Third pass: merge supplier details with fabric-supplier mapping
-      for (final fabricId in suppliers.keys) {
-        final fabricSupplierData = suppliers[fabricId]!;
-        final supplierId = fabricSupplierData['supplierID'] as String?;
-        
-        if (supplierId != null && supplierDetails.containsKey(supplierId)) {
-          // Merge the supplier details into the fabric-supplier mapping
-          fabricSupplierData.addAll(supplierDetails[supplierId]!);
-          print('Merged supplier details for fabric $fabricId: $fabricSupplierData');
-        } else {
-          print('No supplier details found for supplier $supplierId (fabric: $fabricId)');
-        }
-      }
-      
-      print('Final processed suppliers map: $suppliers');
       
       setState(() {
         _fabricSuppliers = suppliers;
@@ -179,7 +121,6 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
 
   @override
   void dispose() {
-    _scrollController.dispose();
     _productNameController.dispose();
     _customerNameController.dispose();
     _orderDateController.dispose();
@@ -225,7 +166,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
             borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
           ),
           child: ListView(
-            controller: _scrollController,
+            controller: scrollController,
             padding: const EdgeInsets.all(20),
             children: [
               // Header
@@ -576,7 +517,6 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
 
   Widget _buildVariantsSection() {
     return Container(
-      key: _variantsSectionKey,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -617,71 +557,24 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
                 ),
               ),
               const Spacer(),
-              OutlinedButton.icon(
-                onPressed: () async {
-                  final int previousVariantCount = _variants.length;
-                  
+              ElevatedButton.icon(
+                onPressed: () {
                   setState(() {
                     _variants.add(FormProductVariant(
                       id: 'temp_${DateTime.now().millisecondsSinceEpoch}',
                       productID: 'temp_product',
                       size: 'Small',
-                      color: 'Mixed', // Color will be determined by fabrics
+                      color: 'Red',
                       quantityInStock: 0,
                       fabrics: [],
                     ));
                   });
-                  
-                  // Only scroll if there were previous variants
-                  if (previousVariantCount > 0) {
-                    // Auto-scroll to show the new variant after a short delay to allow UI to update
-                    await Future.delayed(const Duration(milliseconds: 300));
-                    if (_scrollController.hasClients && _variantsSectionKey.currentContext != null) {
-                      try {
-                        final RenderBox renderBox = _variantsSectionKey.currentContext!.findRenderObject() as RenderBox;
-                        final variantsSectionPosition = renderBox.localToGlobal(Offset.zero);
-                        
-                        // Calculate approximate position of the new variant
-                        // Each variant card is approximately 400-450px tall including margins and content
-                        final approximateVariantHeight = 420.0;
-                        final variantsSectionHeaderHeight = 100.0; // Header + padding
-                        
-                        // Position of the new variant (last one in the list)
-                        final newVariantPosition = variantsSectionPosition.dy + 
-                                                 variantsSectionHeaderHeight + 
-                                                 (previousVariantCount * approximateVariantHeight);
-                        
-                        // Calculate target scroll position to show the new variant nicely
-                        final targetPosition = _scrollController.offset + newVariantPosition - 200; // 200px from top of viewport
-                        
-                        _scrollController.animateTo(
-                          targetPosition.clamp(0.0, _scrollController.position.maxScrollExtent),
-                          duration: const Duration(milliseconds: 600),
-                          curve: Curves.easeOutCubic,
-                        );
-                      } catch (e) {
-                        // Fallback: scroll to a reasonable position
-                        final fallbackPosition = _scrollController.position.maxScrollExtent * 0.8;
-                        _scrollController.animateTo(
-                          fallbackPosition,
-                          duration: const Duration(milliseconds: 600),
-                          curve: Curves.easeOutCubic,
-                        );
-                      }
-                    }
-                  }
                 },
-                icon: Icon(Icons.add_circle_outline, size: 16),
-                label: Text(
-                  'Add Variant',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-                ),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.blue.shade600,
-                  side: BorderSide(color: Colors.blue.shade300, width: 1),
-                  backgroundColor: Colors.blue.shade50,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  minimumSize: Size(0, 36),
+                icon: Icon(Icons.add, size: 18),
+                label: Text('Add Variant'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
