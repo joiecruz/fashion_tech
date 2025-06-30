@@ -114,7 +114,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
     try {
       print('Fetching fabric suppliers...');
       final snapshot = await FirebaseFirestore.instance
-          .collection('suppliersFabric')
+          .collection('supplierFabrics')
           .get()
           .timeout(Duration(seconds: 10));
       

@@ -1,11 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class FetchSupplierFabricsBackend {
-  /// Fetches all supplier-fabric relationships from the 'suppliersFabric' collection.
+  /// Fetches all supplier-fabric relationships from the 'supplierFabrics' collection.
   static Future<List<Map<String, dynamic>>> fetchAllSupplierFabrics() async {
     try {
       final snapshot = await FirebaseFirestore.instance
-          .collection('suppliersFabric')
+          .collection('supplierFabrics')
           .get();
 
       return snapshot.docs.map((doc) {
@@ -25,7 +25,7 @@ class FetchSupplierFabricsBackend {
   static Future<List<Map<String, dynamic>>> fetchSupplierFabricsBySupplierID(String supplierID) async {
     try {
       final snapshot = await FirebaseFirestore.instance
-          .collection('suppliersFabric')
+          .collection('supplierFabrics')
           .where('supplierID', isEqualTo: supplierID)
           .get();
 
@@ -46,7 +46,7 @@ class FetchSupplierFabricsBackend {
   static Future<List<Map<String, dynamic>>> fetchSupplierFabricsByFabricID(String fabricID) async {
     try {
       final snapshot = await FirebaseFirestore.instance
-          .collection('suppliersFabric')
+          .collection('supplierFabrics')
           .where('fabricID', isEqualTo: fabricID)
           .get();
 
@@ -67,7 +67,7 @@ class FetchSupplierFabricsBackend {
   static Future<Map<String, dynamic>?> fetchSupplierFabricByID(String supplierFabricID) async {
     try {
       final doc = await FirebaseFirestore.instance
-          .collection('suppliersFabric')
+          .collection('supplierFabrics')
           .doc(supplierFabricID)
           .get();
 
@@ -80,7 +80,7 @@ class FetchSupplierFabricsBackend {
       }
       return null;
     } catch (e) {
-      print('Error fetching supplier fabric: $e');
+      print('Error fetching supplier fabric by ID: $e');
       return null;
     }
   }

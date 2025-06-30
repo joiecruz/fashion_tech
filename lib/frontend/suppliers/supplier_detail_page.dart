@@ -124,7 +124,7 @@ class _SupplierDetailPageState extends State<SupplierDetailPage>
       if (supplierId == null) return;
 
       final snapshot = await FirebaseFirestore.instance
-          .collection('suppliersFabric')
+          .collection('supplierFabrics')
           .where('supplierID', isEqualTo: supplierId)
           .get();
 
