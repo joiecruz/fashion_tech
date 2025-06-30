@@ -1,11 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class FetchSupplierFabricsBackend {
-  /// Fetches all supplier-fabric relationships from the 'supplier_fabrics' collection.
+  /// Fetches all supplier-fabric relationships from the 'suppliersFabric' collection.
   static Future<List<Map<String, dynamic>>> fetchAllSupplierFabrics() async {
     try {
       final snapshot = await FirebaseFirestore.instance
-          .collection('supplier_fabrics')
+          .collection('suppliersFabric')
           .get();
 
       return snapshot.docs.map((doc) {
@@ -25,7 +25,7 @@ class FetchSupplierFabricsBackend {
   static Future<List<Map<String, dynamic>>> fetchSupplierFabricsBySupplierID(String supplierID) async {
     try {
       final snapshot = await FirebaseFirestore.instance
-          .collection('supplier_fabrics')
+          .collection('suppliersFabric')
           .where('supplierID', isEqualTo: supplierID)
           .get();
 
@@ -46,7 +46,7 @@ class FetchSupplierFabricsBackend {
   static Future<List<Map<String, dynamic>>> fetchSupplierFabricsByFabricID(String fabricID) async {
     try {
       final snapshot = await FirebaseFirestore.instance
-          .collection('supplier_fabrics')
+          .collection('suppliersFabric')
           .where('fabricID', isEqualTo: fabricID)
           .get();
 
@@ -67,7 +67,7 @@ class FetchSupplierFabricsBackend {
   static Future<Map<String, dynamic>?> fetchSupplierFabricByID(String supplierFabricID) async {
     try {
       final doc = await FirebaseFirestore.instance
-          .collection('supplier_fabrics')
+          .collection('suppliersFabric')
           .doc(supplierFabricID)
           .get();
 

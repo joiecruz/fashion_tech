@@ -366,137 +366,6 @@ Future<void> _deleteFabricById(String fabricId) async {
     );
   }
 
-  void _showDeleteConfirmation(Map<String, dynamic> fabric) {
-    final name = fabric['name'] ?? 'Unnamed Fabric';
-    
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Row(
-            children: [
-              Icon(Icons.warning_amber_rounded, color: Colors.red[600], size: 24),
-              const SizedBox(width: 8),
-              const Text('Delete Fabric'),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Are you sure you want to delete this fabric?'),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.grey[50],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey[200]!),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.palette_outlined, color: Colors.grey[600], size: 20),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        name,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'This action cannot be undone.',
-                style: TextStyle(
-                  color: Colors.red[600],
-                  fontSize: 12,
-                  fontStyle: FontStyle.italic,
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text(
-                'Cancel',
-                style: TextStyle(color: Colors.grey[600]),
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                Navigator.of(context).pop();
-                await _deleteFabric(fabric);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red[600],
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              child: const Text('Delete'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Future<void> _deleteFabric(Map<String, dynamic> fabric) async {
-    try {
-      final fabricId = fabric['id'];
-      if (fabricId != null) {
-        await FirebaseFirestore.instance
-            .collection('fabrics')
-            .doc(fabricId)
-            .delete();
-        
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  Icon(Icons.check_circle, color: Colors.white, size: 16),
-                  const SizedBox(width: 8),
-                  Text('${fabric['name'] ?? 'Fabric'} deleted successfully'),
-                ],
-              ),
-              backgroundColor: Colors.green[600],
-              duration: const Duration(seconds: 2),
-              behavior: SnackBarBehavior.floating,
-              margin: const EdgeInsets.all(16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                Icon(Icons.error_outline, color: Colors.white, size: 16),
-                const SizedBox(width: 8),
-                Text('Failed to delete fabric: ${e.toString()}'),
-              ],
-            ),
-            backgroundColor: Colors.red[600],
-            duration: const Duration(seconds: 3),
-            behavior: SnackBarBehavior.floating,
-            margin: const EdgeInsets.all(16),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          ),
-        );
-      }
-    }
-  }
-
   String _formatDate(DateTime date) {
     final now = DateTime.now();
     final difference = now.difference(date);
@@ -996,83 +865,6 @@ Future<void> _deleteFabricById(String fabricId) async {
                                               ),
                                             ),
                                           ),
-                                        if (isUpcycled) const SizedBox(width: 4),
-                                        PopupMenuButton<String>(
-                                          icon: Container(
-                                            padding: const EdgeInsets.all(6),
-                                            decoration: BoxDecoration(
-                                              color: Colors.grey[100],
-                                              borderRadius: BorderRadius.circular(8),
-                                            ),
-                                            child: Icon(Icons.more_vert, color: Colors.grey[600], size: 16),
-                                          ),
-                                          onSelected: (value) async {
-                                            if (value == 'delete') {
-                                              final confirm = await showDialog<bool>(
-                                                context: context,
-                                                builder: (context) => AlertDialog(
-                                                  title: const Text('Delete Fabric'),
-                                                  content: const Text('Are you sure you want to delete this fabric? This action cannot be undone.'),
-                                                  actions: [
-                                                    TextButton(
-                                                      onPressed: () => Navigator.pop(context, false),
-                                                      child: const Text('Cancel'),
-                                                    ),
-                                                    TextButton(
-                                                      onPressed: () => Navigator.pop(context, true),
-                                                      child: const Text('Delete', style: TextStyle(color: Colors.red)),
-                                                    ),
-                                                  ],
-                                                ),
-                                              );
-                                              if (confirm == true) {
-                                                await _deleteFabricById(fabric['id']);
-                                              }
-                                            }
-                                            else if (value == 'edit') {
-                                            await showModalBottomSheet(
-                                              context: context,
-                                              isScrollControlled: true,
-                                              backgroundColor: Colors.transparent,
-                                              builder: (context) => Container(
-                                                margin: const EdgeInsets.only(top: 100),
-                                                height: MediaQuery.of(context).size.height - 100,
-                                                decoration: const BoxDecoration(
-                                                  color: Colors.white,
-                                                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                                                ),
-                                                child: EditFabricModal(
-                                                  fabric: fabric,
-                                                  fabricId: fabric['id'],
-                                                ),
-                                              ),
-                                            );
-                                          }
-                                          },
-                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                          itemBuilder: (context) => [
-                                            const PopupMenuItem(
-                                              value: 'edit',
-                                              child: Row(
-                                                children: [
-                                                  Icon(Icons.edit_outlined, size: 16),
-                                                  SizedBox(width: 8),
-                                                  Text('Edit Fabric'),
-                                                ],
-                                              ),
-                                            ),
-                                            const PopupMenuItem(
-                                              value: 'delete',
-                                              child: Row(
-                                                children: [
-                                                  Icon(Icons.delete_outline, size: 16, color: Colors.red),
-                                                  SizedBox(width: 8),
-                                                  Text('Delete', style: TextStyle(color: Colors.red)),
-                                                ],
-                                              ),
-                                            ),
-                                          ],
-                                        ),
                                       ],
                                     ),
                                     if (isLowStock || isOutOfStock) ...[
@@ -1277,9 +1069,27 @@ Future<void> _deleteFabricById(String fabricId) async {
                     children: [
                       Expanded(
                         child: ElevatedButton.icon(
-                          onPressed: () {
-                            // TODO: Implement delete fabric functionality
-                            _showDeleteConfirmation(fabric);
+                          onPressed: () async {
+                            final confirm = await showDialog<bool>(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: const Text('Delete Fabric'),
+                                content: const Text('Are you sure you want to delete this fabric? This action cannot be undone.'),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context, false),
+                                    child: const Text('Cancel'),
+                                  ),
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context, true),
+                                    child: const Text('Delete', style: TextStyle(color: Colors.red)),
+                                  ),
+                                ],
+                              ),
+                            );
+                            if (confirm == true) {
+                              await _deleteFabricById(fabric['id']);
+                            }
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.red[600],
@@ -1296,10 +1106,23 @@ Future<void> _deleteFabricById(String fabricId) async {
                       const SizedBox(width: 8),
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: () {
-                            // TODO: Implement edit functionality
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Edit ${name} feature coming soon!')),
+                          onPressed: () async {
+                            await showModalBottomSheet(
+                              context: context,
+                              isScrollControlled: true,
+                              backgroundColor: Colors.transparent,
+                              builder: (context) => Container(
+                                margin: const EdgeInsets.only(top: 100),
+                                height: MediaQuery.of(context).size.height - 100,
+                                decoration: const BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                                ),
+                                child: EditFabricModal(
+                                  fabric: fabric,
+                                  fabricId: fabric['id'],
+                                ),
+                              ),
                             );
                           },
                           style: OutlinedButton.styleFrom(

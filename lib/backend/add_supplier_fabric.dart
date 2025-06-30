@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class AddSupplierFabricBackend {
-  /// Creates a new supplier-fabric relationship in the 'supplier_fabrics' collection.
+  /// Creates a new supplier-fabric relationship in the 'suppliersFabric' collection.
   /// 
   /// This establishes a relationship between a supplier and a fabric, including
   /// supply pricing and delivery information.
@@ -17,7 +17,7 @@ class AddSupplierFabricBackend {
       final currentUser = FirebaseAuth.instance.currentUser;
       
       final docRef = await FirebaseFirestore.instance
-          .collection('supplier_fabrics')
+          .collection('suppliersFabric')
           .add({
         'supplierID': supplierID,
         'fabricID': fabricID,
@@ -56,7 +56,7 @@ class AddSupplierFabricBackend {
       if (daysToDeliver != null) updates['daysToDeliver'] = daysToDeliver;
 
       await FirebaseFirestore.instance
-          .collection('supplier_fabrics')
+          .collection('suppliersFabric')
           .doc(supplierFabricID)
           .update(updates);
 
@@ -73,7 +73,7 @@ class AddSupplierFabricBackend {
       final currentUser = FirebaseAuth.instance.currentUser;
       
       await FirebaseFirestore.instance
-          .collection('supplier_fabrics')
+          .collection('suppliersFabric')
           .doc(supplierFabricID)
           .update({
         'deletedBy': currentUser?.uid ?? 'anonymous',
@@ -94,7 +94,7 @@ class AddSupplierFabricBackend {
   }) async {
     try {
       final snapshot = await FirebaseFirestore.instance
-          .collection('supplier_fabrics')
+          .collection('suppliersFabric')
           .where('supplierID', isEqualTo: supplierID)
           .where('fabricID', isEqualTo: fabricID)
           .where('deletedAt', isNull: true)
