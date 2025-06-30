@@ -1,4 +1,4 @@
-# ERDv7 Schema Alignment Summary
+# ERDv8 Schema Alignment Summary
 
 ## 🧾 Naming Conventions Summary
 
@@ -19,64 +19,64 @@
 
 ---
 
-## 📊 Current ERDv7 Compliance Overview
+## 📊 Current ERDv8 Compliance Overview
 
 **🔴 Critical Issues**: 9 models missing required fields  
 **🟡 Minor Issues**: 2 legacy fields need removal  
-**✅ Fully Compliant**: 3 models (JobOrder, ProductImage, InventoryLog)
+**✅ Fully Compliant**: 3 models (JobOrder, ProductImage, ProductLog)
 
 ---
 
-## ✅ Models Aligned with ERDv7
+## ✅ Models Aligned with ERDv8
 
 ### Core Product Models
 - **`Product`** (`lib/models/product.dart`) - ✅ **Fully Compliant**
-  - ✅ **ERDv7 Fields Present**: `productID` (id), `name`, `price`, `category`, `isUpcycled`, `isMade`, `createdAt`, `updatedAt`, `deletedAt`, `description`, `notes`
-  - 🟡 **Legacy Field**: `unitCostEstimate` (not in ERDv7, currently used in frontend)
+  - ✅ **ERDv8 Fields Present**: `productID` (id), `name`, `price`, `category`, `isUpcycled`, `isMade`, `createdAt`, `updatedAt`, `deletedAt`, `description`, `notes`
+  - 🟡 **Legacy Field**: `unitCostEstimate` (not in ERDv8, currently used in frontend)
   - 🔄 **Action Required**: Consider removing `unitCostEstimate` after frontend migration
 
 - **`ProductVariant`** (`lib/models/product_variant.dart`) - 🟡 **Mostly Compliant**
-  - ✅ **ERDv7 Fields Present**: `variantID` (id), `productID`, `size`, `color`, `quantityInStock`
-  - � **Legacy Field**: `unitCostEstimate` (not in ERDv7, should be removed)
+  - ✅ **ERDv8 Fields Present**: `variantID` (id), `productID`, `size`, `color`, `quantityInStock`
+  - � **Legacy Field**: `unitCostEstimate` (not in ERDv8, should be removed)
   - 🔄 **Action Required**: Remove `unitCostEstimate` field completely
 
 ### Fabric & Production Models
 - **`Fabric`** (`lib/models/fabric.dart`) - 🔴 **Non-Compliant**
-  - ✅ **ERDv7 Fields Present**: `fabricID` (id), `name`, `type`, `color`, `qualityGrade`, `quantity`, `expensePerYard`, `swatchImageURL`, `createdAt`, `updatedAt`
-  - ❌ **Missing ERDv7 Fields**: 
+  - ✅ **ERDv8 Fields Present**: `fabricID` (id), `name`, `type`, `color`, `qualityGrade`, `quantity`, `expensePerYard`, `swatchImageURL`, `createdAt`, `updatedAt`
+  - ❌ **Missing ERDv8 Fields**: 
     - `isUpcycled` (Boolean) - fabric sustainability flag
     - `minOrder` (Number) - minimum order quantity  
     - `deletedAt` (Timestamp, optional) - soft delete support
-  - 🔄 **Action Required**: Add missing ERDv7 fields for full compliance
+  - 🔄 **Action Required**: Add missing ERDv8 fields for full compliance
 
 - **`JobOrder`** (`lib/models/job_order.dart`) - ✅ **Fully Compliant**
-  - ✅ **All ERDv7 Fields Present**: `jobOrderID` (id), `productID`, `quantity`, `customerName`, `status`, `dueDate`, `acceptedBy`, `assignedTo`, `createdBy`, `createdAt`, `updatedAt`
+  - ✅ **All ERDv8 Fields Present**: `jobOrderID` (id), `productID`, `quantity`, `customerName`, `status`, `dueDate`, `acceptedBy`, `assignedTo`, `createdBy`, `createdAt`, `updatedAt`
   - ✅ Proper enum: `JobOrderStatus` (open, inProgress, done)
   - ✅ Optional fields correctly marked: `acceptedBy`, `assignedTo`
 
 - **`JobOrderDetail`** (`lib/models/job_order_detail.dart`) - 🟡 **Mostly Compliant**
-  - ✅ **ERDv7 Fields Present**: `jobOrderDetailID` (id), `jobOrderID`, `fabricID`, `yardageUsed`, `size`, `color`
-  - ❌ **Missing ERDv7 Field**: `notes` (String) - detail-specific notes
+  - ✅ **ERDv8 Fields Present**: `jobOrderDetailID` (id), `jobOrderID`, `fabricID`, `yardageUsed`, `size`, `color`
+  - ❌ **Missing ERDv8 Field**: `notes` (String) - detail-specific notes
   - 🔄 **Action Required**: Add `notes` field
 
 ### User & Access Models
 - **`User`** (`lib/models/user.dart`) - 🟡 **Mostly Compliant**
-  - ✅ **ERDv7 Fields Present**: `userID` (id), `fullName`, `username`, `password`, `role`, `canAccessInventory`, `email`, `profileImageURL`, `createdAt`
+  - ✅ **ERDv8 Fields Present**: `userID` (id), `fullName`, `username`, `password`, `role`, `canAccessInventory`, `email`, `profileImageURL`, `createdAt`
   - ✅ Proper enum: `UserRole` (admin, owner, worker)
-  - ❌ **Missing ERDv7 Field**: `isActive` (Boolean) - user status flag
+  - ❌ **Missing ERDv8 Field**: `isActive` (Boolean) - user status flag
   - 🔄 **Action Required**: Add `isActive` field
 
 ### Supplier Models
 - **`Supplier`** (`lib/models/supplier.dart`) - 🔴 **Non-Compliant**
-  - ✅ **ERDv7 Fields Present**: `supplierID` (id), `supplierName`, `contactNum`, `location`
-  - ❌ **Missing ERDv7 Fields**: 
+  - ✅ **ERDv8 Fields Present**: `supplierID` (id), `supplierName`, `contactNum`, `location`
+  - ❌ **Missing ERDv8 Fields**: 
     - `email` (String) - supplier email contact
     - `notes` (String) - supplier-specific notes
   - 🔄 **Action Required**: Add `email` and `notes` fields
 
 - **`SupplierProduct`** (`lib/models/supplier_product.dart`) - 🔴 **Non-Compliant**
-  - ✅ **ERDv7 Fields Present**: `supplierProductID` (id), `supplierID`, `productID`, `supplyPrice`, `minOrderQty`
-  - ❌ **Missing ERDv7 Fields**:
+  - ✅ **ERDv8 Fields Present**: `supplierProductID` (id), `supplierID`, `productID`, `supplyPrice`, `minOrderQty`
+  - ❌ **Missing ERDv8 Fields**:
     - `daysToDeliver` (Number, optional) - delivery timeframe
     - `createdAt` (Timestamp) - record creation time
   - 🟡 **Incorrect Field Name**: `leadTimeDays` should be `daysToDeliver`
@@ -84,29 +84,29 @@
 
 ### Image & Media Models  
 - **`ProductImage`** (`lib/models/product_image.dart`) - ✅ **Fully Compliant**
-  - ✅ **All ERDv7 Fields Present**: `productImageID` (id), `productID`, `imageURL`, `isPrimary`, `uploadedBy`, `uploadedAt`
+  - ✅ **All ERDv8 Fields Present**: `productImageID` (id), `productID`, `imageURL`, `isPrimary`, `uploadedBy`, `uploadedAt`
 
 ### Logging Models
-- **`InventoryLog`** (`lib/models/inventory_log.dart`) - ✅ **Fully Compliant**
-  - ✅ **All ERDv7 Fields Present**: `inventoryID` (id), `productID`, `supplierID`, `createdBy`, `changeType`, `quantityChanged`, `remarks`, `createdAt`
-  - ✅ Proper enum: `InventoryChangeType` (add, deduct, correction)
+- **`ProductLog`** (`lib/models/product_log.dart`) - ✅ **Fully Compliant**
+  - ✅ **All ERDv8 Fields Present**: `productLogID` (id), `productID`, `supplierID`, `createdBy`, `changeType`, `quantityChanged`, `remarks`, `createdAt`
+  - ✅ Proper enum: `ProductChangeType` (add, deduct, correction)
 
 - **`FabricLog`** (`lib/models/fabric_log.dart`) - 🟡 **Mostly Compliant**
-  - ✅ **ERDv7 Fields Present**: `fabricLogID` (id), `fabricID`, `changeType`, `quantityChanged`, `source`, `remarks`, `logDate`, `createdBy`
+  - ✅ **ERDv8 Fields Present**: `fabricLogID` (id), `fabricID`, `changeType`, `quantityChanged`, `source`, `remarks`, `logDate`, `createdBy`
   - ✅ Proper enums: `FabricChangeType`, `FabricLogSource`
-  - ❌ **Missing ERDv7 Field**: `createdAt` (Timestamp) - should be separate from `logDate`
+  - ❌ **Missing ERDv8 Field**: `createdAt` (Timestamp) - should be separate from `logDate`
   - 🔄 **Action Required**: Add `createdAt` field distinct from `logDate`
 
 - **`SalesLog`** (`lib/models/sales_log.dart`) - 🟡 **Mostly Compliant**
-  - ✅ **ERDv7 Fields Present**: `salesLogID` (id), `productID`, `variantID`, `qtySold`, `sellingPrice`, `dateSold`
-  - ❌ **Missing ERDv7 Field**: `totalRevenue` (Number) - calculated field (qtySold × sellingPrice)
+  - ✅ **ERDv8 Fields Present**: `salesLogID` (id), `productID`, `variantID`, `qtySold`, `sellingPrice`, `dateSold`
+  - ❌ **Missing ERDv8 Field**: `totalRevenue` (Number) - calculated field (qtySold × sellingPrice)
   - 🔄 **Action Required**: Add `totalRevenue` computed field
 
 ---
 
-## 🔄 Firestore Collection Names (ERDv7 Aligned)
+## 🔄 Firestore Collection Names (ERDv8 Aligned)
 
-✅ **All collection names are correctly aligned with ERDv7 (camelCase):**
+✅ **All collection names are correctly aligned with ERDv8 (camelCase):**
 - `products` → Product documents
 - `productVariants` → ProductVariant documents  
 - `fabrics` → Fabric documents
@@ -116,26 +116,26 @@
 - `suppliers` → Supplier documents
 - `supplierProducts` → SupplierProduct documents
 - `productImages` → ProductImage documents
-- `inventoryLogs` → InventoryLog documents
+- `productLogs` → ProductLog documents
 - `fabricLogs` → FabricLog documents
 - `salesLogs` → SalesLog documents
 
 ---
 
-## 🚨 ERDv7 Compliance Gaps - CRITICAL ANALYSIS
+## 🚨 ERDv8 Compliance Gaps - CRITICAL ANALYSIS
 
 ### 🔴 **HIGH PRIORITY - Breaking Schema Issues**
 
 #### 1. **Product Model** - Missing Notes Field
 ```dart
-// MISSING in ERDv7:
+// MISSING in ERDv8:
 final String? notes; // Product-specific notes separate from description
 ```
 **Impact**: Product tracking incomplete, manual inventory notes not separated from description
 
 #### 2. **Fabric Model** - 3 Critical Missing Fields  
 ```dart
-// MISSING in ERDv7:
+// MISSING in ERDv8:
 final bool isUpcycled; // Sustainability tracking
 final double minOrder; // Minimum order quantity
 final DateTime? deletedAt; // Soft delete support
@@ -144,14 +144,14 @@ final DateTime? deletedAt; // Soft delete support
 
 #### 3. **User Model** - Missing Active Status
 ```dart
-// MISSING in ERDv7:
+// MISSING in ERDv8:
 final bool isActive; // User account status
 ```
 **Impact**: Cannot disable users without deleting accounts
 
 #### 4. **Supplier Model** - Missing Contact & Notes
 ```dart
-// MISSING in ERDv7:
+// MISSING in ERDv8:
 final String email; // Email contact
 final String? notes; // Supplier-specific notes
 ```
@@ -162,7 +162,7 @@ final String? notes; // Supplier-specific notes
 // FIELD NAME ERROR:
 final int leadTimeDays; // Should be: daysToDeliver
 
-// MISSING in ERDv7:
+// MISSING in ERDv8:
 final int? daysToDeliver; // Delivery timeframe (renamed)
 final DateTime createdAt; // Record creation timestamp
 ```
@@ -172,19 +172,19 @@ final DateTime createdAt; // Record creation timestamp
 
 #### 6. **JobOrderDetail Model** - Missing Notes
 ```dart
-// MISSING in ERDv7:
+// MISSING in ERDv8:
 final String? notes; // Detail-specific notes
 ```
 
 #### 7. **SalesLog Model** - Missing Revenue Calculation  
 ```dart
-// MISSING in ERDv7:
+// MISSING in ERDv8:
 final double totalRevenue; // Computed: qtySold × sellingPrice
 ```
 
 #### 8. **FabricLog Model** - Missing Creation Timestamp
 ```dart
-// MISSING in ERDv7:
+// MISSING in ERDv8:
 final DateTime createdAt; // Separate from logDate
 ```
 
@@ -192,7 +192,7 @@ final DateTime createdAt; // Separate from logDate
 
 #### 9. **ProductVariant Model** - Legacy Field
 ```dart
-// REMOVE (not in ERDv7):
+// REMOVE (not in ERDv8):
 final double? unitCostEstimate; // Legacy field, should be removed
 ```
 
@@ -204,20 +204,20 @@ final double? unitCostEstimate; // Used in current frontend
 
 ---
 
-## ✅ Updated Frontend Components (ERDv7 Aligned)
+## ✅ Updated Frontend Components (ERDv8 Aligned)
 
 ### Product Inventory System
 - **`product_inventory_page.dart`** - ✅ **Fully Updated**
   - ✅ Uses correct collection names (`productvariants`, `productimages`) 
-  - ✅ Handles ERDv7 schema fields (`description`, `deletedAt`, `isMade`)
+  - ✅ Handles ERDv8 schema fields (`description`, `deletedAt`, `isMade`)
   - ✅ Proper image loading from `productimages` collection
   - ✅ Enhanced variant display with size, color, and stock info
   - ✅ Soft delete support - filters out deleted products (`deletedAt` is null)
   - ✅ Full-width filter bar and collapsible stats for better UX
 
 ### Add Product Modal
-- **`add_product_modal.dart`** - ✅ **ERDv7 Compliant**
-  - ✅ Collects all available ERDv7 Product fields including `description` and `deletedAt`
+- **`add_product_modal.dart`** - ✅ **ERDv8 Compliant**
+  - ✅ Collects all available ERDv8 Product fields including `description` and `deletedAt`
   - ✅ Enhanced for manual inventory with supplier/acquisition tracking
   - ✅ Dynamic product variant management with visual color indicators
   - ✅ Bottom modal UX that expands from below search/filters
@@ -225,7 +225,7 @@ final double? unitCostEstimate; // Used in current frontend
   - ✅ Uses universal color system for consistency
 
 ### Universal Color System 
-- **`lib/utils/color_utils.dart`** - ✅ **New ERDv7 Enhancement**
+- **`lib/utils/color_utils.dart`** - ✅ **New ERDv8 Enhancement**
   - ✅ Centralized color management across all components
   - ✅ 19 predefined colors including fashion-specific options
   - ✅ Visual color indicators with smart borders for light colors
@@ -238,7 +238,7 @@ final double? unitCostEstimate; // Used in current frontend
 
 ---
 
-## 📊 ERDv7 Compliance Status Dashboard
+## 📊 ERDv8 Compliance Status Dashboard
 
 | **Model** | **Compliance** | **Missing Fields** | **Legacy Fields** | **Priority** |
 |-----------|----------------|-------------------|-------------------|--------------|
@@ -251,15 +251,15 @@ final double? unitCostEstimate; // Used in current frontend
 | Supplier | 🔴 65% | `email`, `notes` | None | High |
 | SupplierProduct | 🔴 60% | `daysToDeliver`, `createdAt` | `leadTimeDays` | High |
 | ProductImage | ✅ 100% | None | None | ✅ |
-| InventoryLog | ✅ 100% | None | None | ✅ |
+| ProductLog | ✅ 100% | None | None | ✅ |
 | FabricLog | 🟡 90% | `createdAt` | None | Medium |
 | SalesLog | 🟡 85% | `totalRevenue` | None | Medium |
 
-**Overall ERDv7 Compliance**: 🟡 **78%** (9 of 12 models need updates)
+**Overall ERDv8 Compliance**: 🟡 **78%** (9 of 12 models need updates)
 
 ---
 
-## 🎯 Action Plan - ERDv7 Full Compliance
+## 🎯 Action Plan - ERDv8 Full Compliance
 
 ### Phase 1: Critical Schema Updates (High Priority)
 ```bash
@@ -305,7 +305,7 @@ import 'package:fashion_tech/utils/utils.dart';
 
 ---
 
-## 🔧 Migration Strategy (Current → ERDv7)
+## 🔧 Migration Strategy (Current → ERDv8)
 
 ### Database Migration Required
 - **Soft Delete Migration**: Add `deletedAt: null` to existing Product and Fabric documents
@@ -314,7 +314,7 @@ import 'package:fashion_tech/utils/utils.dart';
 
 ### Code Migration Required  
 - **Remove Legacy Fields**: Clean up `unitCostEstimate` references in ProductVariant
-- **Update Forms**: Add input fields for new ERDv7 fields
+- **Update Forms**: Add input fields for new ERDv8 fields
 - **Update Validation**: Ensure new required fields are validated
 
 ### Backwards Compatibility
@@ -323,7 +323,7 @@ import 'package:fashion_tech/utils/utils.dart';
 
 ---
 
-## 🎯 Next Steps for 100% ERDv7 Compliance
+## 🎯 Next Steps for 100% ERDv8 Compliance
 
 ### Immediate Actions Required:
 1. **Update Fabric model** - Add `isUpcycled`, `minOrder`, `deletedAt` fields
@@ -341,4 +341,4 @@ import 'package:fashion_tech/utils/utils.dart';
 11. Add documentation for new field usage
 12. Implement soft delete UI flows for Fabric management
 
-**Target**: 🎯 **100% ERDv7 Compliance** within the next development cycle
+**Target**: 🎯 **100% ERDv8 Compliance** within the next development cycle

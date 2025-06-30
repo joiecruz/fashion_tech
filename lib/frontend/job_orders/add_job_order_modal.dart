@@ -13,7 +13,8 @@ class AddJobOrderModal extends StatefulWidget {
   State<AddJobOrderModal> createState() => _AddJobOrderModalState();
 }
 
-class _AddJobOrderModalState extends State<AddJobOrderModal> {
+class _AddJobOrderModalState extends State<AddJobOrderModal>
+    with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final ScrollController _scrollController = ScrollController();
   final GlobalKey _variantsSectionKey = GlobalKey();
@@ -38,14 +39,43 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
 
   Map<String, double> _fabricAllocated = {};
 
+  // Animation controller for smooth transitions
+  late AnimationController _animationController;
+  late Animation<double> _fadeAnimation;
+  late Animation<Offset> _slideAnimation;
+
   @override
   void initState() {
     super.initState();
+    
+    // Initialize animation controller
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
+    );
+    _fadeAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeInOut,
+    ));
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, 0.3),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeOutCubic,
+    ));
+
     _fetchUserFabrics();
     _fetchFabricSuppliers();
     _quantityController.addListener(() {
       setState(() {});
     });
+
+    // Start the animation
+    _animationController.forward();
   }
 
   Future<void> _fetchUserFabrics() async {
@@ -179,6 +209,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
 
   @override
   void dispose() {
+    _animationController.dispose();
     _scrollController.dispose();
     _productNameController.dispose();
     _customerNameController.dispose();
@@ -213,86 +244,130 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
       return _buildNoFabricsState();
     }
 
-    return DraggableScrollableSheet(
-      expand: false,
-      initialChildSize: 0.95,
-      minChildSize: 0.7,
-      maxChildSize: 0.98,
-      builder: (context, scrollController) {
-        return Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          child: ListView(
-            controller: _scrollController,
-            padding: const EdgeInsets.all(20),
-            children: [
-              // Header
-              _buildHeader(),
-              
-              const SizedBox(height: 24),
-              
-              // Form
-              Form(
-                key: _formKey,
-                child: Column(
-                  children: [
-                    // Basic Information Section
-                    _buildBasicInfoSection(),
-                    
-                    const SizedBox(height: 20),
-                    
-                    // Timeline Section
-                    _buildTimelineSection(),
-                    
-                    const SizedBox(height: 20),
-                    
-                    // Assignment & Quantities Section
-                    _buildAssignmentSection(),
-                    
-                    const SizedBox(height: 20),
-                    
-                    // Additional Details Section
-                    _buildAdditionalDetailsSection(),
-                  ],
-                ),
+    return FadeTransition(
+      opacity: _fadeAnimation,
+      child: SlideTransition(
+        position: _slideAnimation,
+        child: DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.95,
+          minChildSize: 0.7,
+          maxChildSize: 0.98,
+          builder: (context, scrollController) {
+            return Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
               ),
-              
-              const SizedBox(height: 24),
-              
-              // Product Variants Section
-              _buildVariantsSection(),
-              
-              const SizedBox(height: 24),
-              
-              // Fabric Suppliers Section
-              FabricSuppliersSection(
-                variants: _variants,
-                userFabrics: _userFabrics,
-                fabricSuppliers: _fabricSuppliers,
-                loadingFabricSuppliers: _loadingFabricSuppliers,
-                parseColor: ColorUtils.parseColor,
+              child: ListView(
+                controller: _scrollController,
+                padding: const EdgeInsets.all(20),
+                children: [
+                  // Top notch for better modal closing UX
+                  Center(
+                    child: GestureDetector(
+                      onPanStart: (details) {
+                        // Track the start of drag
+                      },
+                      onPanUpdate: (details) {
+                        // Close modal when dragging down significantly
+                        if (details.delta.dy > 8) {
+                          _closeModal();
+                        }
+                      },
+                      onTap: () {
+                        // Close on tap as well
+                        _closeModal();
+                      },
+                      child: Container(
+                        width: 60,
+                        height: 20,
+                        margin: const EdgeInsets.only(bottom: 20),
+                        decoration: BoxDecoration(
+                          color: Colors.transparent,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Center(
+                          child: Container(
+                            width: 40,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade300,
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  
+                  // Header
+                  _buildHeader(),
+                  
+                  const SizedBox(height: 24),
+                  
+                  // Form
+                  Form(
+                    key: _formKey,
+                    child: Column(
+                      children: [
+                        // Basic Information Section
+                        _buildBasicInfoSection(),
+                        
+                        const SizedBox(height: 20),
+                        
+                        // Timeline Section
+                        _buildTimelineSection(),
+                        
+                        const SizedBox(height: 20),
+                        
+                        // Assignment & Quantities Section
+                        _buildAssignmentSection(),
+                        
+                        const SizedBox(height: 20),
+                        
+                        // Additional Details Section
+                        _buildAdditionalDetailsSection(),
+                      ],
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 24),
+                  
+                  // Product Variants Section
+                  _buildVariantsSection(),
+                  
+                  const SizedBox(height: 24),
+                  
+                  // Fabric Suppliers Section
+                  FabricSuppliersSection(
+                    variants: _variants,
+                    userFabrics: _userFabrics,
+                    fabricSuppliers: _fabricSuppliers,
+                    loadingFabricSuppliers: _loadingFabricSuppliers,
+                    parseColor: ColorUtils.parseColor,
+                  ),
+                  
+                  const SizedBox(height: 24),
+                  
+                  // Variant Breakdown Summary Section
+                  VariantBreakdownSummary(
+                    variants: _variants,
+                    userFabrics: _userFabrics,
+                    quantityController: _quantityController,
+                    parseColor: ColorUtils.parseColor,
+                  ),
+                  
+                  const SizedBox(height: 24),
+                  
+                  // Save Button
+                  _buildSaveButton(),
+                ],
               ),
-              
-              const SizedBox(height: 24),
-              
-              // Variant Breakdown Summary Section
-              VariantBreakdownSummary(
-                variants: _variants,
-                userFabrics: _userFabrics,
-                quantityController: _quantityController,
-                parseColor: ColorUtils.parseColor,
-              ),
-              
-              const SizedBox(height: 24),
-              
-              // Save Button
-              _buildSaveButton(),
-            ],
-          ),
-        );
-      },
+            );
+          },
+        ),
+      ),
     );
   }
 
@@ -1007,6 +1082,14 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
     );
   }
 
+  // Method to smoothly close the modal with animation
+  Future<void> _closeModal() async {
+    await _animationController.reverse();
+    if (mounted) {
+      Navigator.of(context).pop();
+    }
+  }
+
   Future<void> _saveJobOrder() async {
     if (_formKey.currentState == null || !_formKey.currentState!.validate()) {
       return;
@@ -1088,7 +1171,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Job order saved successfully!')),
       );
-      Navigator.of(context).pop();
+      await _closeModal();
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error saving job order: $e')),
