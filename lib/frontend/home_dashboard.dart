@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fashion_tech/frontend/auth/login_page.dart';
 import 'package:fashion_tech/frontend/auth/signup_page.dart';
 import 'package:fashion_tech/frontend/profit/profit_checker.dart';
+import 'package:fashion_tech/frontend/products/product_inventory_page.dart';
 
 class HomeDashboard extends StatefulWidget {
   const HomeDashboard({super.key});
@@ -33,6 +34,9 @@ class _HomeDashboardState extends State<HomeDashboard> {
 
   @override
   Widget build(BuildContext context) {
+    // Retrieve projectedIncome from ProductInventoryPage or set a default value
+    final double projectedIncome = ProductInventoryPage.latestPotentialValue ?? 0.0;
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -159,46 +163,50 @@ class _HomeDashboardState extends State<HomeDashboard> {
           const SizedBox(height: 24),
 
           // --- Profit Checker (Full Width, Responsive) ---
-          Card(
-            elevation: 2,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Profit Checker', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 2),
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      return Container(
-                        width: constraints.maxWidth,
-                        height: 1,
-                        color: Colors.grey[300],
-                        margin: const EdgeInsets.symmetric(vertical: 8),
-                      );
-                    },
-                  ),
-                  Row(
-                    children: [
-                      const Expanded(
-                        child: Text('Estimated Profit: ₱4,800'),
-                      ),
-                      ElevatedButton(
-                        onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => const ProfitReportPage()),
-                        );
-                        },
-                        child: const Text('View Report'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
+Card(
+  elevation: 2,
+  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+  child: Padding(
+    padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Profit Checker', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 2),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            return Container(
+              width: constraints.maxWidth,
+              height: 1,
+              color: Colors.grey[300],
+              margin: const EdgeInsets.symmetric(vertical: 8),
+            );
+          },
+        ),
+ValueListenableBuilder<double>(
+  valueListenable: ProductInventoryPage.potentialValueNotifier,
+  builder: (context, projectedIncome, _) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            'Projected Income: ₱${projectedIncome.toStringAsFixed(2)}',
+            style: const TextStyle(fontWeight: FontWeight.w600),
           ),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const ProfitReportPage()),
+            );
+          },
+          child: const Text('View Report'),
+        ),
+      ],
+    );
+  },
+),
 
           const SizedBox(height: 24),
 
@@ -398,6 +406,10 @@ class _HomeDashboardState extends State<HomeDashboard> {
           const SizedBox(height: 16),
         ],
       ),
+  )
+)
+        ]
+      )
     );
   }
 }
@@ -418,6 +430,7 @@ class _ActivityRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final projectedIncome = ProductInventoryPage.latestPotentialValue;
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Row(

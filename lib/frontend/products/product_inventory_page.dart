@@ -2,12 +2,20 @@ import 'package:flutter/material.dart';
 import 'add_product_modal.dart';
 import 'product_detail_page.dart';
 import 'package:fashion_tech/backend/fetch_products.dart';
+import 'package:fashion_tech/frontend/profit/sell_modal.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../utils/image_utils.dart';
 import 'dart:convert';
 
 class ProductInventoryPage extends StatefulWidget {
   const ProductInventoryPage({Key? key}) : super(key: key);
+
+  static double latestPotentialValue = 0.0;
+  static ValueNotifier<double> potentialValueNotifier = ValueNotifier(0.0);
+
+  static void setPotentialValue(double value) {
+    potentialValueNotifier.value = value;
+  }
 
   @override
   State<ProductInventoryPage> createState() => _ProductInventoryPageState();
@@ -28,36 +36,36 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
 
-Widget _buildProductImage(String? imageUrl, {double size = 60}) {
-  if (imageUrl == null || imageUrl.isEmpty) {
-    return Icon(Icons.image, size: size * 0.5, color: Colors.grey[400]);
-  }
-  if (imageUrl.startsWith('data:image')) {
-    final base64Data = imageUrl.split(',').last;
-    try {
-      return Image.memory(
-        base64Decode(base64Data),
+  Widget _buildProductImage(String? imageUrl, {double size = 60}) {
+    if (imageUrl == null || imageUrl.isEmpty) {
+      return Icon(Icons.image, size: size * 0.5, color: Colors.grey[400]);
+    }
+    if (imageUrl.startsWith('data:image')) {
+      final base64Data = imageUrl.split(',').last;
+      try {
+        return Image.memory(
+          base64Decode(base64Data),
+          fit: BoxFit.cover,
+          width: size,
+          height: size,
+        );
+      } catch (e) {
+        return Icon(Icons.broken_image, size: size * 0.5, color: Colors.red[300]);
+      }
+    } else if (Uri.tryParse(imageUrl)?.isAbsolute == true) {
+      return Image.network(
+        imageUrl,
         fit: BoxFit.cover,
         width: size,
         height: size,
+        errorBuilder: (context, error, stackTrace) {
+          return Icon(Icons.image, color: Colors.grey[400], size: size * 0.5);
+        },
       );
-    } catch (e) {
-      return Icon(Icons.broken_image, size: size * 0.5, color: Colors.red[300]);
+    } else {
+      return Icon(Icons.image_not_supported, size: size * 0.5, color: Colors.grey[400]);
     }
-  } else if (Uri.tryParse(imageUrl)?.isAbsolute == true) {
-    return Image.network(
-      imageUrl,
-      fit: BoxFit.cover,
-      width: size,
-      height: size,
-      errorBuilder: (context, error, stackTrace) {
-        return Icon(Icons.image, color: Colors.grey[400], size: size * 0.5);
-      },
-    );
-  } else {
-    return Icon(Icons.image_not_supported, size: size * 0.5, color: Colors.grey[400]);
   }
-}
 
   @override
   void initState() {
@@ -76,6 +84,8 @@ Widget _buildProductImage(String? imageUrl, {double size = 60}) {
 
     _loadProducts();
     _searchController.addListener(_filterProducts);
+    // Remove this line, as _products is empty at init:
+    // ProductInventoryPage.setPotentialValue(_products.fold(0.0, (sum, p) => sum + p['potentialValue']));
   }
 
   @override
@@ -128,6 +138,14 @@ Widget _buildProductImage(String? imageUrl, {double size = 60}) {
           _isLoading = false;
         }
       });
+
+      // Update the static potential value for dashboard
+      double totalPotentialValue = 0.0;
+      for (final product in products) {
+        // If you have a 'potentialValue' field, use it. Otherwise, calculate price * stock.
+        totalPotentialValue += (product['price'] ?? 0) * (product['stock'] ?? 0);
+      }
+      ProductInventoryPage.setPotentialValue(totalPotentialValue);
 
       _animationController.forward();
 
@@ -199,14 +217,19 @@ Widget _buildProductImage(String? imageUrl, {double size = 60}) {
         bool matchesCategory = _selectedCategory == 'All' || product['category'] == _selectedCategory;
         bool matchesUpcycled = !_showUpcycledOnly || product['isUpcycled'];
         bool matchesLowStock = !_showLowStockOnly || product['lowStock'];
-        return matchesSearch && matchesCategory && matchesUpcycled && matchesLowStock;
+
+        // Exclude products with no stock
+        final int stock = product['stock'] ?? 0;
+        bool hasStock = stock > 0;
+
+        return matchesSearch && matchesCategory && matchesUpcycled && matchesLowStock && hasStock;
       }).toList();
     });
   }
 
   int get _totalProducts => _products.length;
   int get _lowStockCount => _products.where((p) => p['lowStock']).length;
-  double get _totalPotentialValue => _products.fold(0.0, (sum, p) => sum + p['potentialValue']);
+  double get _totalPotentialValue => _products.fold(0.0, (sum, p) => sum + (p['price'] ?? 0) * (p['stock'] ?? 0));
 
   @override
   Widget build(BuildContext context) {
@@ -717,6 +740,12 @@ Widget _buildProductImage(String? imageUrl, {double size = 60}) {
 
   Widget _buildProductCard(Map<String, dynamic> product, int index) {
     print('Product imageURL: ${product['imageURL']} | imageUrl: ${product['imageUrl']}');
+
+    final bool canSell = product['variants'] != null &&
+        (product['variants'] as List)
+            .whereType<Map<String, dynamic>>()
+            .any((v) => (v['quantityInStock'] ?? 0) > 0);
+
     return TweenAnimationBuilder<double>(
       duration: Duration(milliseconds: 300 + (index * 100)),
       tween: Tween(begin: 0.0, end: 1.0),
@@ -752,345 +781,353 @@ Widget _buildProductImage(String? imageUrl, {double size = 60}) {
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        // Product Image Placeholder
-                        
-                        Container(
-                          width: 60,
-                          height: 60,
-                          decoration: BoxDecoration(
-                            color: Colors.grey[200],
-                            borderRadius: BorderRadius.circular(12),
-                            
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          // Product Image
+                          Container(
+                            width: 60,
+                            height: 60,
+                            decoration: BoxDecoration(
+                              color: Colors.grey[200],
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: _buildProductImage(
+                              product['imageURL'],
+                              size: 60,
+                            ),
                           ),
-                          child: _buildProductImage(
-                            product['imageURL'],
-                            size: 60,
-                          ),
-                          
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          product['name'],
-                                          style: const TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w600,
-                                            color: Colors.black87,
-                                          ),
-                                        ),
-                                        Text(
-                                          '${product['category'].toString().toUpperCase()}',
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            color: Colors.grey[600],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  // Status labels section in upper right corner
-                                  Column(
-                                    crossAxisAlignment: CrossAxisAlignment.end,
-                                    children: [
-                                      Row(
-                                        mainAxisSize: MainAxisSize.min,
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
-                                          if (product['isUpcycled'])
-                                            Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                              decoration: BoxDecoration(
-                                                color: Colors.green[100],
-                                                borderRadius: BorderRadius.circular(12),
-                                              ),
-                                              child: Text(
-                                                'Upcycled',
-                                                style: TextStyle(
-                                                  fontSize: 10,
-                                                  fontWeight: FontWeight.w600,
-                                                  color: Colors.green[700],
-                                                ),
-                                              ),
+                                          Text(
+                                            product['name'],
+                                            style: const TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w600,
+                                              color: Colors.black87,
                                             ),
-                                          if (product['isMade'] == true)
-                                            Container(
-                                              margin: EdgeInsets.only(left: product['isUpcycled'] ? 4 : 0),
-                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                              decoration: BoxDecoration(
-                                                color: Colors.blue[100],
-                                                borderRadius: BorderRadius.circular(12),
-                                              ),
-                                              child: Text(
-                                                'Made',
-                                                style: TextStyle(
-                                                  fontSize: 10,
-                                                  fontWeight: FontWeight.w600,
-                                                  color: Colors.blue[700],
-                                                ),
-                                              ),
+                                          ),
+                                          Text(
+                                            '${product['category'].toString().toUpperCase()}',
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              color: Colors.grey[600],
                                             ),
+                                          ),
                                         ],
                                       ),
-                                      if (product['lowStock']) ...[
-                                        const SizedBox(height: 4),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                          decoration: BoxDecoration(
-                                            color: Colors.red[50],
-                                            borderRadius: BorderRadius.circular(12),
-                                            border: Border.all(color: Colors.red[200]!),
-                                          ),
-                                          child: Text(
-                                            'Low Stock',
-                                            style: TextStyle(
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.w600,
-                                              color: Colors.red[700],
+                                    ),
+                                    // Status labels
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.end,
+                                      children: [
+                                        Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            if (product['isUpcycled'])
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.green[100],
+                                                  borderRadius: BorderRadius.circular(12),
+                                                ),
+                                                child: Text(
+                                                  'Upcycled',
+                                                  style: TextStyle(
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: Colors.green[700],
+                                                  ),
+                                                ),
+                                              ),
+                                            if (product['isMade'] == true)
+                                              Container(
+                                                margin: EdgeInsets.only(left: product['isUpcycled'] ? 4 : 0),
+                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.blue[100],
+                                                  borderRadius: BorderRadius.circular(12),
+                                                ),
+                                                child: Text(
+                                                  'Made',
+                                                  style: TextStyle(
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: Colors.blue[700],
+                                                  ),
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                        if (product['lowStock']) ...[
+                                          const SizedBox(height: 4),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                            decoration: BoxDecoration(
+                                              color: Colors.red[50],
+                                              borderRadius: BorderRadius.circular(12),
+                                              border: Border.all(color: Colors.red[200]!),
+                                            ),
+                                            child: Text(
+                                              'Low Stock',
+                                              style: TextStyle(
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.w600,
+                                                color: Colors.red[700],
+                                              ),
                                             ),
                                           ),
-                                        ),
+                                        ],
                                       ],
-                                    ],
+                                    ),
+                                  ],
+                                ),
+                                // Description or notes
+                                if (product['description'] != null && product['description'].toString().trim().isNotEmpty) ...[
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    product['description'].toString().length > 60 
+                                        ? '${product['description'].toString().substring(0, 60)}...'
+                                        : product['description'].toString(),
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey[700],
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                  ),
+                                ] else if (product['notes'] != null && product['notes'].toString().trim().isNotEmpty) ...[
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    product['notes'].toString().length > 60 
+                                        ? '${product['notes'].toString().substring(0, 60)}...'
+                                        : product['notes'].toString(),
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey[700],
+                                      fontStyle: FontStyle.italic,
+                                    ),
                                   ),
                                 ],
-                              ),
-                              // Show description or notes if available
-                              if (product['description'] != null && product['description'].toString().trim().isNotEmpty) ...[
-                                const SizedBox(height: 6),
-                                Text(
-                                  product['description'].toString().length > 60 
-                                      ? '${product['description'].toString().substring(0, 60)}...'
-                                      : product['description'].toString(),
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey[700],
-                                    fontStyle: FontStyle.italic,
-                                  ),
-                                ),
-                              ] else if (product['notes'] != null && product['notes'].toString().trim().isNotEmpty) ...[
-                                const SizedBox(height: 6),
-                                Text(
-                                  product['notes'].toString().length > 60 
-                                      ? '${product['notes'].toString().substring(0, 60)}...'
-                                      : product['notes'].toString(),
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey[700],
-                                    fontStyle: FontStyle.italic,
-                                  ),
-                                ),
                               ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '₱${product['price'].toStringAsFixed(2)}',
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Total Value: ₱${(product['price'] * product['stock']).toStringAsFixed(2)}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
                             ],
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
+                          const Spacer(),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.blue[50],
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.blue[200]!),
+                            ),
+                            child: Text(
+                              'Stock: ${product['stock']}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.blue[700],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        height: 1,
+                        width: double.infinity,
+                        color: Colors.grey[200],
+                      ),
+                      const SizedBox(height: 12),
+                      if (product['variants'] != null && product['variants'].isNotEmpty)
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              '₱${product['price'].toStringAsFixed(2)}',
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              'Total Value: ₱${(product['price'] * product['stock']).toStringAsFixed(2)}',
+                              'Variants (${product['variants'].length}):',
                               style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey[600],
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey[700],
                               ),
                             ),
-                          ],
-                        ),
-                        const Spacer(),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.blue[50],
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.blue[200]!),
-                          ),
-                          child: Text(
-                            'Stock: ${product['stock']}',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.blue[700],
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 4,
+                              children: product['variants'].take(3).map<Widget>((variant) {
+                                return Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey[100],
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: Colors.grey[300]!),
+                                  ),
+                                  child: Text(
+                                    '${variant['size']} - ${variant['color']} (${variant['quantityInStock']})',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey[700],
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
                             ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Container(
-                      height: 1,
-                      width: double.infinity,
-                      color: Colors.grey[200],
-                    ),
-                    const SizedBox(height: 12),
-                    if (product['variants'] != null && product['variants'].isNotEmpty)
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Variants (${product['variants'].length}):',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.grey[700],
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 4,
-                            children: product['variants'].take(3).map<Widget>((variant) {
-                              return Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: Colors.grey[100],
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: Colors.grey[300]!),
-                                ),
+                            if (product['variants'].length > 3)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
                                 child: Text(
-                                  '${variant['size']} - ${variant['color']} (${variant['quantityInStock']})',
+                                  '+${product['variants'].length - 3} more variants',
                                   style: TextStyle(
                                     fontSize: 12,
-                                    color: Colors.grey[700],
+                                    color: Colors.grey[600],
+                                    fontStyle: FontStyle.italic,
                                   ),
                                 ),
-                              );
-                            }).toList(),
-                          ),
-                          if (product['variants'].length > 3)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 4),
-                              child: Text(
-                                '+${product['variants'].length - 3} more variants',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey[600],
-                                  fontStyle: FontStyle.italic,
-                                ),
                               ),
-                            ),
-                        ],
-                      )
-                    else
-                      Text(
-                        'No variants available',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[600],
-                          fontStyle: FontStyle.italic,
+                          ],
+                        )
+                      else
+                        Text(
+                          'No variants available',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                            fontStyle: FontStyle.italic,
+                          ),
                         ),
+                      const SizedBox(height: 12),
+                      Container(
+                        height: 1,
+                        width: double.infinity,
+                        color: Colors.grey[200],
                       ),
-                    const SizedBox(height: 12),
-                    Container(
-                      height: 1,
-                      width: double.infinity,
-                      color: Colors.grey[200],
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: () {
-                              // TODO: Implement sell functionality
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Sell ${product['name']} feature coming soon!')),
-                              );
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.blue[600],
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                            icon: const Icon(Icons.attach_money, size: 16),
-                            label: const Text('Sell', style: TextStyle(fontWeight: FontWeight.w600)),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () async {
-                              final result = await Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (context) => ProductDetailPage(productData: product),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: AbsorbPointer(
+                              absorbing: !canSell,
+                              child: ElevatedButton.icon(
+                                onPressed: canSell
+                                    ? () async {
+                                        final result = await showModalBottomSheet(
+                                          context: context,
+                                          isScrollControlled: true,
+                                          builder: (context) => SellModal(product: product, variants: product['variants']),
+                                        );
+                                        if (result != null) {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(content: Text('Sold ${result['quantity']} item(s)!'), backgroundColor: Colors.green),
+                                          );
+                                          await _loadProducts(isRefresh: true);
+                                        }
+                                      }
+                                    : null,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: canSell ? Colors.blue[600] : Colors.grey[400],
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
                                 ),
-                              );
-                              if (result == true) {
-                                _selectedCategory = 'All';
-                                _showUpcycledOnly = false;
-                                _showLowStockOnly = false;
-                                _searchController.clear();
-                                await _loadProducts(isRefresh: true);
-                              }
-                            },
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: Colors.black87,
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
+                                icon: const Icon(Icons.attach_money, size: 16),
+                                label: const Text('Sell', style: TextStyle(fontWeight: FontWeight.w600)),
                               ),
-                              side: BorderSide(color: Colors.grey[300]!),
                             ),
-                            icon: const Icon(Icons.edit, size: 16),
-                            label: const Text('Edit', style: TextStyle(fontWeight: FontWeight.w600)),
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () {
-                              // TODO: Implement job orders functionality
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Job Orders for ${product['name']} feature coming soon!')),
-                              );
-                            },
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: Colors.black87,
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () async {
+                                final result = await Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (context) => ProductDetailPage(productData: product),
+                                  ),
+                                );
+                                if (result == true) {
+                                  _selectedCategory = 'All';
+                                  _showUpcycledOnly = false;
+                                  _showLowStockOnly = false;
+                                  _searchController.clear();
+                                  await _loadProducts(isRefresh: true);
+                                }
+                              },
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.black87,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                side: BorderSide(color: Colors.grey[300]!),
                               ),
-                              side: BorderSide(color: Colors.grey[300]!),
+                              icon: const Icon(Icons.edit, size: 16),
+                              label: const Text('Edit', style: TextStyle(fontWeight: FontWeight.w600)),
                             ),
-                            icon: const Icon(Icons.work, size: 16),
-                            label: const Text('Job Orders', style: TextStyle(fontWeight: FontWeight.w600)),
                           ),
-                        ),
-                      ],
-                    ),
-                  ],
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Job Orders for ${product['name']} feature coming soon!')),
+                                );
+                              },
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.black87,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                side: BorderSide(color: Colors.grey[300]!),
+                              ),
+                              icon: const Icon(Icons.work, size: 16),
+                              label: const Text('Job Orders', style: TextStyle(fontWeight: FontWeight.w600)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
-          )
         );
       },
     );

@@ -99,11 +99,10 @@ Widget _buildBigStatCard({
 
   double _getMaxProfit() {
     if (_productProfits.isEmpty) return 100;
-    final max = _productProfits
-        .map((p) => (p['profit'] as num?)?.toDouble() ?? 0.0)
-        .fold<double>(0, (prev, e) => e > prev ? e : prev)
-        .abs();
-    return max < 100 ? 100 : max * 1.2;
+    final sum = _productProfits
+        .map((p) => (p['totalRevenue'] as num?)?.toDouble() ?? 0.0)
+        .fold<double>(0, (prev, e) => prev + e);
+    return sum < 100 ? 100 : sum * 1.2;
   }
 
   @override
@@ -175,14 +174,17 @@ Widget _buildBigStatCard({
                             ),
                           ),
                           const SizedBox(height: 10),
-                          Text(
-                            '₱${_profit?.toStringAsFixed(2) ?? "0.00"}',
-                            style: TextStyle(
-                              fontSize: 38,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.green[800],
-                            ),
+                        Text(
+                          '₱${_productProfits
+                              .map((p) => (p['totalRevenue'] as num?)?.toDouble() ?? 0.0)
+                              .fold<double>(0, (prev, e) => prev + e)
+                              .toStringAsFixed(2)}',
+                          style: TextStyle(
+                            fontSize: 38,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.green[800],
                           ),
+                        ),
                         ],
                       ),
                     ),
@@ -232,7 +234,7 @@ Widget _buildBigStatCard({
                               ),
                               borderData: FlBorderData(show: false),
                               barGroups: List.generate(_productProfits.length, (i) {
-                                final profit = (_productProfits[i]['profit'] as num?)?.toDouble() ?? 0.0;
+                                final profit = (_productProfits[i]['totalRevenue'] as num?)?.toDouble() ?? 0.0;
                                 return BarChartGroupData(
                                   x: i,
                                   barRods: [
@@ -364,11 +366,11 @@ Widget _buildBigStatCard({
                                 Align(
                                   alignment: Alignment.centerRight,
                                   child: Text(
-                                    'Profit: ₱${p['profit'].toStringAsFixed(2)}',
+                                    'Profit: ₱${p['totalRevenue'].toStringAsFixed(2)}',
                                     style: TextStyle(
                                       fontSize: 20,
                                       fontWeight: FontWeight.bold,
-                                      color: p['profit'] >= 0 ? Colors.green[800] : Colors.red[800],
+                                      color: p['totalRevenue'] >= 0 ? Colors.green[800] : Colors.red[800],
                                     ),
                                   ),
                                 ),

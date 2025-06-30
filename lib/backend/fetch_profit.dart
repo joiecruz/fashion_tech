@@ -43,7 +43,7 @@ Future<double> fetchProductProfit(String productID) async {
       .doc(productID)
       .get();
 
-  final unitCost = (productDoc.data()?['unitCostEstimate'] ?? 0).toDouble();
+  final unitCost = (productDoc.data()?['price'] ?? 0).toDouble();
   final totalCost = unitCost * totalQtySold;
 
   return totalRevenue - totalCost;
@@ -95,7 +95,7 @@ Future<List<Map<String, dynamic>>> fetchUserProductProfits() async {
       'name': productData['name'] ?? '',
       'totalRevenue': totalRevenue,
       'totalQtySold': totalQtySold,
-      'unitCost': (productData['unitCostEstimate'] ?? 0).toDouble(),
+      'unitCost': (productData['price'] ?? 0).toDouble(),
       'profit': profit,
       'jobOrderCount': jobOrderCount,
     });
