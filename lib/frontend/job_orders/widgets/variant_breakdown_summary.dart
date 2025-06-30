@@ -61,32 +61,6 @@ class VariantBreakdownSummary extends StatelessWidget {
           ),
           const SizedBox(height: 20),
           if (variants.isNotEmpty) ...[
-            // Horizontal scrollable variant cards
-            Container(
-              height: 120,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade200),
-              ),
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: variants.asMap().entries.map((entry) {
-                    int idx = entry.key;
-                    FormProductVariant variant = entry.value;
-                    return _buildVariantSummaryCard(variant, idx);
-                  }).toList(),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            
-            // Summary stats with bar chart
-            _buildQuantityBarChart(context),
-            const SizedBox(height: 16),
-            
             // Summary stats cards
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
@@ -129,6 +103,40 @@ class VariantBreakdownSummary extends StatelessWidget {
                 ],
               ),
             ),
+            const SizedBox(height: 16),
+            
+            // Summary stats with bar chart
+            _buildQuantityBarChart(context),
+            const SizedBox(height: 16),
+            
+            // Horizontal scrollable variant cards
+            Container(
+              height: 160,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.grey.shade50, Colors.white],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Row(
+                    children: variants.asMap().entries.map((entry) {
+                      int idx = entry.key;
+                      FormProductVariant variant = entry.value;
+                      return _buildVariantSummaryCard(variant, idx);
+                    }).toList(),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
           ] else ...[
             Container(
               height: 120,
@@ -165,107 +173,207 @@ class VariantBreakdownSummary extends StatelessWidget {
 
   Widget _buildVariantSummaryCard(FormProductVariant variant, int index) {
     final variantColors = [
-      Colors.blue.shade100,
-      Colors.green.shade100,
-      Colors.orange.shade100,
-      Colors.purple.shade100,
-      Colors.teal.shade100,
+      Colors.blue,
+      Colors.green,
+      Colors.orange,
+      Colors.purple,
+      Colors.teal,
     ];
-    final cardColor = variantColors[index % variantColors.length];
+    final baseColor = variantColors[index % variantColors.length];
     
     return Container(
-      margin: const EdgeInsets.only(right: 12),
-      padding: const EdgeInsets.all(12),
-      width: 140,
+      margin: const EdgeInsets.only(right: 16),
+      width: 160,
       decoration: BoxDecoration(
-        color: cardColor,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade300),
+        gradient: LinearGradient(
+          colors: [baseColor.shade50, Colors.white],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: baseColor.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: baseColor.shade100.withOpacity(0.5),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Variant ${index + 1}',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 12,
-              color: Colors.grey.shade800,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            variant.size,
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey.shade700,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 6),
-          if (variant.fabrics.isNotEmpty) ...[
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header with variant number and size
             Row(
               children: [
-                ...(variant.fabrics.take(3).map((fabric) {
-                  final fabricData = userFabrics.firstWhere(
-                    (f) => f['id'] == fabric.fabricId,
-                    orElse: () => {'color': '#FF0000'},
-                  );
-                  final color = parseColor(fabricData['color'] as String);
-                  return Container(
-                    margin: const EdgeInsets.only(right: 2),
-                    width: 12,
-                    height: 12,
-                    decoration: BoxDecoration(
-                      color: color,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 1),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: baseColor.shade100,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    'V${index + 1}',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 9,
+                      color: baseColor.shade700,
                     ),
-                  );
-                }).toList()),
-                if (variant.fabrics.length > 3) ...[
-                  Container(
-                    width: 12,
-                    height: 12,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 1),
-                    ),
-                    child: Center(
-                      child: Text(
-                        '+${variant.fabrics.length - 3}',
-                        style: TextStyle(
-                          fontSize: 8,
-                          color: Colors.grey.shade600,
-                          fontWeight: FontWeight.w600,
-                        ),
+                  ),
+                ),
+                const Spacer(),
+                Icon(
+                  Icons.checkroom,
+                  size: 14,
+                  color: baseColor.shade400,
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            
+            // Size
+            Text(
+              variant.size,
+              style: TextStyle(
+                fontSize: 15,
+                color: Colors.grey.shade800,
+                fontWeight: FontWeight.w700,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 6),
+            
+            // Fabric colors
+            if (variant.fabrics.isNotEmpty) ...[
+              Row(
+                children: [
+                  Icon(
+                    Icons.palette,
+                    size: 11,
+                    color: Colors.grey.shade600,
+                  ),
+                  const SizedBox(width: 3),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          ...(variant.fabrics.take(4).map((fabric) {
+                            final fabricData = userFabrics.firstWhere(
+                              (f) => f['id'] == fabric.fabricId,
+                              orElse: () => {'color': '#FF0000'},
+                            );
+                            final color = parseColor(fabricData['color'] as String);
+                            return Container(
+                              margin: const EdgeInsets.only(right: 2),
+                              width: 12,
+                              height: 12,
+                              decoration: BoxDecoration(
+                                color: color,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white, width: 1.5),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.1),
+                                    blurRadius: 1,
+                                    offset: const Offset(0, 0.5),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }).toList()),
+                          if (variant.fabrics.length > 4) ...[
+                            Container(
+                              width: 12,
+                              height: 12,
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade400,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white, width: 1.5),
+                              ),
+                              child: Center(
+                                child: Text(
+                                  '+${variant.fabrics.length - 4}',
+                                  style: TextStyle(
+                                    fontSize: 6,
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ),
                   ),
                 ],
-              ],
-            ),
-          ] else ...[
-            Text(
-              'No fabrics',
-              style: TextStyle(
-                fontSize: 10,
-                color: Colors.grey.shade600,
-                fontWeight: FontWeight.w500,
+              ),
+              const SizedBox(height: 6),
+            ] else ...[
+              Row(
+                children: [
+                  Icon(
+                    Icons.palette_outlined,
+                    size: 11,
+                    color: Colors.grey.shade400,
+                  ),
+                  const SizedBox(width: 3),
+                  Text(
+                    'No fabrics',
+                    style: TextStyle(
+                      fontSize: 9,
+                      color: Colors.grey.shade500,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+            ],
+            
+            // Quantity
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: baseColor.shade200),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.inventory_2,
+                    size: 10,
+                    color: baseColor.shade600,
+                  ),
+                  const SizedBox(width: 3),
+                  Text(
+                    '${variant.quantity}',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: baseColor.shade700,
+                    ),
+                  ),
+                  const SizedBox(width: 2),
+                  Text(
+                    variant.quantity == 1 ? 'unit' : 'units',
+                    style: TextStyle(
+                      fontSize: 8,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
-          const SizedBox(height: 6),
-          Text(
-            '${variant.quantity} unit${variant.quantity == 1 ? '' : 's'}',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: Colors.grey.shade700,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
