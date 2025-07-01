@@ -231,6 +231,16 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
   int get _lowStockCount => _products.where((p) => p['lowStock']).length;
   double get _totalPotentialValue => _products.fold(0.0, (sum, p) => sum + (p['price'] ?? 0) * (p['stock'] ?? 0));
 
+  String _formatCurrency(double value) {
+    if (value >= 1000000) {
+      return '₱${(value / 1000000).toStringAsFixed(1)}M';
+    } else if (value >= 1000) {
+      return '₱${(value / 1000).toStringAsFixed(1)}K';
+    } else {
+      return '₱${value.toStringAsFixed(0)}';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -402,21 +412,20 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
                                                 title: 'Total\nProducts',
                                                 value: _totalProducts.toString(),
                                               )),
-                                              const SizedBox(width: 16),
+                                              const SizedBox(width: 12),
                                               Expanded(child: _buildStatCard(
                                                 icon: Icons.warning_outlined,
                                                 iconColor: Colors.red[600]!,
                                                 title: 'Low Stock\n(<5)',
                                                 value: _lowStockCount.toString(),
                                               )),
-                                              const SizedBox(width: 16),
-                                              Expanded(child: _buildStatCard(
-                                                icon: Icons.attach_money,
-                                                iconColor: Colors.green[600]!,
-                                                title: 'Potential\nValue',
-                                                value: '₱${_totalPotentialValue.toStringAsFixed(2)}',
-                                                isLarge: true,
-                                              )),
+                                              const SizedBox(width: 12),                              Expanded(child: _buildStatCard(
+                                icon: Icons.attach_money,
+                                iconColor: Colors.green[600]!,
+                                title: 'Potential\nValue',
+                                value: _formatCurrency(_totalPotentialValue),
+                                isLarge: true,
+                              )),
                                             ],
                                           ),
                                         ),
@@ -560,6 +569,7 @@ Widget _buildStatCard({
       border: Border.all(color: iconColor.withOpacity(0.18)),
     ),
     child: Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Container(
           decoration: BoxDecoration(
@@ -581,12 +591,18 @@ Widget _buildStatCard({
           ),
         ),
         const SizedBox(height: 4),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: isLarge ? 18 : 20,
-            fontWeight: FontWeight.bold,
-            color: Colors.black87,
+        Flexible(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              value,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: isLarge ? 16 : 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+            ),
           ),
         ),
       ],
