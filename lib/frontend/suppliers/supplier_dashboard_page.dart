@@ -492,12 +492,17 @@ class _SupplierDashboardPageState extends State<SupplierDashboardPage>
             ),
           ),
           const SizedBox(height: 4),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: isLarge ? 18 : 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
+          Flexible(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                value,
+                style: TextStyle(
+                  fontSize: isLarge ? 18 : 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
             ),
           ),
         ],

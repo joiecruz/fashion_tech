@@ -158,6 +158,16 @@ Future<void> _deleteFabricById(String fabricId) async {
     });
   }
 
+  String _formatCurrency(double value) {
+    if (value >= 1000000) {
+      return '₱${(value / 1000000).toStringAsFixed(1)}M';
+    } else if (value >= 1000) {
+      return '₱${(value / 1000).toStringAsFixed(1)}K';
+    } else {
+      return '₱${value.toStringAsFixed(0)}';
+    }
+  }
+
   Widget _buildStatCard({
     required IconData icon,
     required Color iconColor,
@@ -183,6 +193,7 @@ Future<void> _deleteFabricById(String fabricId) async {
         border: Border.all(color: iconColor.withOpacity(0.18)),
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Container(
             decoration: BoxDecoration(
@@ -204,12 +215,18 @@ Future<void> _deleteFabricById(String fabricId) async {
             ),
           ),
           const SizedBox(height: 4),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: isLarge ? 18 : 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
+          Flexible(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                value,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: isLarge ? 18 : 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
             ),
           ),
         ],
@@ -565,19 +582,19 @@ Future<void> _deleteFabricById(String fabricId) async {
                                             title: 'Total\nFabrics',
                                             value: _allFabrics.length.toString(),
                                           )),
-                                          const SizedBox(width: 16),
+                                          const SizedBox(width: 12),
                                           Expanded(child: _buildStatCard(
                                             icon: Icons.warning_outlined,
                                             iconColor: Colors.red[600]!,
                                             title: 'Low Stock\n(<5)',
                                             value: _getLowStockCount(_allFabrics).toString(),
                                           )),
-                                          const SizedBox(width: 16),
+                                          const SizedBox(width: 12),
                                           Expanded(child: _buildStatCard(
                                             icon: Icons.attach_money,
                                             iconColor: Colors.green[600]!,
                                             title: 'Total\nExpense',
-                                            value: '₱${_getTotalExpense(_allFabrics).toStringAsFixed(2)}',
+                                            value: _formatCurrency(_getTotalExpense(_allFabrics)),
                                             isLarge: true,
                                           )),
                                         ],
