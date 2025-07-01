@@ -18,7 +18,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
   final _formKey = GlobalKey<FormState>();
   final ScrollController _scrollController = ScrollController();
   final GlobalKey _variantsSectionKey = GlobalKey();
-  final TextEditingController _productNameController = TextEditingController();
+  final TextEditingController _jobOrderNameController = TextEditingController();
   final TextEditingController _customerNameController = TextEditingController();
   final TextEditingController _orderDateController = TextEditingController();
   final TextEditingController _dueDateController = TextEditingController();
@@ -47,7 +47,18 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
   @override
   void initState() {
     super.initState();
-    
+    // Prefill form fields for quick testing
+    _jobOrderNameController.text = 'Sample Job Order';
+    _customerNameController.text = 'Jane Doe';
+    _orderDateController.text = DateTime.now().toIso8601String().substring(0, 10);
+    _dueDateController.text = DateTime.now().add(const Duration(days: 7)).toIso8601String().substring(0, 10);
+    _assignedToController.text = 'Maria Santos';
+    _quantityController.text = '10';
+    _priceController.text = '1500.00';
+    _specialInstructionsController.text = 'Custom embroidery on sleeves.';
+    _isUpcycled = true;
+    _jobStatus = 'In Progress';
+
     // Initialize animation controller
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 600),
@@ -211,7 +222,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
   void dispose() {
     _animationController.dispose();
     _scrollController.dispose();
-    _productNameController.dispose();
+    _jobOrderNameController.dispose();
     _customerNameController.dispose();
     _orderDateController.dispose();
     _dueDateController.dispose();
@@ -513,10 +524,10 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
       color: Colors.blue,
       children: [
         _buildTextField(
-          controller: _productNameController,
-          label: 'Product Name',
+          controller: _jobOrderNameController,
+          label: 'Job Order Name',
           hint: 'E.g., Summer Collection Dress',
-          icon: Icons.inventory_2,
+          icon: Icons.assignment,
           validator: (val) => val?.isEmpty ?? true ? 'Required' : null,
         ),
         const SizedBox(height: 16),
@@ -1091,28 +1102,72 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
   }
 
   Future<void> _saveJobOrder() async {
+    // Form validation
     if (_formKey.currentState == null || !_formKey.currentState!.validate()) {
-      return;
-    }
-    if (_variants.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please add at least one product variant.')),
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Validation Error'),
+          content: const Text('Please fill out all required fields.'),
+          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
+        ),
       );
       return;
     }
-    for (final variant in _variants) {
+    
+    // Variant validation
+    if (_variants.isEmpty) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Missing Variants'),
+          content: const Text('Please add at least one product variant.'),
+          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
+        ),
+      );
+      return;
+    }
+    
+    // Fabric validation for each variant
+    for (int i = 0; i < _variants.length; i++) {
+      final variant = _variants[i];
       if (variant.fabrics.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Each variant must have at least one fabric.')),
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Missing Fabric'),
+            content: Text('Variant ${i + 1} (${variant.size}) must have at least one fabric.'),
+            actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
+          ),
+        );
+        return;
+      }
+      
+      // Validate variant quantity
+      if (variant.quantity <= 0) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Invalid Quantity'),
+            content: Text('Variant ${i + 1} (${variant.size}) must have a quantity greater than 0.'),
+            actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
+          ),
         );
         return;
       }
     }
+    
+    // Quantity matching validation
     int globalQty = int.tryParse(_quantityController.text) ?? 0;
     int sumVariants = _variants.fold(0, (sum, v) => sum + v.quantity);
     if (globalQty != sumVariants) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Sum of variant quantities ($sumVariants) must equal global quantity ($globalQty).')),
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Quantity Mismatch'),
+          content: Text('Sum of variant quantities ($sumVariants) must equal global quantity ($globalQty).'),
+          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
+        ),
       );
       return;
     }
@@ -1121,7 +1176,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
       // Save product
       final productRef = FirebaseFirestore.instance.collection('products').doc();
       await productRef.set({
-        'name': _productNameController.text,
+        'name': _jobOrderNameController.text,
         'price': double.tryParse(_priceController.text) ?? 0.0,
         'category': 'Custom',
         'isUpcycled': _isUpcycled,
@@ -1130,51 +1185,91 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
-      // Save job order
+      // Save job order with ERDv8 compliant fields
       final jobOrderRef = FirebaseFirestore.instance.collection('jobOrders').doc();
       await jobOrderRef.set({
-        'productID': productRef.id,
-        'quantity': globalQty,
-        'customerName': _customerNameController.text,
-        'status': _jobStatus,
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
+        'name': _jobOrderNameController.text, // ERDv8: required name field
+        'productID': productRef.id, // required
+        'quantity': globalQty, // required
+        'customerName': _customerNameController.text, // required
+        'status': _jobStatus, // required
         'dueDate': (_dueDateController.text.isNotEmpty)
             ? Timestamp.fromDate(DateTime.tryParse(_dueDateController.text) ?? DateTime.now())
-            : FieldValue.serverTimestamp(),
-        'assignedTo': _assignedToController.text,
-        'createdBy': 'current_user_id',
-        'specialInstructions': _specialInstructionsController.text,
+            : FieldValue.serverTimestamp(), // required
+        'createdBy': 'current_user_id', // required - should be actual user ID in production
+        'assignedTo': _assignedToController.text, // optional
+        'specialInstructions': _specialInstructionsController.text, // optional
         'orderDate': (_orderDateController.text.isNotEmpty)
             ? Timestamp.fromDate(DateTime.tryParse(_orderDateController.text) ?? DateTime.now())
-            : FieldValue.serverTimestamp(),
+            : FieldValue.serverTimestamp(), // optional
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
       });
 
-      // Save variants
+      // Save JobOrderDetails (ERDv8 compliant) - one record per variant
       for (final variant in _variants) {
-        final variantRef = FirebaseFirestore.instance.collection('productVariants').doc();
-        await variantRef.set({
-          'productID': productRef.id,
-          'size': variant.size,
-          'color': variant.color,
-          'quantityInStock': variant.quantity,
-          'fabrics': variant.fabrics.map((f) => {
-            'fabricId': f.fabricId,
-            'fabricName': f.fabricName,
-            'yardsRequired': f.yardsRequired,
-          }).toList(),
+        // Get unique fabric colors for this variant
+        final fabricColors = variant.fabrics
+            .map((f) => _userFabrics.firstWhere((fabric) => fabric['fabricID'] == f.fabricId, orElse: () => {})['color'] ?? '#000000')
+            .toSet()
+            .toList();
+        
+        // Create comma-separated color string
+        final colorString = fabricColors.join(', ');
+        
+        final jobOrderDetailRef = FirebaseFirestore.instance.collection('jobOrderDetails').doc();
+        await jobOrderDetailRef.set({
+          'jobOrderID': jobOrderRef.id, // required
+          'fabricID': variant.fabrics.first.fabricId, // required - primary fabric
+          'yardageUsed': variant.fabrics.fold(0.0, (sum, f) => sum + f.yardsRequired), // required - total yardage for this variant
+          'size': variant.size, // required (ERDv8 update)
+          'color': colorString, // auto-populated from fabrics
+          'quantity': variant.quantity, // required (ERDv8 update) - quantity of this specific variant
           'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
         });
+        
+        // If variant has multiple fabrics, create additional records for secondary fabrics
+        for (int i = 1; i < variant.fabrics.length; i++) {
+          final additionalFabric = variant.fabrics[i];
+          final additionalJobOrderDetailRef = FirebaseFirestore.instance.collection('jobOrderDetails').doc();
+          await additionalJobOrderDetailRef.set({
+            'jobOrderID': jobOrderRef.id,
+            'fabricID': additionalFabric.fabricId,
+            'yardageUsed': additionalFabric.yardsRequired,
+            'size': variant.size,
+            'color': _userFabrics.firstWhere((fabric) => fabric['fabricID'] == additionalFabric.fabricId, orElse: () => {})['color'] ?? '#000000',
+            'quantity': 0, // Secondary fabrics don't add to quantity count
+            'createdAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        }
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Job order saved successfully!')),
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Success'),
+          content: const Text('Job order saved successfully!'),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                Navigator.pop(context); // Close dialog
+                await _closeModal(); // Close modal
+              },
+              child: const Text('OK'),
+            )
+          ],
+        ),
       );
-      await _closeModal();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error saving job order: $e')),
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Error'),
+          content: Text('Error saving job order: $e'),
+          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
+        ),
       );
     }
   }
