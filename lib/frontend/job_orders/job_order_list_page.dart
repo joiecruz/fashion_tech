@@ -301,7 +301,7 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                                     child: Opacity(
                                       opacity: value,
                                       child: Padding(
-                                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                                         child: _buildJobOrderCard(jobOrders[index], index),
                                       ),
                                     ),
@@ -779,7 +779,7 @@ class _JobOrderListPageState extends State<JobOrderListPage>
     
     // ERDv8 JobOrder fields
     final String jobOrderID = doc.id;
-    final String jobOrderName = data['name'] ?? 'Unnamed Job Order'; // ERDv8 job order name
+    final String jobOrderName = data['name'] ?? 'Unnamed Job Order';
     final String productID = data['productID'] ?? '';
     final int quantity = data['quantity'] ?? 0;
     final String customerName = data['customerName'] ?? '';
@@ -792,13 +792,10 @@ class _JobOrderListPageState extends State<JobOrderListPage>
     final DateTime? dueDate = dueDateTimestamp?.toDate();
     final DateTime? createdAt = createdAtTimestamp?.toDate();
     
-    // Get related data (for additional context like image and category)
-    print('Loaded product IDs: ${productData.keys.toList()}');
-    print('JobOrder productID: $productID, JobOrder name: $jobOrderName');
+    // Get related data
     final productInfo = productData[productID] ?? {};
     final String productCategory = productInfo['category'] ?? '';
     final bool isUpcycled = productInfo['isUpcycled'] ?? false;
-    
     final String assignedToName = userNames[assignedTo] ?? assignedTo;
     
     // Check if overdue
@@ -809,54 +806,53 @@ class _JobOrderListPageState extends State<JobOrderListPage>
         DateTime.now().difference(dueDate).inDays : 0;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 6,
+            offset: const Offset(0, 1),
           ),
         ],
         border: isOverdue ? Border.all(color: Colors.red.shade200, width: 1) : null,
       ),
       child: InkWell(
         onTap: () {
-          // Navigate to job order details
           print('Navigate to job order details: $jobOrderID');
         },
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header with job order info
+              // Compact header with job order name, status, and quantity
               Row(
                 children: [
-                  // Job order icon (instead of product image)
+                  // Job order icon
                   Container(
-                    width: 50,
-                    height: 50,
+                    width: 40,
+                    height: 40,
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: [Colors.orange[100]!, Colors.orange[200]!],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(
                       Icons.assignment,
                       color: Colors.orange[600],
-                      size: 24,
+                      size: 20,
                     ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 12),
                   
-                  // Job order name and details
+                  // Job order name and product
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -867,21 +863,54 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                               child: Text(
                                 jobOrderName,
                                 style: const TextStyle(
-                                  fontSize: 18,
+                                  fontSize: 16,
                                   fontWeight: FontWeight.w600,
                                   color: Colors.black87,
                                 ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            // Quantity badge
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.orange[50],
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: Colors.orange[200]!),
+                              ),
+                              child: Text(
+                                'Qty: $quantity',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.orange[700],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                productNames[productID] ?? 'Unknown Product',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[600],
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                             // Status chip
                             Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12, 
-                                vertical: 6,
-                              ),
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                               decoration: BoxDecoration(
                                 color: _getStatusColor(status).withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(20),
+                                borderRadius: BorderRadius.circular(12),
                                 border: Border.all(
                                   color: _getStatusColor(status).withOpacity(0.3),
                                 ),
@@ -889,7 +918,7 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                               child: Text(
                                 status,
                                 style: TextStyle(
-                                  fontSize: 12,
+                                  fontSize: 10,
                                   fontWeight: FontWeight.w600,
                                   color: _getStatusColor(status),
                                 ),
@@ -897,51 +926,61 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                             ),
                           ],
                         ),
-                        const SizedBox(height: 4),
-                        // Show related product name as subtitle
-                        Text(
-                          'Product: ${productNames[productID] ?? 'Unknown Product'}',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey[600],
-                            fontWeight: FontWeight.w500,
-                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              
+              const SizedBox(height: 12),
+              
+              // Compact info grid
+              Row(
+                children: [
+                  // Customer & Assignment column
+                  Expanded(
+                    flex: 2,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildInfoRow(
+                          icon: Icons.person_outline,
+                          label: 'Customer',
+                          value: customerName.isNotEmpty ? customerName : 'No customer',
+                          isCompact: true,
                         ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            if (productCategory.isNotEmpty) ...[
-                              Text(
-                                productCategory.toUpperCase(),
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey[600],
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                            ],
-                            if (isUpcycled) ...[
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6, 
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.green[100],
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Text(
-                                  'UPCYCLED',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.green[700],
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ],
+                        const SizedBox(height: 6),
+                        _buildInfoRow(
+                          icon: Icons.assignment_ind_outlined,
+                          label: 'Assigned',
+                          value: assignedToName.isNotEmpty ? assignedToName : 'Unassigned',
+                          isCompact: true,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  
+                  // Dates column
+                  Expanded(
+                    flex: 2,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildInfoRow(
+                          icon: Icons.calendar_today_outlined,
+                          label: 'Created',
+                          value: createdAt != null ? _formatCompactDate(createdAt) : '-',
+                          isCompact: true,
+                        ),
+                        const SizedBox(height: 6),
+                        _buildInfoRow(
+                          icon: isOverdue ? Icons.warning_outlined : Icons.schedule_outlined,
+                          label: 'Due Date',
+                          value: dueDate != null ? _formatCompactDate(dueDate) : '-',
+                          isCompact: true,
+                          isUrgent: isOverdue,
+                          urgentText: isOverdue ? '$overdueDays days overdue' : null,
                         ),
                       ],
                     ),
@@ -949,226 +988,85 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                 ],
               ),
               
-              const SizedBox(height: 16),
-              
-              // Customer and assignment info
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Customer',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[600],
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          customerName.isNotEmpty ? customerName : 'No customer',
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.black87,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Assigned To',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[600],
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          assignedToName.isNotEmpty ? assignedToName : 'Unassigned',
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.black87,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              
-              const SizedBox(height: 16),
-              
-              // Dates and quantity
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Created',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[600],
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          createdAt != null ? _formatDate(createdAt) : '-',
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.black87,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Text(
-                              'Due Date',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey[600],
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            if (isOverdue) ...[
-                              const SizedBox(width: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6, 
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.red[100],
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Text(
-                                  'OVERDUE',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.red[700],
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          dueDate != null ? _formatDate(dueDate) : '-',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: isOverdue ? Colors.red[700] : Colors.black87,
-                          ),
-                        ),
-                        if (isOverdue) ...[
-                          Text(
-                            '$overdueDays days overdue',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.red[600],
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Quantity',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey[600],
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
+              // Category and upcycled tags (if applicable)
+              if (productCategory.isNotEmpty || isUpcycled) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    if (productCategory.isNotEmpty) ...[
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12, 
-                          vertical: 6,
-                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: Colors.orange[50],
-                          borderRadius: BorderRadius.circular(8),
+                          color: Colors.grey[100],
+                          borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
-                          quantity.toString(),
+                          productCategory.toUpperCase(),
                           style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.orange[700],
+                            fontSize: 9,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ),
+                      if (isUpcycled) const SizedBox(width: 6),
+                    ],
+                    if (isUpcycled) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.green[100],
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          'UPCYCLED',
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.green[700],
                           ),
                         ),
                       ),
                     ],
-                  ),
-                ],
-              ),
+                  ],
+                ),
+              ],
               
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               
-              // Action buttons
+              // Compact action buttons
               Row(
                 children: [
                   // Edit button
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: () {
-                        // TODO: Navigate to edit job order
                         print('Edit job order: $jobOrderID');
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Edit job order "$jobOrderName" feature coming soon!')),
+                          SnackBar(content: Text('Edit "$jobOrderName" feature coming soon!')),
                         );
                       },
-                      icon: const Icon(Icons.edit, size: 16),
-                      label: const Text('Edit'),
+                      icon: const Icon(Icons.edit, size: 14),
+                      label: const Text('Edit', style: TextStyle(fontSize: 12)),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.black87,
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                         side: BorderSide(color: Colors.grey[300]!),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 6),
                   
                   // Delete button
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: () async {
-                        // Show delete confirmation
                         final confirm = await showDialog<bool>(
                           context: context,
                           builder: (context) => AlertDialog(
                             title: const Text('Delete Job Order'),
-                            content: Text('Are you sure you want to delete "$jobOrderName"? This action cannot be undone.'),
+                            content: Text('Delete "$jobOrderName"? This cannot be undone.'),
                             actions: [
                               TextButton(
                                 onPressed: () => Navigator.pop(context, false),
@@ -1183,33 +1081,29 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                         );
                         
                         if (confirm == true) {
-                          // TODO: Implement delete functionality
                           print('Delete job order: $jobOrderID');
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Delete job order "$jobOrderName" feature coming soon!')),
+                            SnackBar(content: Text('Delete "$jobOrderName" feature coming soon!')),
                           );
                         }
                       },
-                      icon: const Icon(Icons.delete, size: 16),
-                      label: const Text('Delete'),
+                      icon: const Icon(Icons.delete, size: 14),
+                      label: const Text('Delete', style: TextStyle(fontSize: 12)),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.red[600],
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                         side: BorderSide(color: Colors.red[300]!),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 6),
                   
-                  // Mark as Done button (only show if not already done)
+                  // Mark as Done / Completed indicator
                   if (status != 'Done')
                     Expanded(
                       child: ElevatedButton.icon(
                         onPressed: () async {
-                          // Show confirmation
                           final confirm = await showDialog<bool>(
                             context: context,
                             builder: (context) => AlertDialog(
@@ -1229,44 +1123,40 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                           );
                           
                           if (confirm == true) {
-                            // TODO: Implement mark as done functionality
                             print('Mark as done: $jobOrderID');
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(content: Text('Mark "$jobOrderName" as done feature coming soon!')),
                             );
                           }
                         },
-                        icon: const Icon(Icons.check, size: 16),
-                        label: const Text('Done'),
+                        icon: const Icon(Icons.check, size: 14),
+                        label: const Text('Done', style: TextStyle(fontSize: 12)),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.green[600],
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 6),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                         ),
                       ),
                     )
                   else
-                    // Show status indicator for completed orders
                     Expanded(
                       child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        padding: const EdgeInsets.symmetric(vertical: 6),
                         decoration: BoxDecoration(
                           color: Colors.green[50],
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(6),
                           border: Border.all(color: Colors.green[200]!),
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.check_circle, size: 16, color: Colors.green[600]),
+                            Icon(Icons.check_circle, size: 14, color: Colors.green[600]),
                             const SizedBox(width: 4),
                             Text(
                               'Completed',
                               style: TextStyle(
-                                fontSize: 14,
+                                fontSize: 12,
                                 fontWeight: FontWeight.w600,
                                 color: Colors.green[600],
                               ),
@@ -1284,7 +1174,78 @@ class _JobOrderListPageState extends State<JobOrderListPage>
     );
   }
 
-  String _formatDate(DateTime date) {
-    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+  // Helper method for compact info rows
+  Widget _buildInfoRow({
+    required IconData icon,
+    required String label,
+    required String value,
+    bool isCompact = false,
+    bool isUrgent = false,
+    String? urgentText,
+  }) {
+    return Row(
+      children: [
+        Icon(
+          icon,
+          size: 12,
+          color: isUrgent ? Colors.red[600] : Colors.grey[500],
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 10,
+                  color: Colors.grey[600],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: isUrgent ? Colors.red[700] : Colors.black87,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              if (urgentText != null) ...[
+                Text(
+                  urgentText,
+                  style: TextStyle(
+                    fontSize: 9,
+                    color: Colors.red[600],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Compact date formatting
+  String _formatCompactDate(DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date).inDays;
+    
+    if (difference == 0) {
+      return 'Today';
+    } else if (difference == 1) {
+      return 'Yesterday';
+    } else if (difference < 7) {
+      return '${difference}d ago';
+    } else if (difference < 30) {
+      final weeks = (difference / 7).floor();
+      return '${weeks}w ago';
+    } else {
+      return '${date.month}/${date.day}/${date.year.toString().substring(2)}';
+    }
   }
 }
