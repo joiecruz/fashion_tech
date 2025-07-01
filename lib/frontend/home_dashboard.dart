@@ -72,17 +72,20 @@ class _HomeDashboardState extends State<HomeDashboard> {
                     child: StreamBuilder<QuerySnapshot>(
                       stream: FirebaseFirestore.instance.collection('fabrics').snapshots(),
                       builder: (context, snapshot) {
-                        int totalYards = 0;
+                        double totalYards = 0.0;
                         if (snapshot.hasData) {
                           for (var doc in snapshot.data!.docs) {
                             final data = doc.data() as Map<String, dynamic>;
-                            totalYards += (data['quantity'] ?? 0) as int;
+                            final quantity = data['quantity'];
+                            if (quantity != null) {
+                              totalYards += (quantity as num).toDouble();
+                            }
                           }
                         }
                         return _modernStatCard(
                           icon: Icons.checkroom,
                           color: Colors.deepPurple,
-                          value: '${totalYards.toString()} yds',
+                          value: '${totalYards.toStringAsFixed(1)} yds',
                           label: 'Fabric Units',
                           gradient: LinearGradient(
                             colors: [Colors.deepPurple[100]!, Colors.deepPurple[50]!],
@@ -249,6 +252,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
                             final color = fabric['color'] ?? '';
                             final type = fabric['type'] ?? '';
                             final quantity = fabric['quantity'] ?? 0;
+                            final quantityDouble = (quantity as num).toDouble();
                             final supplierID = fabric['supplierID'];
                             return Padding(
                               padding: const EdgeInsets.symmetric(vertical: 10.0),
@@ -304,7 +308,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
                                       borderRadius: BorderRadius.circular(20),
                                     ),
                                     child: Text(
-                                      '$quantity yds',
+                                      '${quantityDouble.toStringAsFixed(1)} yds',
                                       style: const TextStyle(
                                         color: Colors.pink,
                                         fontWeight: FontWeight.bold,
