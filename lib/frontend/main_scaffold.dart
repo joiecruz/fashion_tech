@@ -44,13 +44,19 @@ class _MainScaffoldState extends State<MainScaffold> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_currentTitle, style: const TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(
+          _currentTitle,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
         centerTitle: true,
         elevation: 0,
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         actions: [
-          IconButton(icon: const Icon(Icons.notifications_none), onPressed: () {}),
+          IconButton(
+            icon: const Icon(Icons.notifications_none),
+            onPressed: () {},
+          ),
           PopupMenuButton<String>(
             onSelected: (value) async {
               if (value == 'logout') {
@@ -74,7 +80,7 @@ class _MainScaffoldState extends State<MainScaffold> {
               padding: const EdgeInsets.only(right: 12),
               child: CircleAvatar(
                 backgroundColor: Colors.teal,
-                child: Text('FL', style: TextStyle(color: Colors.white)),
+                child: Text('FL', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
               ),
             ),
           ),
@@ -85,6 +91,13 @@ class _MainScaffoldState extends State<MainScaffold> {
         children: pages,
       ),
       bottomNavigationBar: BottomNavigationBar(
+        backgroundColor: Colors.white,
+        selectedItemColor: Colors.teal,
+        unselectedItemColor: Colors.black54,
+        selectedIconTheme: const IconThemeData(color: Colors.teal),
+        unselectedIconTheme: const IconThemeData(color: Colors.black54),
+        type: BottomNavigationBarType.fixed,
+        elevation: 8,
         currentIndex: _selectedIndex,
         onTap: (index) {
           setState(() => _selectedIndex = index);

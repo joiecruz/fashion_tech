@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-// 🚨 TEMPORARY DEV IMPORTS - Remove before production
 import 'package:fashion_tech/frontend/auth/login_page.dart';
 import 'package:fashion_tech/frontend/auth/signup_page.dart';
 import 'package:fashion_tech/frontend/profit/profit_checker.dart';
@@ -20,176 +19,176 @@ class _HomeDashboardState extends State<HomeDashboard> {
           .collection('suppliers')
           .doc(supplierID)
           .get();
-      
       if (doc.exists) {
         final data = doc.data();
         return data?['supplierName'] ?? 'Unknown Supplier';
       }
       return '';
     } catch (e) {
-      print('Error fetching supplier name: $e');
       return '';
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Welcome back!', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 16),
-
-          // --- Overall Inventory Card ---
-          // Total Fabric Units is calculated from Firestore.
-          // Total Product Units is HARDCODED and should be replaced with Firestore data.
-          StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance.collection('fabrics').snapshots(),
-            builder: (context, snapshot) {
-              double totalYards = 0.0;
-              if (snapshot.hasData) {
-                for (var doc in snapshot.data!.docs) {
-                  final data = doc.data() as Map<String, dynamic>;
-                  final quantity = data['quantity'] ?? 0;
-                  totalYards += (quantity as num).toDouble();
-                }
-              }
-              return Card(
-                elevation: 2,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      Column(
-                        children: [
-                          const Icon(Icons.checkroom, size: 32, color: Colors.deepPurple),
-                          const SizedBox(height: 8),
-                          Text(
-                            '${totalYards.toStringAsFixed(1)} yds',
-                            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 4),
-                          const Text(
-                            'Total Fabric Units',
-                            style: TextStyle(fontSize: 13, color: Colors.black54),
-                          ),
-                        ],
-                      ),
-                      // TODO: Replace this HARDCODED value with Firestore query for products collection
-                      Column(
-                        children: [
-                          const Icon(Icons.inventory_2, size: 32, color: Colors.deepPurple),
-                          const SizedBox(height: 8),
-                          const Text(
-                            '387 items', // HARDCODED: Replace with Firestore data
-                            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 4),
-                          const Text(
-                            'Total Product Units',
-                            style: TextStyle(fontSize: 13, color: Colors.black54),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-
-          const SizedBox(height: 24),
-
-          // --- Recent Activity (Full Width, Responsive) ---
-          StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('activity')
-                .orderBy('timestamp', descending: true)
-                .limit(5)
-                .snapshots(),
-            builder: (context, snapshot) {
-              final activities = snapshot.data?.docs ?? [];
-              return Card(
-                elevation: 2,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Recent Activity',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 2),
-                      LayoutBuilder(
-                        builder: (context, constraints) {
-                          // Expands a divider to the width of the card minus padding
-                          return Container(
-                            width: constraints.maxWidth,
-                            height: 1,
-                            color: Colors.grey[300],
-                            margin: const EdgeInsets.symmetric(vertical: 8),
-                          );
-                        },
-                      ),
-                      const Text(
-                        'Latest system updates',
-                        style: TextStyle(fontSize: 13, color: Colors.black54),
-                      ),
-                      const SizedBox(height: 16),
-                      if (activities.isEmpty)
-                        const Text('No recent activity.'),
-                      for (var doc in activities)
-                        _ActivityRow(
-                          icon: _activityIcon(doc['type']),
-                          color: Colors.deepPurple,
-                          text: doc['description'] ?? '',
-                          time: _timeAgo(doc['timestamp']),
+    return Scaffold(
+      backgroundColor: const Color(0xFFF6F7FB),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Padding(
+                padding: const EdgeInsets.only(bottom: 18),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 24,
+                      backgroundColor: Colors.deepPurple[100],
+                      child: Icon(Icons.dashboard, color: Colors.deepPurple[700], size: 28),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Text(
+                        'Welcome back!',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey[900],
+                          letterSpacing: 0.2,
                         ),
-                    ],
-                  ),
+                      ),
+                    ),
+                  ],
                 ),
-              );
-            },
-          ),
+              ),
 
-          const SizedBox(height: 24),
-
-          // --- Profit Checker (Full Width, Responsive) ---
-          Card(
-            elevation: 2,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              // Stats Row
+              Row(
                 children: [
-                  const Text('Profit Checker', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 2),
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      return Container(
-                        width: constraints.maxWidth,
-                        height: 1,
-                        color: Colors.grey[300],
-                        margin: const EdgeInsets.symmetric(vertical: 8),
-                      );
-                    },
+                  Expanded(
+                    child: StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance.collection('fabrics').snapshots(),
+                      builder: (context, snapshot) {
+                        int totalYards = 0;
+                        if (snapshot.hasData) {
+                          for (var doc in snapshot.data!.docs) {
+                            final data = doc.data() as Map<String, dynamic>;
+                            totalYards += (data['quantity'] ?? 0) as int;
+                          }
+                        }
+                        return _modernStatCard(
+                          icon: Icons.checkroom,
+                          color: Colors.deepPurple,
+                          value: '${totalYards.toString()} yds',
+                          label: 'Fabric Units',
+                          gradient: LinearGradient(
+                            colors: [Colors.deepPurple[100]!, Colors.deepPurple[50]!],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                        );
+                      },
+                    ),
                   ),
-                  ValueListenableBuilder<double>(
-                    valueListenable: ProductInventoryPage.potentialValueNotifier,
-                    builder: (context, projectedIncome, _) {
-                      return Row(
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance.collection('products').snapshots(),
+                      builder: (context, snapshot) {
+                        int totalProducts = snapshot.hasData ? snapshot.data!.docs.length : 0;
+                        return _modernStatCard(
+                          icon: Icons.inventory_2,
+                          color: Colors.indigo,
+                          value: '$totalProducts items',
+                          label: 'Product Units',
+                          gradient: LinearGradient(
+                            colors: [Colors.indigo[100]!, Colors.indigo[50]!],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+
+              // Recent Activity
+              _modernCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _sectionTitle('Recent Activity', Icons.timeline),
+                    const SizedBox(height: 8),
+                    StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance
+                          .collection('activity')
+                          .orderBy('timestamp', descending: true)
+                          .limit(5)
+                          .snapshots(),
+                      builder: (context, snapshot) {
+                        final activities = snapshot.data?.docs ?? [];
+                        if (activities.isEmpty) {
+                          return const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 16),
+                            child: Text('No recent activity.', style: TextStyle(color: Colors.black54)),
+                          );
+                        }
+                        return Column(
+                          children: activities.map((doc) {
+                            return _ActivityRow(
+                              icon: _activityIcon(doc['type']),
+                              color: Colors.deepPurple,
+                              text: doc['description'] ?? '',
+                              time: _timeAgo(doc['timestamp']),
+                            );
+                          }).toList(),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+
+              // Profit Checker
+              _modernCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _sectionTitle('Profit Checker', Icons.attach_money),
+                    const SizedBox(height: 8),
+                    ValueListenableBuilder<double>(
+                      valueListenable: ProductInventoryPage.potentialValueNotifier,
+                      builder: (context, projectedIncome, _) {
+                        return Row(
                         children: [
                           Expanded(
-                            child: Text(
-                              'Projected Income: ₱${projectedIncome.toStringAsFixed(2)}',
-                              style: const TextStyle(fontWeight: FontWeight.w600),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Projected Income',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 15,
+                                    color: Colors.grey[800],
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '₱${projectedIncome.toStringAsFixed(2)}',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 22,
+                                    color: Colors.green[700],
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                           ElevatedButton(
@@ -199,222 +198,220 @@ class _HomeDashboardState extends State<HomeDashboard> {
                                 MaterialPageRoute(builder: (context) => const ProfitReportPage()),
                               );
                             },
-                            child: const Text('View Report'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue[600],
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                              elevation: 0,
+                            ),
+                            child: const Text('View'),
                           ),
                         ],
                       );
-                    },
-                  ),
-                ],
+                      },
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ),
+              const SizedBox(height: 18),
 
-          const SizedBox(height: 24),
-
-          // --- Fabric Insights Section (OUTSIDE Profit Checker) ---
-          Card(
-            elevation: 2,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Fabric Insights', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 2),
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      return Container(
-                        width: constraints.maxWidth,
-                        height: 1,
-                        color: Colors.grey[300],
-                        margin: const EdgeInsets.symmetric(vertical: 8),
-                      );
-                    },
-                  ),
-                  const Text(
-                    'Current stock levels',
-                    style: TextStyle(fontSize: 13, color: Colors.black54),
-                  ),
-                  const SizedBox(height: 16),
-                  StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance
-                        .collection('fabrics')
-                        .orderBy('quantity', descending: true)
-                        .limit(3)
-                        .snapshots(),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-                      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                        return const Center(child: Text('No fabric data found.'));
-                      }
-                      final fabrics = snapshot.data!.docs;
-                      return Column(
-                        children: fabrics.map((doc) {
-                          final fabric = doc.data() as Map<String, dynamic>;
-                          final name = fabric['name'] ?? 'Unnamed';
-                          final color = fabric['color'] ?? '';
-                          final type = fabric['type'] ?? '';
-                          final quantity = fabric['quantity'] ?? 0;
-                          final supplierID = fabric['supplierID'];
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 8.0),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        color.isNotEmpty ? '$name ($color)' : name,
-                                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
-                                      ),
-                                      Text(
-                                        'Type: ${type.isEmpty ? 'N/A' : type}',
-                                        style: const TextStyle(fontSize: 12, color: Colors.black54),
-                                      ),
-                                      if (supplierID != null)
-                                        FutureBuilder<String>(
-                                          future: _getSupplierName(supplierID),
-                                          builder: (context, snapshot) {
-                                            if (snapshot.hasData && snapshot.data!.isNotEmpty) {
-                                              return Text(
-                                                'Supplier: ${snapshot.data}',
-                                                style: TextStyle(
-                                                  fontSize: 11,
-                                                  color: Colors.blue[600],
-                                                  fontWeight: FontWeight.w500,
-                                                ),
-                                              );
-                                            }
-                                            return const SizedBox.shrink();
-                                          },
+              // Fabric Insights
+              _modernCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _sectionTitle('Fabric Insights', Icons.insights),
+                    const SizedBox(height: 8),
+                    StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance
+                          .collection('fabrics')
+                          .orderBy('quantity', descending: true)
+                          .limit(3)
+                          .snapshots(),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return const Center(child: CircularProgressIndicator());
+                        }
+                        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                          return const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 16),
+                            child: Text('No fabric data found.', style: TextStyle(color: Colors.black54)),
+                          );
+                        }
+                        final fabrics = snapshot.data!.docs;
+                        return Column(
+                          children: fabrics.map((doc) {
+                            final fabric = doc.data() as Map<String, dynamic>;
+                            final name = fabric['name'] ?? 'Unnamed';
+                            final color = fabric['color'] ?? '';
+                            final type = fabric['type'] ?? '';
+                            final quantity = fabric['quantity'] ?? 0;
+                            final supplierID = fabric['supplierID'];
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 10.0),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Container(
+                                    width: 44,
+                                    height: 44,
+                                    decoration: BoxDecoration(
+                                      color: Colors.pink[50],
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Icon(Icons.checkroom, color: Colors.pink[400], size: 26),
+                                  ),
+                                  const SizedBox(width: 14),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          color.isNotEmpty ? '$name ($color)' : name,
+                                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
                                         ),
-                                    ],
-                                  ),
-                                ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.pink[50],
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                  child: Text(
-                                    '$quantity yds',
-                                    style: const TextStyle(
-                                      color: Colors.pink,
-                                      fontWeight: FontWeight.bold,
+                                        Text(
+                                          'Type: ${type.isEmpty ? 'N/A' : type}',
+                                          style: const TextStyle(fontSize: 12, color: Colors.black54),
+                                        ),
+                                        if (supplierID != null)
+                                          FutureBuilder<String>(
+                                            future: _getSupplierName(supplierID),
+                                            builder: (context, snapshot) {
+                                              if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+                                                return Text(
+                                                  'Supplier: ${snapshot.data}',
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    color: Colors.blue[600],
+                                                    fontWeight: FontWeight.w500,
+                                                  ),
+                                                );
+                                              }
+                                              return const SizedBox.shrink();
+                                            },
+                                          ),
+                                      ],
                                     ),
                                   ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }).toList(),
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 16),
-          // ===================================================================
-          // 🚨 TEMPORARY DEV BUTTONS - REMOVE BEFORE PRODUCTION 🚨
-          // ===================================================================
-          // These buttons are for development navigation testing only.
-          // TODO: Remove this entire section before deploying to production.
-          // The actual navigation should be handled by proper authentication flow.
-          Card(
-            elevation: 2,
-            color: Colors.orange.shade50,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.warning, color: Colors.orange.shade600, size: 20),
-                      const SizedBox(width: 8),
-                      Text(
-                        '🚨 DEV MODE - Remove Before Production',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.orange.shade800,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Temporary navigation buttons for testing authentication pages:',
-                    style: TextStyle(fontSize: 12, color: Colors.black54),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const LoginPage(),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: Colors.pink[100],
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: Text(
+                                      '$quantity yds',
+                                      style: const TextStyle(
+                                        color: Colors.pink,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             );
-                          },
-                          icon: const Icon(Icons.login, size: 18),
-                          label: const Text('Test Login'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue.shade500,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const SignUpPage(),
-                              ),
-                            );
-                          },
-                          icon: const Icon(Icons.person_add, size: 18),
-                          label: const Text('Test Signup'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green.shade500,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+                          }).toList(),
+                        );
+                      },
+                    ),
+                  ],
+                ),
               ),
-            ),
+              const SizedBox(height: 18),
+            ],
           ),
-          const SizedBox(height: 16),
-        ], // End of main Column children
-      ), // End of main Column
-    ); // End of main Padding
+        ),
+      ),
+    );
   }
+}
+
+// Modern stat card with gradient and icon
+Widget _modernStatCard({
+  required IconData icon,
+  required Color color,
+  required String value,
+  required String label,
+  required Gradient gradient,
+}) {
+  return Container(
+    decoration: BoxDecoration(
+      gradient: gradient,
+      borderRadius: BorderRadius.circular(18),
+      boxShadow: [
+        BoxShadow(
+          color: color.withOpacity(0.08),
+          blurRadius: 12,
+          offset: const Offset(0, 4),
+        ),
+      ],
+    ),
+    padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 18),
+    child: Column(
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.13),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          padding: const EdgeInsets.all(10),
+          child: Icon(icon, size: 28, color: color),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          value,
+          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: color),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 13, color: Colors.black54, fontWeight: FontWeight.w500),
+        ),
+      ],
+    ),
+  );
+}
+
+// Modern card wrapper
+Widget _modernCard({required Widget child, Color? color}) {
+  return Container(
+    margin: const EdgeInsets.only(bottom: 4),
+    decoration: BoxDecoration(
+      color: color ?? Colors.white,
+      borderRadius: BorderRadius.circular(18),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.grey.withOpacity(0.07),
+          blurRadius: 16,
+          offset: const Offset(0, 6),
+        ),
+      ],
+    ),
+    padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 22),
+    child: child,
+  );
+}
+
+// Section title with icon
+Widget _sectionTitle(String title, IconData icon) {
+  return Row(
+    children: [
+      Icon(icon, color: Colors.deepPurple[400], size: 20),
+      const SizedBox(width: 8),
+      Text(
+        title,
+        style: TextStyle(
+          fontSize: 17,
+          fontWeight: FontWeight.bold,
+          color: Colors.grey[900],
+        ),
+      ),
+    ],
+  );
 }
 
 /// Helper widget for activity row
@@ -434,11 +431,19 @@ class _ActivityRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.only(bottom: 14),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: color, size: 20),
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.13),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: color, size: 18),
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -486,21 +491,5 @@ String _timeAgo(Timestamp? timestamp) {
     return 'Yesterday';
   } else {
     return '${diff.inDays} days ago';
-  }
-}
-
-class SummaryTile extends StatelessWidget {
-  final String label;
-  final String value;
-  const SummaryTile({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-        Text(label),
-      ],
-    );
   }
 }

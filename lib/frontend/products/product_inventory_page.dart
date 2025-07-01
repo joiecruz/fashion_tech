@@ -534,46 +534,65 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
     );
   }
 
-  Widget _buildStatCard({
-    required IconData icon,
-    required Color iconColor,
-    required String title,
-    required String value,
-    bool isLarge = false,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: iconColor, size: 24),
-          const SizedBox(height: 8),
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey[600],
-              height: 1.2,
-            ),
+Widget _buildStatCard({
+  required IconData icon,
+  required Color iconColor,
+  required String title,
+  required String value,
+  bool isLarge = false,
+}) {
+  // Choose a gradient based on the iconColor
+  Gradient cardGradient = LinearGradient(
+    colors: [
+      iconColor.withOpacity(0.18),
+      iconColor.withOpacity(0.07),
+    ],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+  final Color iconBg = iconColor.withOpacity(0.15);
+
+  return Container(
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      gradient: cardGradient,
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: iconColor.withOpacity(0.18)),
+    ),
+    child: Column(
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            color: iconBg,
+            borderRadius: BorderRadius.circular(8),
           ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: isLarge ? 16 : 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
+          padding: const EdgeInsets.all(8),
+          child: Icon(icon, color: iconColor, size: 24),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          title,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 12,
+            color: iconColor,
+            fontWeight: FontWeight.w600,
+            height: 1.2,
           ),
-        ],
-      ),
-    );
-  }
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: isLarge ? 18 : 20,
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+          ),
+        ),
+      ],
+    ),
+  );
+}
 
   Widget _buildFilterChip(String label, String value, List<String> options) {
     return PopupMenuButton<String>(

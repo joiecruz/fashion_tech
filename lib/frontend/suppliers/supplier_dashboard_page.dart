@@ -453,23 +453,41 @@ class _SupplierDashboardPageState extends State<SupplierDashboardPage>
     required String value,
     bool isLarge = false,
   }) {
+    final Gradient cardGradient = LinearGradient(
+      colors: [
+        iconColor.withOpacity(0.16),
+        iconColor.withOpacity(0.07),
+      ],
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+    );
+    final Color iconBg = iconColor.withOpacity(0.15);
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.grey[50],
+        gradient: cardGradient,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
+        border: Border.all(color: iconColor.withOpacity(0.18)),
       ),
       child: Column(
         children: [
-          Icon(icon, color: iconColor, size: 24),
+          Container(
+            decoration: BoxDecoration(
+              color: iconBg,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            padding: const EdgeInsets.all(8),
+            child: Icon(icon, color: iconColor, size: 24),
+          ),
           const SizedBox(height: 8),
           Text(
             title,
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 12,
-              color: Colors.grey[600],
+              color: iconColor,
+              fontWeight: FontWeight.w600,
               height: 1.2,
             ),
           ),
@@ -477,7 +495,7 @@ class _SupplierDashboardPageState extends State<SupplierDashboardPage>
           Text(
             value,
             style: TextStyle(
-              fontSize: isLarge ? 16 : 20,
+              fontSize: isLarge ? 18 : 20,
               fontWeight: FontWeight.bold,
               color: Colors.black87,
             ),
