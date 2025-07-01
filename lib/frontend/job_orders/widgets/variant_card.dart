@@ -217,7 +217,7 @@ class VariantCard extends StatelessWidget {
                   variant.fabrics.add(VariantFabric(
                     fabricId: userFabrics.first['id']!,
                     fabricName: userFabrics.first['name']!,
-                    yardsRequired: 0,
+                    yardageUsed: 0,
                   ));
                   // Update variant color based on fabrics
                   variant.color = _getVariantColorFromFabrics();
@@ -484,7 +484,7 @@ class VariantCard extends StatelessWidget {
               Expanded(
                 flex: 2,
                 child: TextFormField(
-                  initialValue: fabric.yardsRequired == 0 ? '' : fabric.yardsRequired.toString(),
+                  initialValue: fabric.yardageUsed == 0 ? '' : fabric.yardageUsed.toString(),
                   decoration: InputDecoration(
                     labelText: 'Yards',
                     isDense: true,
@@ -498,7 +498,7 @@ class VariantCard extends StatelessWidget {
                   ),
                   keyboardType: TextInputType.number,
                   onChanged: (val) {
-                    fabric.yardsRequired = double.tryParse(val) ?? 0;
+                    fabric.yardageUsed = double.tryParse(val) ?? 0;
                     onVariantChanged(index);
                     onFabricYardageChanged();
                   },

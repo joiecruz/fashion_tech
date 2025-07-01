@@ -82,7 +82,7 @@ class VariantBreakdownSummary extends StatelessWidget {
                   const SizedBox(width: 12),
                   _buildSummaryCard(
                     'Total Yards',
-                    '${variants.fold(0.0, (sum, v) => sum + v.fabrics.fold(0.0, (s, f) => s + f.yardsRequired)).toStringAsFixed(1)}',
+                    '${variants.fold(0.0, (sum, v) => sum + v.fabrics.fold(0.0, (s, f) => s + f.yardageUsed)).toStringAsFixed(1)}',
                     Icons.straighten,
                     Colors.orange,
                   ),

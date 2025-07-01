@@ -15,6 +15,11 @@
  * - JobOrderDetails.quantity is required
  * - JobOrderDetails.color is auto-populated from selected fabrics
  * 
+ * Business Logic - Fabric Inventory Management:
+ * - When a job order is saved, fabric quantities are automatically reduced based on yardageUsed
+ * - Validation prevents job order creation if insufficient fabric inventory
+ * - Fabric quantity updates are atomic to prevent overselling
+ * 
  * NO ProductVariant collection records should be created from this modal!
  */
 
@@ -234,7 +239,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
     final Map<String, double> allocation = {};
     for (final variant in _variants) {
       for (final fabric in variant.fabrics) {
-        allocation[fabric.fabricId] = (allocation[fabric.fabricId] ?? 0) + (fabric.yardsRequired);
+        allocation[fabric.fabricId] = (allocation[fabric.fabricId] ?? 0) + (fabric.yardageUsed);
       }
     }
     setState(() {
@@ -697,7 +702,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
   /// being saved to Firestore with the following ERDv8-compliant required fields:
   /// - jobOrderID: Links to the parent JobOrder
   /// - fabricID: Primary fabric used for this variant
-  /// - yardageUsed: Total yards of fabric required
+  /// - yardageUsed: Total yards of fabric required (ERDv8 field name)
   /// - size: Size of this variant (required in ERDv8)
   /// - color: Auto-populated from selected fabrics
   /// - quantity: Quantity of this specific variant (required in ERDv8)
@@ -1203,6 +1208,9 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
         sectionName: 'Product Variants',
       ));
     } else {
+      // Calculate total fabric usage across all variants for inventory validation
+      final Map<String, double> totalFabricUsage = {};
+      
       // Validate each variant
       for (int i = 0; i < _variants.length; i++) {
         final variant = _variants[i];
@@ -1230,17 +1238,48 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
             sectionName: 'Product Variants',
           ));
         } else {
-          // Validate fabric assignments
+          // Validate fabric assignments and calculate total usage
           for (int j = 0; j < variant.fabrics.length; j++) {
             final fabric = variant.fabrics[j];
-            if (fabric.yardsRequired <= 0) {
+            if (fabric.yardageUsed <= 0) {
               errors.add(ValidationError(
                 message: 'Yards required must be greater than 0 for fabric ${j + 1} in variant ${i + 1}',
                 sectionKey: _variantsSectionKey,
                 sectionName: 'Product Variants',
               ));
+            } else {
+              // Accumulate fabric usage for inventory validation
+              totalFabricUsage[fabric.fabricId] = 
+                  (totalFabricUsage[fabric.fabricId] ?? 0) + fabric.yardageUsed;
             }
           }
+        }
+      }
+      
+      // Validate fabric inventory - ensure sufficient quantity available
+      for (final fabricId in totalFabricUsage.keys) {
+        final requiredAmount = totalFabricUsage[fabricId]!;
+        final fabric = _userFabrics.firstWhere(
+          (f) => f['fabricID'] == fabricId, 
+          orElse: () => {},
+        );
+        
+        if (fabric.isNotEmpty) {
+          final availableQuantity = (fabric['quantity'] ?? 0) as num;
+          if (availableQuantity < requiredAmount) {
+            final fabricName = fabric['name'] ?? 'Unknown Fabric';
+            errors.add(ValidationError(
+              message: 'Insufficient $fabricName: ${availableQuantity.toStringAsFixed(1)} yards available, ${requiredAmount.toStringAsFixed(1)} yards required',
+              sectionKey: _variantsSectionKey,
+              sectionName: 'Product Variants',
+            ));
+          }
+        } else {
+          errors.add(ValidationError(
+            message: 'Fabric not found in inventory: $fabricId',
+            sectionKey: _variantsSectionKey,
+            sectionName: 'Product Variants',
+          ));
         }
       }
     }
@@ -1337,12 +1376,17 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
   /// NOT ProductVariant records. This method:
   /// 1. Creates one JobOrder document with ERDv8-compliant fields
   /// 2. Creates JobOrderDetails documents for each variant (size/fabric combination)
-  /// 3. NO ProductVariant collection records are created
+  /// 3. Updates fabric inventory by reducing quantities based on yardageUsed
+  /// 4. NO ProductVariant collection records are created
   /// 
   /// ERDv8 Compliance:
   /// - JobOrder.name is required
   /// - JobOrderDetails.size and .quantity are required
   /// - JobOrderDetails.color is auto-populated from fabrics
+  /// 
+  /// Business Logic:
+  /// - Fabric quantities are decremented based on total yardageUsed across all variants
+  /// - Validation prevents job order creation if insufficient fabric inventory
   Future<void> _saveJobOrder() async {
     try {
       // Validate the form first
@@ -1375,7 +1419,17 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
 
       // Create JobOrderDetails records for each variant from the "Product Variants" UI section
       // DEVELOPER NOTE: Despite the UI label "Product Variants", these create JobOrderDetails records
+      
+      // Track fabric usage for inventory reduction
+      final Map<String, double> totalFabricUsage = {};
+      
       for (final variant in _variants) {
+        // Calculate total fabric usage per fabric ID for this variant
+        for (final fabric in variant.fabrics) {
+          totalFabricUsage[fabric.fabricId] = 
+              (totalFabricUsage[fabric.fabricId] ?? 0) + fabric.yardageUsed;
+        }
+        
         // Get unique fabric colors for this variant
         final fabricColors = variant.fabrics
             .map((f) => _userFabrics.firstWhere((fabric) => fabric['fabricID'] == f.fabricId, orElse: () => {})['color'] ?? '#000000')
@@ -1390,7 +1444,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
         await jobOrderDetailRef.set({
           'jobOrderID': jobOrderRef.id, // required
           'fabricID': variant.fabrics.first.fabricId, // required - primary fabric
-          'yardageUsed': variant.fabrics.fold(0.0, (sum, f) => sum + f.yardsRequired), // required - total yardage for this variant
+          'yardageUsed': variant.fabrics.fold(0.0, (sum, f) => sum + f.yardageUsed), // required - total yardage for this variant
           'size': variant.size, // required (ERDv8 update)
           'color': colorString, // auto-populated from fabrics
           'quantity': variant.quantity, // required (ERDv8 update) - quantity of this specific variant
@@ -1405,7 +1459,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
           await additionalJobOrderDetailRef.set({
             'jobOrderID': jobOrderRef.id,
             'fabricID': additionalFabric.fabricId,
-            'yardageUsed': additionalFabric.yardsRequired,
+            'yardageUsed': additionalFabric.yardageUsed,
             'size': variant.size,
             'color': _userFabrics.firstWhere((fabric) => fabric['fabricID'] == additionalFabric.fabricId, orElse: () => {})['color'] ?? '#000000',
             'quantity': 0, // Secondary fabrics don't add to quantity count
@@ -1415,11 +1469,80 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
         }
       }
 
+      // Update fabric inventory - reduce quantities based on usage
+      // CRITICAL: This ensures fabric inventory is properly managed
+      for (final fabricId in totalFabricUsage.keys) {
+        final usageAmount = totalFabricUsage[fabricId]!;
+        
+        // Get current fabric data
+        final fabricDoc = await FirebaseFirestore.instance
+            .collection('fabrics')
+            .doc(fabricId)
+            .get();
+            
+        if (fabricDoc.exists) {
+          final currentQuantity = (fabricDoc.data()?['quantity'] ?? 0.0) as num;
+          final newQuantity = (currentQuantity.toDouble() - usageAmount).clamp(0.0, double.infinity);
+          
+          // Update fabric quantity in Firestore
+          await FirebaseFirestore.instance
+              .collection('fabrics')
+              .doc(fabricId)
+              .update({
+            'quantity': newQuantity,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+          
+          print('Fabric $fabricId: Updated quantity from $currentQuantity to $newQuantity (used: $usageAmount yards)');
+        } else {
+          print('Warning: Fabric $fabricId not found in database');
+        }
+      }
+
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text('Success'),
-          content: const Text('Job order saved successfully!'),
+          title: Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.green),
+              const SizedBox(width: 8),
+              const Text('Success'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Job order saved successfully!'),
+              const SizedBox(height: 12),
+              const Text(
+                'Fabric inventory has been updated:',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              ...totalFabricUsage.entries.map((entry) {
+                final fabricName = _userFabrics.firstWhere(
+                  (f) => f['fabricID'] == entry.key, 
+                  orElse: () => {'name': 'Unknown'},
+                )['name'];
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Row(
+                    children: [
+                      Icon(Icons.remove_circle_outline, size: 16, color: Colors.orange),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '$fabricName: -${entry.value.toStringAsFixed(1)} yards',
+                          style: const TextStyle(fontSize: 14),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ],
+          ),
           actions: [
             TextButton(
               onPressed: () async {

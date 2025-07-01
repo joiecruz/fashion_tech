@@ -16,12 +16,12 @@ import '../../../models/product_variant.dart';
 class VariantFabric {
   String fabricId;
   String fabricName;
-  double yardsRequired;
+  double yardageUsed; // ERDv8 compliant field name
   
   VariantFabric({
     required this.fabricId,
     required this.fabricName,
-    required this.yardsRequired,
+    required this.yardageUsed, // ERDv8 compliant field name
   });
 }
 
