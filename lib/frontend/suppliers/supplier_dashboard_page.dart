@@ -320,14 +320,14 @@ class _SupplierDashboardPageState extends State<SupplierDashboardPage>
                                               title: 'Total\nSuppliers',
                                               value: _totalSuppliers.toString(),
                                             )),
-                                            const SizedBox(width: 16),
+                                            const SizedBox(width: 12),
                                             Expanded(child: _buildStatCard(
                                               icon: Icons.email_outlined,
                                               iconColor: Colors.blue[600]!,
                                               title: 'With Email\nContact',
                                               value: _suppliersWithEmail.toString(),
                                             )),
-                                            const SizedBox(width: 16),
+                                            const SizedBox(width: 12),
                                             Expanded(child: _buildStatCard(
                                               icon: Icons.location_on_outlined,
                                               iconColor: Colors.green[600]!,
@@ -471,6 +471,7 @@ class _SupplierDashboardPageState extends State<SupplierDashboardPage>
         border: Border.all(color: iconColor.withOpacity(0.18)),
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Container(
             decoration: BoxDecoration(
@@ -497,6 +498,7 @@ class _SupplierDashboardPageState extends State<SupplierDashboardPage>
               fit: BoxFit.scaleDown,
               child: Text(
                 value,
+                textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: isLarge ? 18 : 20,
                   fontWeight: FontWeight.bold,
