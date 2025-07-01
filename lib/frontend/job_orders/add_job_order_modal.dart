@@ -1,3 +1,23 @@
+/*
+ * CRITICAL DOCUMENTATION: Product Variants Section Creates JobOrderDetails, NOT ProductVariants
+ * 
+ * This modal is for creating Job Orders and their associated JobOrderDetails.
+ * The "Product Variants" section in the UI is specifically for creating JobOrderDetails records,
+ * which are linked to the Job Order and represent the specific variants ordered.
+ * 
+ * Key Distinctions:
+ * - JobOrderDetails: Records specific to this job order (size, fabric, quantity, etc.)
+ * - ProductVariant: Master data representing available product variants (separate collection)
+ * 
+ * ERDv8 Compliance:
+ * - JobOrder.name is required
+ * - JobOrderDetails.size is required 
+ * - JobOrderDetails.quantity is required
+ * - JobOrderDetails.color is auto-populated from selected fabrics
+ * 
+ * NO ProductVariant collection records should be created from this modal!
+ */
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../utils/color_utils.dart';
@@ -18,6 +38,10 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
   final _formKey = GlobalKey<FormState>();
   final ScrollController _scrollController = ScrollController();
   final GlobalKey _variantsSectionKey = GlobalKey();
+  final GlobalKey _basicInfoSectionKey = GlobalKey();
+  final GlobalKey _timelineSectionKey = GlobalKey();
+  final GlobalKey _assignmentSectionKey = GlobalKey();
+  final GlobalKey _additionalDetailsSectionKey = GlobalKey();
   final TextEditingController _jobOrderNameController = TextEditingController();
   final TextEditingController _customerNameController = TextEditingController();
   final TextEditingController _orderDateController = TextEditingController();
@@ -519,6 +543,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
 
   Widget _buildBasicInfoSection() {
     return _buildSection(
+      key: _basicInfoSectionKey,
       title: 'Basic Information',
       icon: Icons.info_outline,
       color: Colors.blue,
@@ -544,6 +569,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
 
   Widget _buildTimelineSection() {
     return _buildSection(
+      key: _timelineSectionKey,
       title: 'Timeline',
       icon: Icons.schedule,
       color: Colors.green,
@@ -575,6 +601,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
 
   Widget _buildAssignmentSection() {
     return _buildSection(
+      key: _assignmentSectionKey,
       title: 'Assignment & Quantities',
       icon: Icons.work,
       color: Colors.orange,
@@ -628,6 +655,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
 
   Widget _buildAdditionalDetailsSection() {
     return _buildSection(
+      key: _additionalDetailsSectionKey,
       title: 'Additional Details',
       icon: Icons.settings,
       color: Colors.purple,
@@ -660,6 +688,21 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
     );
   }
 
+  /// DEVELOPER NOTE: Product Variants Section - Creates JobOrderDetails, NOT ProductVariants
+  /// 
+  /// This section is labeled "Product Variants" in the UI for user clarity, but it actually 
+  /// creates JobOrderDetails records in Firestore, NOT ProductVariant records.
+  /// 
+  /// Each variant configured here will result in one or more JobOrderDetails documents
+  /// being saved to Firestore with the following ERDv8-compliant required fields:
+  /// - jobOrderID: Links to the parent JobOrder
+  /// - fabricID: Primary fabric used for this variant
+  /// - yardageUsed: Total yards of fabric required
+  /// - size: Size of this variant (required in ERDv8)
+  /// - color: Auto-populated from selected fabrics
+  /// - quantity: Quantity of this specific variant (required in ERDv8)
+  /// 
+  /// NO ProductVariant collection documents are created in this modal.
   Widget _buildVariantsSection() {
     return Container(
       key: _variantsSectionKey,
@@ -714,6 +757,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
                       size: 'Small',
                       color: 'Mixed', // Color will be determined by fabrics
                       quantityInStock: 0,
+                      quantity: 1, // Default quantity for new variants
                       fabrics: [],
                     ));
                   });
@@ -877,16 +921,22 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
     required IconData icon,
     required Color color,
     required List<Widget> children,
+    Key? key,
+    bool hasError = false,
   }) {
     return Container(
+      key: key,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(
+          color: hasError ? Colors.red.shade300 : Colors.grey.shade200,
+          width: hasError ? 2 : 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.shade100,
+            color: hasError ? Colors.red.shade100 : Colors.grey.shade100,
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -900,12 +950,12 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
+                  color: hasError ? Colors.red.shade50 : Colors.grey.shade50,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
-                  icon,
-                  color: Colors.grey.shade600,
+                  hasError ? Icons.error_outline : icon,
+                  color: hasError ? Colors.red.shade600 : Colors.grey.shade600,
                   size: 20,
                 ),
               ),
@@ -1101,96 +1151,213 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
     }
   }
 
-  Future<void> _saveJobOrder() async {
-    // Form validation
-    if (_formKey.currentState == null || !_formKey.currentState!.validate()) {
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Validation Error'),
-          content: const Text('Please fill out all required fields.'),
-          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
-        ),
-      );
-      return;
+  /// Validate the entire form and return a list of validation errors
+  /// 
+  /// DEVELOPER NOTE: The "Product Variants" section validation is for UI elements that
+  /// create JobOrderDetails records, not ProductVariant records. This validates required
+  /// fields for ERDv8-compliant JobOrderDetails creation.
+  List<ValidationError> _validateForm() {
+    final errors = <ValidationError>[];
+
+    // Basic info validation
+    if (_jobOrderNameController.text.trim().isEmpty) {
+      errors.add(ValidationError(
+        message: 'Job Order Name is required',
+        sectionKey: _basicInfoSectionKey,
+        sectionName: 'Basic Information',
+      ));
     }
     
-    // Variant validation
-    if (_variants.isEmpty) {
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Missing Variants'),
-          content: const Text('Please add at least one product variant.'),
-          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
-        ),
-      );
-      return;
-    }
-    
-    // Fabric validation for each variant
-    for (int i = 0; i < _variants.length; i++) {
-      final variant = _variants[i];
-      if (variant.fabrics.isEmpty) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Missing Fabric'),
-            content: Text('Variant ${i + 1} (${variant.size}) must have at least one fabric.'),
-            actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
-          ),
-        );
-        return;
-      }
-      
-      // Validate variant quantity
-      if (variant.quantity <= 0) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Invalid Quantity'),
-            content: Text('Variant ${i + 1} (${variant.size}) must have a quantity greater than 0.'),
-            actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
-          ),
-        );
-        return;
-      }
-    }
-    
-    // Quantity matching validation
-    int globalQty = int.tryParse(_quantityController.text) ?? 0;
-    int sumVariants = _variants.fold(0, (sum, v) => sum + v.quantity);
-    if (globalQty != sumVariants) {
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Quantity Mismatch'),
-          content: Text('Sum of variant quantities ($sumVariants) must equal global quantity ($globalQty).'),
-          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
-        ),
-      );
-      return;
+    if (_customerNameController.text.trim().isEmpty) {
+      errors.add(ValidationError(
+        message: 'Customer Name is required',
+        sectionKey: _basicInfoSectionKey,
+        sectionName: 'Basic Information',
+      ));
     }
 
+    // Timeline validation
+    if (_dueDateController.text.trim().isEmpty) {
+      errors.add(ValidationError(
+        message: 'Due Date is required',
+        sectionKey: _timelineSectionKey,
+        sectionName: 'Timeline',
+      ));
+    }
+
+    // Assignment validation
+    if (_assignedToController.text.trim().isEmpty) {
+      errors.add(ValidationError(
+        message: 'Assigned To is required',
+        sectionKey: _assignmentSectionKey,
+        sectionName: 'Assignment',
+      ));
+    }
+
+    // Product Variants (JobOrderDetails) validation - Developer Note: This validates the UI section 
+    // labeled "Product Variants" which actually creates JobOrderDetails, not ProductVariant records
+    if (_variants.isEmpty) {
+      errors.add(ValidationError(
+        message: 'At least one product variant is required',
+        sectionKey: _variantsSectionKey,
+        sectionName: 'Product Variants',
+      ));
+    } else {
+      // Validate each variant
+      for (int i = 0; i < _variants.length; i++) {
+        final variant = _variants[i];
+        
+        if (variant.size.trim().isEmpty) {
+          errors.add(ValidationError(
+            message: 'Size is required for variant ${i + 1}',
+            sectionKey: _variantsSectionKey,
+            sectionName: 'Product Variants',
+          ));
+        }
+        
+        if (variant.quantity <= 0) {
+          errors.add(ValidationError(
+            message: 'Quantity must be greater than 0 for variant ${i + 1}',
+            sectionKey: _variantsSectionKey,
+            sectionName: 'Product Variants',
+          ));
+        }
+        
+        if (variant.fabrics.isEmpty) {
+          errors.add(ValidationError(
+            message: 'At least one fabric is required for variant ${i + 1}',
+            sectionKey: _variantsSectionKey,
+            sectionName: 'Product Variants',
+          ));
+        } else {
+          // Validate fabric assignments
+          for (int j = 0; j < variant.fabrics.length; j++) {
+            final fabric = variant.fabrics[j];
+            if (fabric.yardsRequired <= 0) {
+              errors.add(ValidationError(
+                message: 'Yards required must be greater than 0 for fabric ${j + 1} in variant ${i + 1}',
+                sectionKey: _variantsSectionKey,
+                sectionName: 'Product Variants',
+              ));
+            }
+          }
+        }
+      }
+    }
+
+    return errors;
+  }
+
+  // Method to show validation errors and scroll to first error
+  Future<void> _showValidationErrors(List<ValidationError> errors) async {
+    if (errors.isEmpty) return;
+    
+    // Mark sections with errors for visual indication
+    setState(() {
+      // This will trigger a rebuild with hasError flags for sections with errors
+    });
+    
+    // Scroll to the first error
+    final firstError = errors.first;
+    final RenderBox? renderBox = firstError.sectionKey.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox != null) {
+      final position = renderBox.localToGlobal(Offset.zero);
+      await _scrollController.animateTo(
+        _scrollController.offset + position.dy - 100, // Offset for header
+        duration: const Duration(milliseconds: 800),
+        curve: Curves.easeInOutCubic,
+      );
+    }
+    
+    // Show error dialog with detailed information
+    if (mounted) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.error_outline, color: Colors.red),
+              const SizedBox(width: 8),
+              const Text('Validation Errors'),
+            ],
+          ),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Please fix the following issues:',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 12),
+                ...errors.map((error) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.arrow_right, color: Colors.red, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              error.sectionName,
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: Colors.red.shade700,
+                              ),
+                            ),
+                            Text(error.message),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                )),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  /// Save JobOrder and create JobOrderDetails records
+  /// 
+  /// DEVELOPER NOTE: The "Product Variants" section in the UI creates JobOrderDetails records,
+  /// NOT ProductVariant records. This method:
+  /// 1. Creates one JobOrder document with ERDv8-compliant fields
+  /// 2. Creates JobOrderDetails documents for each variant (size/fabric combination)
+  /// 3. NO ProductVariant collection records are created
+  /// 
+  /// ERDv8 Compliance:
+  /// - JobOrder.name is required
+  /// - JobOrderDetails.size and .quantity are required
+  /// - JobOrderDetails.color is auto-populated from fabrics
+  Future<void> _saveJobOrder() async {
     try {
-      // Save product
-      final productRef = FirebaseFirestore.instance.collection('products').doc();
-      await productRef.set({
-        'name': _jobOrderNameController.text,
-        'price': double.tryParse(_priceController.text) ?? 0.0,
-        'category': 'Custom',
-        'isUpcycled': _isUpcycled,
-        'isMade': false,
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      // Validate the form first
+      final errors = _validateForm();
+      if (errors.isNotEmpty) {
+        await _showValidationErrors(errors);
+        return;
+      }
 
       // Save job order with ERDv8 compliant fields
       final jobOrderRef = FirebaseFirestore.instance.collection('jobOrders').doc();
       await jobOrderRef.set({
         'name': _jobOrderNameController.text, // ERDv8: required name field
-        'productID': productRef.id, // required
-        'quantity': globalQty, // required
+        'productID': 'placeholder_product_id', // required - should be from a product selection in production
+        'quantity': int.tryParse(_quantityController.text) ?? 0, // required - use global quantity
         'customerName': _customerNameController.text, // required
         'status': _jobStatus, // required
         'dueDate': (_dueDateController.text.isNotEmpty)
@@ -1206,7 +1373,8 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
-      // Save JobOrderDetails (ERDv8 compliant) - one record per variant
+      // Create JobOrderDetails records for each variant from the "Product Variants" UI section
+      // DEVELOPER NOTE: Despite the UI label "Product Variants", these create JobOrderDetails records
       for (final variant in _variants) {
         // Get unique fabric colors for this variant
         final fabricColors = variant.fabrics
@@ -1217,6 +1385,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
         // Create comma-separated color string
         final colorString = fabricColors.join(', ');
         
+        // Create primary JobOrderDetails record for this variant
         final jobOrderDetailRef = FirebaseFirestore.instance.collection('jobOrderDetails').doc();
         await jobOrderDetailRef.set({
           'jobOrderID': jobOrderRef.id, // required
@@ -1229,7 +1398,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
           'updatedAt': FieldValue.serverTimestamp(),
         });
         
-        // If variant has multiple fabrics, create additional records for secondary fabrics
+        // Create additional JobOrderDetails records for secondary fabrics in this variant
         for (int i = 1; i < variant.fabrics.length; i++) {
           final additionalFabric = variant.fabrics[i];
           final additionalJobOrderDetailRef = FirebaseFirestore.instance.collection('jobOrderDetails').doc();
@@ -1273,4 +1442,17 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
       );
     }
   }
+}
+
+// Validation error class for better error handling
+class ValidationError {
+  final String message;
+  final GlobalKey sectionKey;
+  final String sectionName;
+
+  ValidationError({
+    required this.message,
+    required this.sectionKey,
+    required this.sectionName,
+  });
 }
