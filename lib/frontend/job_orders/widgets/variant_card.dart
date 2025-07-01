@@ -73,51 +73,88 @@ class VariantCard extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           
-          // Size and Quantity inputs (Color comes from fabrics)
-          Row(
-            children: [
-              Expanded(
-                child: DropdownButtonFormField<String>(
-                  value: variant.size,
-                  items: ['Small', 'Medium', 'Large', 'XL', 'XXL'].map((size) => 
-                    DropdownMenuItem(value: size, child: Text(size))
-                  ).toList(),
-                  onChanged: (val) {
-                    variant.size = val ?? 'Small';
-                    onVariantChanged(index);
-                  },
-                  decoration: InputDecoration(
-                    labelText: 'Size',
-                    filled: true,
-                    fillColor: Colors.white,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide.none,
+          // Size and Quantity inputs with consistent row height
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    value: variant.size,
+                    items: ['Small', 'Medium', 'Large', 'XL', 'XXL'].map((size) => 
+                      DropdownMenuItem(value: size, child: Text(size))
+                    ).toList(),
+                    onChanged: (val) {
+                      variant.size = val ?? 'Small';
+                      onVariantChanged(index);
+                    },
+                    decoration: InputDecoration(
+                      labelText: 'Size',
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none,
+                      ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: TextFormField(
-                  initialValue: variant.quantity == 0 ? '' : variant.quantity.toString(),
-                  decoration: InputDecoration(
-                    labelText: 'Quantity',
-                    filled: true,
-                    fillColor: Colors.white,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide.none,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextFormField(
+                    initialValue: variant.quantity == 0 ? '' : variant.quantity.toString(),
+                    decoration: InputDecoration(
+                      labelText: 'Quantity',
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.grey.shade200),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.blue.shade400, width: 2),
+                      ),
+                      errorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.red.shade400, width: 2),
+                      ),
+                      focusedErrorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.red.shade400, width: 2),
+                      ),
+                      errorMaxLines: 2,
                     ),
+                    keyboardType: TextInputType.number,
+                    validator: (val) {
+                      if (val?.isEmpty ?? true) return 'Quantity required';
+                      final trimmed = val!.trim();
+                      if (trimmed.isEmpty) return 'Quantity cannot be empty';
+                      
+                      // Check for non-numeric characters
+                      if (!RegExp(r'^\d+$').hasMatch(trimmed)) {
+                        return 'Use numbers only';
+                      }
+                      
+                      final n = int.tryParse(trimmed);
+                      if (n == null) return 'Enter whole number';
+                      if (n <= 0) return 'Must be greater than 0';
+                      if (n > 1000) return 'Too large (max: 1,000)';
+                      return null;
+                    },
+                    autovalidateMode: AutovalidateMode.onUserInteraction,
+                    onChanged: (val) {
+                      variant.quantity = int.tryParse(val) ?? 0;
+                      onVariantChanged(index);
+                    },
                   ),
-                  keyboardType: TextInputType.number,
-                  onChanged: (val) {
-                    variant.quantity = int.tryParse(val) ?? 0;
-                    onVariantChanged(index);
-                  },
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
           const SizedBox(height: 16),
           
@@ -423,102 +460,139 @@ class VariantCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: Colors.grey.shade200),
           ),
-          child: Row(
-            children: [
-              Container(
-                width: 24,
-                height: 24,
-                decoration: BoxDecoration(
-                  color: color,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: isLightColor ? Colors.grey.shade600 : Colors.white,
-                    width: 2,
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: isLightColor ? Colors.grey.shade600 : Colors.white,
+                      width: 2,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.15),
+                        blurRadius: 3,
+                        offset: const Offset(0, 1),
+                      ),
+                    ],
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.15),
-                      blurRadius: 3,
-                      offset: const Offset(0, 1),
-                    ),
-                  ],
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                flex: 3,
-                child: DropdownButtonFormField<String>(
-                  value: fabric.fabricId,
-                  items: userFabrics.map((f) => DropdownMenuItem<String>(
-                    value: f['id'] as String,
-                    child: Text(
-                      f['name'] as String, 
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 13),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 3,
+                  child: DropdownButtonFormField<String>(
+                    value: fabric.fabricId,
+                    items: userFabrics.map((f) => DropdownMenuItem<String>(
+                      value: f['id'] as String,
+                      child: Text(
+                        f['name'] as String, 
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 13),
+                      ),
+                    )).toList(),
+                    onChanged: (val) {
+                      final selected = userFabrics.firstWhere((f) => f['id'] == val);
+                      fabric.fabricId = val!;
+                      fabric.fabricName = selected['name'] as String;
+                      // Update variant color when fabric changes
+                      variant.color = _getVariantColorFromFabrics();
+                      onVariantChanged(index);
+                      onFabricYardageChanged();
+                    },
+                    decoration: InputDecoration(
+                      labelText: 'Fabric',
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none,
+                      ),
+                      filled: true,
+                      fillColor: Colors.grey.shade50,
                     ),
-                  )).toList(),
-                  onChanged: (val) {
-                    final selected = userFabrics.firstWhere((f) => f['id'] == val);
-                    fabric.fabricId = val!;
-                    fabric.fabricName = selected['name'] as String;
-                    // Update variant color when fabric changes
+                    isExpanded: true, // This prevents overflow
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  flex: 2,
+                  child: TextFormField(
+                    initialValue: fabric.yardageUsed == 0 ? '' : fabric.yardageUsed.toString(),
+                    decoration: InputDecoration(
+                      labelText: 'Yards',
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.grey.shade200),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.blue.shade400, width: 2),
+                      ),
+                      errorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.red.shade400, width: 2),
+                      ),
+                      focusedErrorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.red.shade400, width: 2),
+                      ),
+                      filled: true,
+                      fillColor: Colors.grey.shade50,
+                      errorMaxLines: 2,
+                    ),
+                    keyboardType: TextInputType.numberWithOptions(decimal: true),
+                    validator: (val) {
+                      if (val?.isEmpty ?? true) return 'Yards required';
+                      final trimmed = val!.trim();
+                      if (trimmed.isEmpty) return 'Cannot be empty';
+                      
+                      // Check for invalid characters (allow decimals)
+                      if (!RegExp(r'^\d*\.?\d*$').hasMatch(trimmed)) {
+                        return 'Numbers only';
+                      }
+                      
+                      final n = double.tryParse(trimmed);
+                      if (n == null) return 'Enter valid number';
+                      if (n <= 0) return 'Must be > 0';
+                      if (n > 1000) return 'Too large (max: 1,000)';
+                      return null;
+                    },
+                    autovalidateMode: AutovalidateMode.onUserInteraction,
+                    onChanged: (val) {
+                      fabric.yardageUsed = double.tryParse(val) ?? 0;
+                      onVariantChanged(index);
+                      onFabricYardageChanged();
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  onPressed: () {
+                    variant.fabrics.removeAt(fabricIndex);
+                    // Update variant color when fabric is removed
                     variant.color = _getVariantColorFromFabrics();
                     onVariantChanged(index);
                     onFabricYardageChanged();
                   },
-                  decoration: InputDecoration(
-                    labelText: 'Fabric',
-                    isDense: true,
-                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide.none,
-                    ),
-                    filled: true,
-                    fillColor: Colors.grey.shade50,
-                  ),
-                  isExpanded: true, // This prevents overflow
+                  icon: Icon(Icons.delete, color: Colors.red.shade400, size: 20),
+                  tooltip: 'Remove Fabric',
+                  constraints: BoxConstraints(minWidth: 32, minHeight: 32),
+                  padding: EdgeInsets.all(4),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                flex: 2,
-                child: TextFormField(
-                  initialValue: fabric.yardageUsed == 0 ? '' : fabric.yardageUsed.toString(),
-                  decoration: InputDecoration(
-                    labelText: 'Yards',
-                    isDense: true,
-                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide.none,
-                    ),
-                    filled: true,
-                    fillColor: Colors.grey.shade50,
-                  ),
-                  keyboardType: TextInputType.number,
-                  onChanged: (val) {
-                    fabric.yardageUsed = double.tryParse(val) ?? 0;
-                    onVariantChanged(index);
-                    onFabricYardageChanged();
-                  },
-                ),
-              ),
-              const SizedBox(width: 8),
-              IconButton(
-                onPressed: () {
-                  variant.fabrics.removeAt(fabricIndex);
-                  // Update variant color when fabric is removed
-                  variant.color = _getVariantColorFromFabrics();
-                  onVariantChanged(index);
-                  onFabricYardageChanged();
-                },
-                icon: Icon(Icons.delete, color: Colors.red.shade400, size: 20),
-                tooltip: 'Remove Fabric',
-                constraints: BoxConstraints(minWidth: 32, minHeight: 32),
-                padding: EdgeInsets.all(4),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
         

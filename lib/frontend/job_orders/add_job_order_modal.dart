@@ -547,7 +547,13 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
           label: 'Job Order Name',
           hint: 'E.g., Summer Collection Dress',
           icon: Icons.assignment,
-          validator: (val) => val?.isEmpty ?? true ? 'Required' : null,
+          validator: (val) {
+            if (val?.isEmpty ?? true) return 'Job order name is required';
+            final trimmed = val!.trim();
+            if (trimmed.isEmpty) return 'Job order name cannot be empty';
+            if (trimmed.length > 100) return 'Job order name is too long (max: 100 characters)';
+            return null;
+          },
         ),
         const SizedBox(height: 16),
         _buildTextField(
@@ -555,7 +561,17 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
           label: 'Customer Name',
           hint: 'E.g., John Doe',
           icon: Icons.person,
-          validator: (val) => val?.isEmpty ?? true ? 'Required' : null,
+          validator: (val) {
+            if (val?.isEmpty ?? true) return 'Customer name is required';
+            final trimmed = val!.trim();
+            if (trimmed.isEmpty) return 'Customer name cannot be empty';
+            if (trimmed.length > 50) return 'Customer name is too long (max: 50 characters)';
+            // Check for valid name format (letters, spaces, hyphens, apostrophes)
+            if (!RegExp(r"^[a-zA-Z\s\-'\.]+$").hasMatch(trimmed)) {
+              return 'Please enter a valid name (letters, spaces, hyphens only)';
+            }
+            return null;
+          },
         ),
       ],
     );
@@ -571,11 +587,19 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
         Row(
           children: [
             Expanded(
-              child: _buildDateField(
+              child:              _buildDateField(
                 controller: _orderDateController,
                 label: 'Order Date',
                 icon: Icons.event,
-                validator: (val) => val?.isEmpty ?? true ? 'Required' : null,
+                validator: (val) {
+                  if (val?.isEmpty ?? true) return 'Order date is required';
+                  final date = DateTime.tryParse(val!);
+                  if (date == null) return 'Please select a valid date';
+                  if (date.isAfter(DateTime.now().add(Duration(days: 1)))) {
+                    return 'Order date cannot be in the future';
+                  }
+                  return null;
+                },
               ),
             ),
             const SizedBox(width: 16),
@@ -584,7 +608,27 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
                 controller: _dueDateController,
                 label: 'Due Date',
                 icon: Icons.schedule,
-                validator: (val) => val?.isEmpty ?? true ? 'Required' : null,
+                validator: (val) {
+                  if (val?.isEmpty ?? true) return 'Due date is required';
+                  final dueDate = DateTime.tryParse(val!);
+                  if (dueDate == null) return 'Please select a valid date';
+                  
+                  // Check if due date is before order date
+                  final orderDateStr = _orderDateController.text;
+                  if (orderDateStr.isNotEmpty) {
+                    final orderDate = DateTime.tryParse(orderDateStr);
+                    if (orderDate != null && dueDate.isBefore(orderDate)) {
+                      return 'Due date must be after order date';
+                    }
+                  }
+                  
+                  // Check if due date is too far in the past
+                  if (dueDate.isBefore(DateTime.now().subtract(Duration(days: 1)))) {
+                    return 'Due date cannot be in the past';
+                  }
+                  
+                  return null;
+                },
               ),
             ),
           ],
@@ -605,7 +649,17 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
           label: 'Assigned To',
           hint: 'E.g., Maria Santos',
           icon: Icons.person_outline,
-          validator: (val) => val?.isEmpty ?? true ? 'Required' : null,
+          validator: (val) {
+            if (val?.isEmpty ?? true) return 'Assignment is required';
+            final trimmed = val!.trim();
+            if (trimmed.isEmpty) return 'Assignment cannot be empty';
+            if (trimmed.length > 50) return 'Name is too long (max: 50 characters)';
+            // Check for valid name format
+            if (!RegExp(r"^[a-zA-Z\s\-'\.]+$").hasMatch(trimmed)) {
+              return 'Please enter a valid name (letters, spaces, hyphens only)';
+            }
+            return null;
+          },
         ),
         const SizedBox(height: 16),
         Row(
@@ -618,9 +672,19 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
                 icon: Icons.numbers,
                 keyboardType: TextInputType.number,
                 validator: (val) {
-                  if (val?.isEmpty ?? true) return 'Required';
-                  final n = int.tryParse(val!);
-                  if (n == null || n <= 0) return 'Must be positive';
+                  if (val?.isEmpty ?? true) return 'Quantity required';
+                  final trimmed = val!.trim();
+                  if (trimmed.isEmpty) return 'Quantity cannot be empty';
+                  
+                  // Check for non-numeric characters
+                  if (!RegExp(r'^\d+$').hasMatch(trimmed)) {
+                    return 'Use numbers only (no letters or symbols)';
+                  }
+                  
+                  final n = int.tryParse(trimmed);
+                  if (n == null) return 'Enter a whole number';
+                  if (n <= 0) return 'Quantity must be greater than 0';
+                  if (n > 10000) return 'Quantity too large (max: 10,000)';
                   return null;
                 },
               ),
@@ -632,11 +696,21 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
                 label: 'Price (₱)',
                 hint: 'E.g., 1500.00',
                 icon: Icons.attach_money,
-                keyboardType: TextInputType.number,
+                keyboardType: TextInputType.numberWithOptions(decimal: true),
                 validator: (val) {
-                  if (val?.isEmpty ?? true) return 'Required';
-                  final n = double.tryParse(val!);
-                  if (n == null || n < 0) return 'Must be valid';
+                  if (val?.isEmpty ?? true) return 'Price required';
+                  final trimmed = val!.trim();
+                  if (trimmed.isEmpty) return 'Price cannot be empty';
+                  
+                  // Check for invalid characters (letters, symbols except decimal point)
+                  if (!RegExp(r'^\d*\.?\d*$').hasMatch(trimmed)) {
+                    return 'Use numbers only (decimals allowed)';
+                  }
+                  
+                  final n = double.tryParse(trimmed);
+                  if (n == null) return 'Enter a valid price';
+                  if (n < 0) return 'Price cannot be negative';
+                  if (n > 1000000) return 'Price too large (max: ₱1M)';
                   return null;
                 },
               ),
@@ -660,6 +734,12 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
           hint: 'E.g., Custom embroidery, specific requirements...',
           icon: Icons.notes,
           maxLines: 3,
+          validator: (val) {
+            if (val != null && val.trim().length > 500) {
+              return 'Instructions are too long (max: 500 characters)';
+            }
+            return null;
+          },
         ),
         const SizedBox(height: 16),
         _buildSwitchTile(
@@ -676,7 +756,13 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
           icon: Icons.flag,
           items: ['Open', 'In Progress', 'Done'],
           onChanged: (val) => setState(() => _jobStatus = val ?? 'In Progress'),
-          validator: (val) => val?.isEmpty ?? true ? 'Required' : null,
+          validator: (val) {
+            if (val?.isEmpty ?? true) return 'Job status is required';
+            if (!['Open', 'In Progress', 'Done'].contains(val)) {
+              return 'Please select a valid status';
+            }
+            return null;
+          },
         ),
       ],
     );
@@ -751,7 +837,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
                       size: 'Small',
                       color: 'Mixed', // Color will be determined by fabrics
                       quantityInStock: 0,
-                      quantity: 1, // Default quantity for new variants
+                      quantity: 0, // No prefilled quantity - user must enter
                       fabrics: [],
                     ));
                   });
@@ -1000,10 +1086,21 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: Colors.blue.shade400, width: 2),
         ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.red.shade400, width: 2),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.red.shade400, width: 2),
+        ),
+        errorMaxLines: 2, // Allow error text to wrap to prevent clipping
+        helperMaxLines: 2, // Allow helper text to wrap if needed
       ),
       keyboardType: keyboardType,
       maxLines: maxLines,
       validator: validator,
+      autovalidateMode: AutovalidateMode.onUserInteraction,
     );
   }
 
@@ -1034,8 +1131,17 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: Colors.blue.shade400, width: 2),
         ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.red.shade400, width: 2),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.red.shade400, width: 2),
+        ),
       ),
       validator: validator,
+      autovalidateMode: AutovalidateMode.onUserInteraction,
     );
   }
 
@@ -1071,8 +1177,17 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: Colors.blue.shade400, width: 2),
         ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.red.shade400, width: 2),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.red.shade400, width: 2),
+        ),
       ),
       validator: validator,
+      autovalidateMode: AutovalidateMode.onUserInteraction,
     );
   }
 
