@@ -25,54 +25,54 @@ class _ProfitReportPageState extends State<ProfitReportPage> {
     _loadProfit();
   }
 
-Widget _buildBigStatCard({
-  required IconData icon,
-  required String label,
-  required String value,
-  required Color color,
-}) {
-  return Expanded(
-    child: Container(
-      margin: const EdgeInsets.symmetric(horizontal: 6),
-      padding: const EdgeInsets.symmetric(vertical: 18),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: color.withOpacity(0.08),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, color: color, size: 38),
-          const SizedBox(height: 10),
-          Text(
-            value,
-            style: TextStyle(
-              color: color,
-              fontWeight: FontWeight.bold,
-              fontSize: 28,
+  Widget _buildBigStatCard({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return Expanded(
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 6),
+        padding: const EdgeInsets.symmetric(vertical: 18),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.12),
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(
+              color: color.withOpacity(0.08),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.black87,
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: color, size: 38),
+            const SizedBox(height: 10),
+            Text(
+              value,
+              style: TextStyle(
+                color: color,
+                fontWeight: FontWeight.bold,
+                fontSize: 28,
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.black87,
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   Future<void> _loadProfit() async {
     final profit = await fetchUserTotalProfit();
@@ -174,17 +174,17 @@ Widget _buildBigStatCard({
                             ),
                           ),
                           const SizedBox(height: 10),
-                        Text(
-                          '₱${_productProfits
-                              .map((p) => (p['totalRevenue'] as num?)?.toDouble() ?? 0.0)
-                              .fold<double>(0, (prev, e) => prev + e)
-                              .toStringAsFixed(2)}',
-                          style: TextStyle(
-                            fontSize: 38,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.green[800],
+                          Text(
+                            '₱${_productProfits
+                                .map((p) => (p['totalRevenue'] as num?)?.toDouble() ?? 0.0)
+                                .fold<double>(0, (prev, e) => prev + e)
+                                .toStringAsFixed(2)}',
+                            style: TextStyle(
+                              fontSize: 38,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.green[800],
+                            ),
                           ),
-                        ),
                         ],
                       ),
                     ),
@@ -314,13 +314,13 @@ Widget _buildBigStatCard({
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
                                       decoration: BoxDecoration(
-                                        color: p['profit'] >= 0 ? Colors.green[100] : Colors.red[100],
+                                        color: (p['profit'] ?? 0) >= 0 ? Colors.green[100] : Colors.red[100],
                                         borderRadius: BorderRadius.circular(20),
                                       ),
                                       child: Text(
-                                        p['profit'] >= 0 ? 'Profit' : 'Loss',
+                                        (p['profit'] ?? 0) >= 0 ? 'Profit' : 'Loss',
                                         style: TextStyle(
-                                          color: p['profit'] >= 0 ? Colors.green[700] : Colors.red[700],
+                                          color: (p['profit'] ?? 0) >= 0 ? Colors.green[700] : Colors.red[700],
                                           fontWeight: FontWeight.w600,
                                           fontSize: 13,
                                         ),
@@ -331,34 +331,42 @@ Widget _buildBigStatCard({
                                 const SizedBox(height: 14),
                                 Row(
                                   children: [
-                                    _buildStatItem(
-                                      'Sold',
-                                      p['totalQtySold'].toString(),
-                                      Icons.shopping_cart_outlined,
-                                      Colors.orange[700]!,
+                                    Expanded(
+                                      child: _buildStatItem(
+                                        'Sold',
+                                        (p['totalQtySold'] ?? 0).toString(),
+                                        Icons.shopping_cart_outlined,
+                                        Colors.orange[700]!,
+                                      ),
                                     ),
-                                    _buildStatItem(
-                                      'Revenue',
-                                      '₱${p['totalRevenue'].toStringAsFixed(2)}',
-                                      Icons.attach_money,
-                                      Colors.green[700]!,
+                                    Expanded(
+                                      child: _buildStatItem(
+                                        'Revenue',
+                                        '₱${(p['totalRevenue'] ?? 0).toStringAsFixed(2)}',
+                                        Icons.attach_money,
+                                        Colors.green[700]!,
+                                      ),
                                     ),
                                   ],
                                 ),
                                 const SizedBox(height: 8),
                                 Row(
                                   children: [
-                                    _buildStatItem(
-                                      'Job Orders',
-                                      p['jobOrderCount'].toString(),
-                                      Icons.assignment_turned_in,
-                                      Colors.blue[700]!,
+                                    Expanded(
+                                      child: _buildStatItem(
+                                        'Job Orders',
+                                        (p['jobOrderCount'] ?? 0).toString(),
+                                        Icons.assignment_turned_in,
+                                        Colors.blue[700]!,
+                                      ),
                                     ),
-                                    _buildStatItem(
-                                      'Unit Cost',
-                                      '₱${p['unitCost'].toStringAsFixed(2)}',
-                                      Icons.precision_manufacturing,
-                                      Colors.purple[700]!,
+                                    Expanded(
+                                      child: _buildStatItem(
+                                        'Unit Cost',
+                                        '₱${(p['unitCost'] ?? 0).toStringAsFixed(2)}',
+                                        Icons.precision_manufacturing,
+                                        Colors.purple[700]!,
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -366,11 +374,11 @@ Widget _buildBigStatCard({
                                 Align(
                                   alignment: Alignment.centerRight,
                                   child: Text(
-                                    'Profit: ₱${p['totalRevenue'].toStringAsFixed(2)}',
+                                    'Profit: ₱${(p['totalRevenue'] ?? 0).toStringAsFixed(2)}',
                                     style: TextStyle(
                                       fontSize: 20,
                                       fontWeight: FontWeight.bold,
-                                      color: p['totalRevenue'] >= 0 ? Colors.green[800] : Colors.red[800],
+                                      color: (p['totalRevenue'] ?? 0) >= 0 ? Colors.green[800] : Colors.red[800],
                                     ),
                                   ),
                                 ),
@@ -419,35 +427,31 @@ Widget _buildBigStatCard({
   }
 
   Widget _buildStatItem(String title, String value, IconData icon, Color color) {
-    return Expanded(
-      child: Column(
-        children: [
-          Icon(icon, color: color, size: 30),
-          const SizedBox(height: 4),
-          Flexible(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                value,
-                style: TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.bold,
-                  color: color,
-                ),
-              ),
+    return Column(
+      children: [
+        Icon(icon, color: color, size: 30),
+        const SizedBox(height: 4),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            value,
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.bold,
+              color: color,
             ),
           ),
-          const SizedBox(height: 1),
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 12,
-              color: Colors.black54,
-            ),
-            textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 1),
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 12,
+            color: Colors.black54,
           ),
-        ],
-      ),
+          textAlign: TextAlign.center,
+        ),
+      ],
     );
   }
 }

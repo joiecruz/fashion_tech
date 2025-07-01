@@ -47,11 +47,11 @@ class _EditFabricModalState extends State<EditFabricModal> {
     super.initState();
     final fabric = widget.fabric;
     _nameController = TextEditingController(text: fabric['name'] ?? '');
-    _selectedType = fabric['type'] ?? _typeOptions.first;
-    _selectedColor = fabric['color'] ?? _colorOptions.first;
+    _selectedType = _typeOptions.contains(fabric['type']) ? fabric['type'] : _typeOptions.first;
+    _selectedColor = _colorOptions.contains(fabric['color']) ? fabric['color'] : _colorOptions.first;
     _quantityController = TextEditingController(text: (fabric['quantity'] ?? '').toString());
     _expenseController = TextEditingController(text: (fabric['pricePerUnit'] ?? '').toString());
-    _selectedQuality = fabric['qualityGrade'] ?? _qualityOptions.first;
+    _selectedQuality = _qualityOptions.contains(fabric['qualityGrade']) ? fabric['qualityGrade'] : _qualityOptions.first;
     _minOrderController = TextEditingController(text: (fabric['minOrder'] ?? '').toString());
     _isUpcycled = fabric['isUpcycled'] ?? false;
     _swatchImageUrl = fabric['swatchImageURL'];
@@ -161,63 +161,82 @@ class _EditFabricModalState extends State<EditFabricModal> {
     }
   }
 
-  void _submitForm() async {
-    if (_swatchImage != null && _swatchImageUrl == null) {
-      FocusScope.of(context).unfocus();
-      await Future.delayed(const Duration(milliseconds: 100));
-      String message = _swatchImage == null
-          ? 'Please select a fabric swatch image.'
-          : _uploading
-              ? 'Image is still uploading. Please wait for upload to complete.'
-              : 'Image upload failed. Please try uploading the image again.';
-      await showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Missing Swatch Image'),
-          content: Text(message),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('OK'),
-            ),
-          ],
-        ),
-      );
-      return;
-    }
-
-    if (_formKey.currentState!.validate()) {
-      await FirebaseFirestore.instance.collection('fabrics').doc(widget.fabricId).update({
-        'name': _nameController.text,
-        'type': _selectedType,
-        'color': _selectedColor,
-        'quantity': int.tryParse(_quantityController.text) ?? 0,
-        'pricePerUnit': double.tryParse(_expenseController.text) ?? 0.0,
-        'qualityGrade': _selectedQuality,
-        'minOrder': int.tryParse(_minOrderController.text) ?? 0,
-        'isUpcycled': _isUpcycled,
-        'swatchImageURL': _swatchImageUrl,
-        'lastEdited': Timestamp.now(),
-      });
-
-      await showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Success'),
-          content: const Text('Fabric updated successfully!'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('OK'),
-            ),
-          ],
-        ),
-      );
-
-      Navigator.pop(context);
-    }
+void _submitForm() async {
+  if (_swatchImage != null && _swatchImageUrl == null) {
+    FocusScope.of(context).unfocus();
+    await Future.delayed(const Duration(milliseconds: 100));
+    String message = _swatchImage == null
+        ? 'Please select a fabric swatch image.'
+        : _uploading
+            ? 'Image is still uploading. Please wait for upload to complete.'
+            : 'Image upload failed. Please try uploading the image again.';
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Missing Swatch Image'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+    return;
   }
 
+  if (_formKey.currentState!.validate()) {
+    // Confirmation prompt before saving
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm Save'),
+        content: const Text('Are you sure you want to save changes to this fabric?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+
+    await FirebaseFirestore.instance.collection('fabrics').doc(widget.fabricId).update({
+      'name': _nameController.text,
+      'type': _selectedType,
+      'color': _selectedColor,
+      'quantity': int.tryParse(_quantityController.text) ?? 0,
+      'pricePerUnit': double.tryParse(_expenseController.text) ?? 0.0,
+      'qualityGrade': _selectedQuality,
+      'minOrder': int.tryParse(_minOrderController.text) ?? 0,
+      'isUpcycled': _isUpcycled,
+      'swatchImageURL': _swatchImageUrl,
+      'lastEdited': Timestamp.now(),
+    });
+
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Success'),
+        content: const Text('Fabric updated successfully!'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+
+    Navigator.pop(context);
+  }
+}
   @override
   void dispose() {
     _nameController.dispose();
@@ -343,7 +362,7 @@ class _EditFabricModalState extends State<EditFabricModal> {
                   children: [
                     Expanded(
                       child: DropdownButtonFormField<String>(
-                        value: _selectedType,
+                        value: _typeOptions.contains(_selectedType) ? _selectedType : _typeOptions.first,
                         items: _typeOptions
                             .map((type) => DropdownMenuItem(value: type, child: Text(type)))
                             .toList(),
@@ -357,7 +376,7 @@ class _EditFabricModalState extends State<EditFabricModal> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: DropdownButtonFormField<String>(
-                        value: _selectedColor,
+                        value: _colorOptions.contains(_selectedColor) ? _selectedColor : _colorOptions.first,
                         items: _colorOptions
                             .map((color) => DropdownMenuItem(value: color, child: Text(color)))
                             .toList(),
@@ -405,7 +424,7 @@ class _EditFabricModalState extends State<EditFabricModal> {
                   children: [
                     Expanded(
                       child: DropdownButtonFormField<String>(
-                        value: _selectedQuality,
+                        value: _qualityOptions.contains(_selectedQuality) ? _selectedQuality : _qualityOptions.first,
                         items: _qualityOptions
                             .map((q) => DropdownMenuItem(
                                   value: q,

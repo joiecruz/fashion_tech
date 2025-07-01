@@ -169,51 +169,51 @@ class _HomeDashboardState extends State<HomeDashboard> {
                       valueListenable: ProductInventoryPage.potentialValueNotifier,
                       builder: (context, projectedIncome, _) {
                         return Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Projected Income',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 15,
-                                    color: Colors.grey[800],
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Projected Income',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 15,
+                                      color: Colors.grey[800],
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  '₱${projectedIncome.toStringAsFixed(2)}',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 22,
-                                    color: Colors.green[700],
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    '₱${projectedIncome.toStringAsFixed(2)}',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 22,
+                                      color: Colors.green[700],
+                                    ),
                                   ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          ElevatedButton(
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (context) => const ProfitReportPage()),
-                              );
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.blue[600],
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
+                                ],
                               ),
-                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-                              elevation: 0,
                             ),
-                            child: const Text('View'),
-                          ),
-                        ],
-                      );
+                            ElevatedButton(
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(builder: (context) => const ProfitReportPage()),
+                                );
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.blue[600],
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                                elevation: 0,
+                              ),
+                              child: const Text('View'),
+                            ),
+                          ],
+                        );
                       },
                     ),
                   ],

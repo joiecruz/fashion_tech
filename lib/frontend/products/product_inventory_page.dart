@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'add_product_modal.dart';
 import 'product_detail_page.dart';
+import 'edit_product_modal.dart';
 import 'package:fashion_tech/backend/fetch_products.dart';
 import 'package:fashion_tech/frontend/profit/sell_modal.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -1109,20 +1110,29 @@ Widget _buildStatCard({
                           const SizedBox(width: 8),
                           Expanded(
                             child: OutlinedButton.icon(
-                              onPressed: () async {
-                                final result = await Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (context) => ProductDetailPage(productData: product),
+                            onPressed: () async {
+                              final result = await showModalBottomSheet<bool>(
+                                context: context,
+                                isScrollControlled: true,
+                                backgroundColor: Colors.transparent,
+                                builder: (context) => Container(
+                                  margin: const EdgeInsets.only(top: 100),
+                                  height: MediaQuery.of(context).size.height - 100,
+                                  decoration: const BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
                                   ),
-                                );
-                                if (result == true) {
-                                  _selectedCategory = 'All';
-                                  _showUpcycledOnly = false;
-                                  _showLowStockOnly = false;
-                                  _searchController.clear();
-                                  await _loadProducts(isRefresh: true);
-                                }
-                              },
+                                  child: EditProductModal(productData: product),
+                                ),
+                              );
+                              if (result == true) {
+                                _selectedCategory = 'All';
+                                _showUpcycledOnly = false;
+                                _showLowStockOnly = false;
+                                _searchController.clear();
+                                await _loadProducts(isRefresh: true);
+                              }
+                            },
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: Colors.black87,
                                 padding: const EdgeInsets.symmetric(vertical: 12),
