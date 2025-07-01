@@ -790,6 +790,9 @@ class _JobOrderListPageState extends State<JobOrderListPage>
     final DateTime? createdAt = createdAtTimestamp?.toDate();
     
     // Get related data
+    print('Loaded product IDs: ${productData.keys.toList()}');
+    print('JobOrder productID: $productID');
+;
     final productInfo = productData[productID] ?? {};
     final String productName = productInfo['name'] ?? 'Unknown Product';
     final String productCategory = productInfo['category'] ?? '';

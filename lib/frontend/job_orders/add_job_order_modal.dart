@@ -30,7 +30,7 @@ import 'models/form_models.dart';
 import 'widgets/variant_card.dart';
 import 'widgets/variant_breakdown_summary.dart';
 import 'widgets/fabric_suppliers_section.dart';
-
+import 'package:firebase_auth/firebase_auth.dart';
 class AddJobOrderModal extends StatefulWidget {
   const AddJobOrderModal({Key? key}) : super(key: key);
 
@@ -1504,14 +1504,14 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
       final jobOrderRef = FirebaseFirestore.instance.collection('jobOrders').doc();
       await jobOrderRef.set({
         'name': _jobOrderNameController.text, // ERDv8: required name field
-        'productID': 'placeholder_product_id', // required - should be from a product selection in production
+        'productID': 'default_product_id', // TODO: Replace with actual product ID selection in production
         'quantity': int.tryParse(_quantityController.text) ?? 0, // required - use global quantity
         'customerName': _customerNameController.text, // required
         'status': _jobStatus, // required
         'dueDate': (_dueDateController.text.isNotEmpty)
             ? Timestamp.fromDate(DateTime.tryParse(_dueDateController.text) ?? DateTime.now())
             : FieldValue.serverTimestamp(), // required
-        'createdBy': 'current_user_id', // required - should be actual user ID in production
+        'createdBy': FirebaseAuth.instance.currentUser?.uid,// required - should be actual user ID in production
         'assignedTo': _assignedToController.text, // optional
         'specialInstructions': _specialInstructionsController.text, // optional
         'orderDate': (_orderDateController.text.isNotEmpty)
