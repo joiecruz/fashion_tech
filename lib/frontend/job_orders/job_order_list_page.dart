@@ -168,8 +168,13 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                   // Search bar
                   Container(
                     decoration: BoxDecoration(
-                      color: Colors.grey[100],
+                      gradient: LinearGradient(
+                        colors: [Colors.orange[50]!, Colors.grey[100]!],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
                       borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.orange[200]!.withOpacity(0.3)),
                     ),
                     child: TextField(
                       controller: _searchController,
@@ -334,7 +339,7 @@ class _JobOrderListPageState extends State<JobOrderListPage>
         },
         icon: const Icon(Icons.add, color: Colors.white),
         label: const Text('New Job Order', style: TextStyle(color: Colors.white)),
-        backgroundColor: Colors.blue,
+        backgroundColor: Colors.orange[600],
         elevation: 4,
       ),
     );
@@ -436,11 +441,11 @@ class _JobOrderListPageState extends State<JobOrderListPage>
       case 'Open':
         return Colors.orange[600]!;
       case 'In Progress':
-        return Colors.blue[600]!;
+        return Colors.orange[500]!;
       case 'Done':
         return Colors.green[600]!;
       default:
-        return Colors.grey[600]!;
+        return Colors.orange[400]!;
     }
   }
 
@@ -505,7 +510,7 @@ class _JobOrderListPageState extends State<JobOrderListPage>
             icon: const Icon(Icons.add),
             label: const Text('Create Job Order'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
+              backgroundColor: Colors.orange[600],
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               shape: RoundedRectangleBorder(
@@ -534,9 +539,13 @@ class _JobOrderListPageState extends State<JobOrderListPage>
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               decoration: BoxDecoration(
-                color: Colors.grey[50],
+                gradient: LinearGradient(
+                  colors: [Colors.orange[50]!, Colors.white],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ),
                 border: Border(
-                  bottom: BorderSide(color: Colors.grey[200]!, width: 1),
+                  bottom: BorderSide(color: Colors.orange[200]!, width: 1),
                 ),
               ),
               child: Row(
@@ -546,7 +555,7 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                     children: [
                       Icon(
                         Icons.analytics_outlined,
-                        color: Colors.grey[600],
+                        color: Colors.orange[600],
                         size: 20,
                       ),
                       const SizedBox(width: 8),
@@ -606,7 +615,7 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                           children: [
                             Expanded(child: _buildStatCard(
                               icon: Icons.assignment,
-                              iconColor: Colors.blue[600]!,
+                              iconColor: Colors.orange[600]!,
                               title: 'Total\nOrders',
                               value: _totalOrders.toString(),
                               isCompact: true,
@@ -614,7 +623,7 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                             const SizedBox(width: 10),
                             Expanded(child: _buildStatCard(
                               icon: Icons.access_time,
-                              iconColor: Colors.orange[600]!,
+                              iconColor: Colors.orange[700]!,
                               title: 'Open\nOrders',
                               value: _openOrders.toString(),
                               isCompact: true,
@@ -622,7 +631,7 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                             const SizedBox(width: 10),
                             Expanded(child: _buildStatCard(
                               icon: Icons.trending_up,
-                              iconColor: Colors.blue[600]!,
+                              iconColor: Colors.orange[500]!,
                               title: 'In\nProgress',
                               value: _inProgressOrders.toString(),
                               isCompact: true,
@@ -659,21 +668,21 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                       children: [
                         Expanded(child: _buildStatCard(
                           icon: Icons.assignment,
-                          iconColor: Colors.blue[600]!,
+                          iconColor: Colors.orange[600]!,
                           title: 'Total\nOrders',
                           value: _totalOrders.toString(),
                         )),
                         const SizedBox(width: 12),
                         Expanded(child: _buildStatCard(
                           icon: Icons.access_time,
-                          iconColor: Colors.orange[600]!,
+                          iconColor: Colors.orange[700]!,
                           title: 'Open\nOrders',
                           value: _openOrders.toString(),
                         )),
                         const SizedBox(width: 12),
                         Expanded(child: _buildStatCard(
                           icon: Icons.trending_up,
-                          iconColor: Colors.blue[600]!,
+                          iconColor: Colors.orange[500]!,
                           title: 'In\nProgress',
                           value: _inProgressOrders.toString(),
                         )),
@@ -707,19 +716,29 @@ class _JobOrderListPageState extends State<JobOrderListPage>
     return Container(
       padding: EdgeInsets.all(isCompact ? 8 : 16),
       decoration: BoxDecoration(
-        color: isUrgent ? Colors.red[50] : Colors.grey[50],
+        gradient: isUrgent 
+          ? LinearGradient(
+              colors: [Colors.red[50]!, Colors.red[100]!.withOpacity(0.3)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            )
+          : LinearGradient(
+              colors: [Colors.orange[50]!, Colors.orange[100]!.withOpacity(0.3)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isUrgent ? Colors.red[200]! : Colors.grey[200]!,
+          color: isUrgent ? Colors.red[200]! : Colors.orange[200]!,
           width: isUrgent ? 1.5 : 1,
         ),
-        boxShadow: isUrgent ? [
+        boxShadow: [
           BoxShadow(
-            color: Colors.red.withOpacity(0.1),
+            color: (isUrgent ? Colors.red : Colors.orange).withOpacity(0.1),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
-        ] : null,
+        ],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -1090,7 +1109,7 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                           vertical: 6,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.blue[50],
+                          color: Colors.orange[50],
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
@@ -1098,7 +1117,7 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
-                            color: Colors.blue[700],
+                            color: Colors.orange[700],
                           ),
                         ),
                       ),
