@@ -48,11 +48,12 @@ class _HomeDashboardState extends State<HomeDashboard> {
           StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance.collection('fabrics').snapshots(),
             builder: (context, snapshot) {
-              int totalYards = 0;
+              double totalYards = 0.0;
               if (snapshot.hasData) {
                 for (var doc in snapshot.data!.docs) {
                   final data = doc.data() as Map<String, dynamic>;
-                  totalYards += (data['quantity'] ?? 0) as int;
+                  final quantity = data['quantity'] ?? 0;
+                  totalYards += (quantity as num).toDouble();
                 }
               }
               return Card(
@@ -68,7 +69,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
                           const Icon(Icons.checkroom, size: 32, color: Colors.deepPurple),
                           const SizedBox(height: 8),
                           Text(
-                            '${totalYards.toString()} yds',
+                            '${totalYards.toStringAsFixed(1)} yds',
                             style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                           ),
                           const SizedBox(height: 4),

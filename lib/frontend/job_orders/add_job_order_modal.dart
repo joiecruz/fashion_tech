@@ -76,18 +76,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
   @override
   void initState() {
     super.initState();
-    // Prefill form fields for quick testing
-    _jobOrderNameController.text = 'Sample Job Order';
-    _customerNameController.text = 'Jane Doe';
-    _orderDateController.text = DateTime.now().toIso8601String().substring(0, 10);
-    _dueDateController.text = DateTime.now().add(const Duration(days: 7)).toIso8601String().substring(0, 10);
-    _assignedToController.text = 'Maria Santos';
-    _quantityController.text = '10';
-    _priceController.text = '1500.00';
-    _specialInstructionsController.text = 'Custom embroidery on sleeves.';
-    _isUpcycled = true;
-    _jobStatus = 'In Progress';
-
+    
     // Initialize animation controller
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 600),
