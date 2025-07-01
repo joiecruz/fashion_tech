@@ -1081,9 +1081,20 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                         );
                         
                         if (confirm == true) {
+                          await FirebaseFirestore.instance
+                                .collection('jobOrders') // replace with your collection name
+                                .doc(jobOrderID) // this is the document ID to delete
+                                .delete();
+
                           print('Delete job order: $jobOrderID');
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Delete "$jobOrderName" feature coming soon!')),
+                            SnackBar(
+                              backgroundColor: Colors.green, // Change SnackBar background
+                              content: Text(
+                                'Successfully Deleted "$jobOrderName"',
+                                style: const TextStyle(color: Colors.white), // Optional: make text readable
+                              ),
+                            ),
                           );
                         }
                       },
