@@ -3,6 +3,18 @@ import '../models/form_models.dart';
 import '../../../utils/color_utils.dart';
 import '../../../utils/size_utils.dart';
 
+// ===============================================================================
+// VARIANT CARD CUSTOMIZATION GUIDE
+// ===============================================================================
+// 
+// To modify the QUANTITY FIELD HEIGHT:
+// 1. Search for "QUANTITY FIELD HEIGHT CONFIGURATION" in this file (around line 155)
+// 2. Change the height value in the Container widget
+// 3. Optionally adjust contentPadding for better visual balance
+//
+// Current quantity field height: 56px (matches size dropdown)
+// ===============================================================================
+
 class VariantCard extends StatelessWidget {
   final FormProductVariant variant;
   final int index;
@@ -28,21 +40,36 @@ class VariantCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = [
-      Colors.blue.shade50,
-      Colors.green.shade50,
-      Colors.orange.shade50,
-      Colors.purple.shade50,
-      Colors.teal.shade50,
+      Color(0xFFF8FAFC), // Slate 50
+      Color(0xFFF0FDF4), // Green 50
+      Color(0xFFFEFBEA), // Amber 50
+      Color(0xFFFAF5FF), // Violet 50
+      Color(0xFFECFEFF), // Cyan 50
+    ];
+    final borderColors = [
+      Color(0xFFE2E8F0), // Slate 200
+      Color(0xFFBBF7D0), // Green 200
+      Color(0xFFFDE68A), // Amber 200
+      Color(0xFFDDD6FE), // Violet 200
+      Color(0xFFA7F3D0), // Emerald 200
     ];
     final bgColor = colors[index % colors.length];
+    final borderColor = borderColors[index % borderColors.length];
     
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: bgColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -51,16 +78,25 @@ class VariantCard extends StatelessWidget {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: Colors.grey.shade200),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.06),
+                      blurRadius: 4,
+                      offset: const Offset(0, 1),
+                    ),
+                  ],
                 ),
                 child: Text(
                   'Variant ${index + 1}',
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
                     color: Colors.grey.shade700,
+                    fontSize: 14,
                   ),
                 ),
               ),
@@ -74,86 +110,116 @@ class VariantCard extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           
-          // Size and Quantity inputs with consistent row height
-          IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    value: variant.size,
-                    items: SizeUtils.buildSizeDropdownItems(showDescriptions: true),
-                    onChanged: (val) {
-                      variant.size = val ?? SizeUtils.sizeOptions.first;
-                      onVariantChanged(index);
-                    },
-                    decoration: InputDecoration(
-                      labelText: 'Size',
-                      filled: true,
-                      fillColor: Colors.white,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
+          // Size and Quantity inputs with guaranteed identical heights
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  value: variant.size,
+                  items: SizeUtils.buildSizeDropdownItems(
+                    showDescriptions: false,
+                    compact: true,
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextFormField(
-                    initialValue: variant.quantity == 0 ? '' : variant.quantity.toString(),
-                    decoration: InputDecoration(
-                      labelText: 'Quantity',
-                      filled: true,
-                      fillColor: Colors.white,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide.none,
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: Colors.grey.shade200),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: Colors.blue.shade400, width: 2),
-                      ),
-                      errorBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: Colors.red.shade400, width: 2),
-                      ),
-                      focusedErrorBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: Colors.red.shade400, width: 2),
-                      ),
-                      errorMaxLines: 2,
+                  selectedItemBuilder: (BuildContext context) {
+                    return SizeUtils.buildConstrainedSizeSelectedItems(
+                      context,
+                      compact: true,
+                      maxWidth: 120,
+                    );
+                  },
+                  onChanged: (val) {
+                    variant.size = val ?? SizeUtils.sizeOptions.first;
+                    onVariantChanged(index);
+                  },
+                  decoration: InputDecoration(
+                    labelText: 'Size',
+                    labelStyle: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
                     ),
-                    keyboardType: TextInputType.number,
-                    validator: (val) {
-                      if (val?.isEmpty ?? true) return 'Quantity required';
-                      final trimmed = val!.trim();
-                      if (trimmed.isEmpty) return 'Quantity cannot be empty';
-                      
-                      // Check for non-numeric characters
-                      if (!RegExp(r'^\d+$').hasMatch(trimmed)) {
-                        return 'Use numbers only';
-                      }
-                      
-                      final n = int.tryParse(trimmed);
-                      if (n == null) return 'Enter whole number';
-                      if (n <= 0) return 'Must be greater than 0';
-                      if (n > 1000) return 'Too large (max: 1,000)';
-                      return null;
-                    },
-                    autovalidateMode: AutovalidateMode.onUserInteraction,
-                    onChanged: (val) {
-                      variant.quantity = int.tryParse(val) ?? 0;
-                      onVariantChanged(index);
-                    },
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.blue.shade400, width: 2),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+                    isDense: false,
                   ),
+                  isDense: false,
+                  isExpanded: true,
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextFormField(
+                  initialValue: variant.quantity == 0 ? '' : variant.quantity.toString(),
+                  decoration: InputDecoration(
+                    labelText: 'Quantity',
+                    labelStyle: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.blue.shade400, width: 2),
+                    ),
+                    errorBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.red.shade400, width: 2),
+                    ),
+                    focusedErrorBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.red.shade400, width: 2),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 22),
+                    errorMaxLines: 2,
+                    isDense: false,
+                  ),
+                  keyboardType: TextInputType.number,
+                  validator: (val) {
+                    if (val?.isEmpty ?? true) return 'Quantity required';
+                    final trimmed = val!.trim();
+                    if (trimmed.isEmpty) return 'Quantity cannot be empty';
+                    // Check for non-numeric characters
+                    if (!RegExp(r'^\d+$').hasMatch(trimmed)) {
+                      return 'Use numbers only';
+                    }
+                    final n = int.tryParse(trimmed);
+                    if (n == null) return 'Enter whole number';
+                    if (n <= 0) return 'Must be greater than 0';
+                    if (n > 1000) return 'Too large (max: 1,000)';
+                    return null;
+                  },
+                  autovalidateMode: AutovalidateMode.onUserInteraction,
+                  onChanged: (val) {
+                    variant.quantity = int.tryParse(val) ?? 0;
+                    onVariantChanged(index);
+                  },
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 16),
           

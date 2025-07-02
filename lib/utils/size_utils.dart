@@ -35,28 +35,28 @@ class SizeUtils {
     'Free Size': 'One Size Fits All',
   };
 
-  // Color coding for size indicators (optional visual enhancement)
+  // Color coding for size indicators with modern, subtle colors
   static const Map<String, Color> sizeColors = {
-    'XS': Color(0xFFE3F2FD), // Light blue
-    'S': Color(0xFFE8F5E8),  // Light green
-    'M': Color(0xFFFFF3E0),  // Light orange
-    'L': Color(0xFFFCE4EC),  // Light pink
-    'XL': Color(0xFFF3E5F5), // Light purple
-    'XXL': Color(0xFFEDE7F6), // Light deep purple
-    'XXXL': Color(0xFFE1F5FE), // Light cyan
-    'Free Size': Color(0xFFF5F5F5), // Light grey
+    'XS': Color(0xFFF8FAFC), // Light slate
+    'S': Color(0xFFECFDF5),  // Light emerald
+    'M': Color(0xFFFFFBEB),  // Light amber
+    'L': Color(0xFFF3E8FF), // Light violet
+    'XL': Color(0xFFEEF2FF), // Light indigo
+    'XXL': Color(0xFFF1F5F9), // Light slate
+    'XXXL': Color(0xFFF0F9FF), // Light sky
+    'Free Size': Color(0xFFFDF4FF), // Light fuchsia
   };
 
-  // Text colors for size indicators
+  // Text colors for size indicators with better contrast
   static const Map<String, Color> sizeTextColors = {
-    'XS': Color(0xFF1976D2),
-    'S': Color(0xFF388E3C),
-    'M': Color(0xFFF57C00),
-    'L': Color(0xFFE91E63),
-    'XL': Color(0xFF7B1FA2),
-    'XXL': Color(0xFF512DA8),
-    'XXXL': Color(0xFF0288D1),
-    'Free Size': Color(0xFF616161),
+    'XS': Color(0xFF1F2937), // Dark gray
+    'S': Color(0xFF047857),  // Dark green
+    'M': Color(0xFFB45309),  // Dark amber
+    'L': Color(0xFF6B21A8),  // Dark purple
+    'XL': Color(0xFF3730A3), // Dark indigo
+    'XXL': Color(0xFF374151), // Dark gray
+    'XXXL': Color(0xFF0C4A6E), // Dark sky
+    'Free Size': Color(0xFF86198F), // Dark fuchsia
   };
 
   /// Creates a size indicator widget with consistent styling
@@ -74,23 +74,31 @@ class SizeUtils {
     
     return Container(
       padding: EdgeInsets.symmetric(
-        horizontal: compact ? 8 : 12,
-        vertical: compact ? 4 : 6,
+        horizontal: compact ? 10 : 14,
+        vertical: compact ? 6 : 8,
       ),
       decoration: BoxDecoration(
         color: backgroundColor,
-        borderRadius: BorderRadius.circular(compact ? 6 : 8),
+        borderRadius: BorderRadius.circular(compact ? 8 : 12),
         border: Border.all(
-          color: textColor.withOpacity(0.3),
+          color: textColor.withOpacity(0.2),
           width: 1,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: textColor.withOpacity(0.1),
+            blurRadius: 2,
+            offset: const Offset(0, 1),
+          ),
+        ],
       ),
       child: Text(
         displayText,
         style: TextStyle(
           color: textColor,
-          fontSize: compact ? 12 : 14,
-          fontWeight: FontWeight.w600,
+          fontSize: compact ? 13 : 15,
+          fontWeight: FontWeight.w700,
+          letterSpacing: compact ? 0.4 : 0.6,
         ),
       ),
     );
@@ -170,16 +178,20 @@ class SizeUtils {
   /// Creates dropdown menu items for size selection with visual indicators
   /// 
   /// [showDescriptions] - Whether to show size descriptions (default: true)
+  /// [compact] - Whether to use compact display for constrained spaces (default: false)
   static List<DropdownMenuItem<String>> buildSizeDropdownItems({
     bool showDescriptions = true,
+    bool compact = false,
   }) {
     return sizeOptions.map((size) {
       return DropdownMenuItem(
         value: size,
-        child: buildSizeIndicatorWithDescription(
-          size,
-          showBothSizeAndDescription: showDescriptions,
-        ),
+        child: compact
+            ? buildSizeIndicator(size, compact: true)
+            : buildSizeIndicatorWithDescription(
+                size,
+                showBothSizeAndDescription: showDescriptions,
+              ),
       );
     }).toList();
   }
@@ -192,6 +204,62 @@ class SizeUtils {
     return sizeOptions.map((size) {
       return buildSizeIndicator(size, compact: compact);
     }).toList();
+  }
+
+  /// Creates selected item builder for size dropdown with consistent styling
+  /// Specifically designed for constrained spaces like variant cards
+  /// 
+  /// [context] - Build context
+  /// [compact] - Whether to use compact styling (default: true)
+  /// [maxWidth] - Maximum width constraint for the selected item (default: 100)
+  static List<Widget> buildConstrainedSizeSelectedItems(
+    BuildContext context, {
+    bool compact = true,
+    double maxWidth = 100,
+  }) {
+    return sizeOptions.map((size) {
+      return Container(
+        alignment: Alignment.centerLeft,
+        constraints: BoxConstraints(maxWidth: maxWidth),
+        child: buildSizeIndicator(size, compact: compact),
+      );
+    }).toList();
+  }
+
+  /// Creates a very compact size indicator for tight spaces
+  /// 
+  /// [size] - The size name to display
+  static Widget buildCompactSizeIndicator(String size) {
+    final backgroundColor = sizeColors[size] ?? Colors.grey.shade100;
+    final textColor = sizeTextColors[size] ?? Colors.grey.shade700;
+    
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: textColor.withOpacity(0.15),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: textColor.withOpacity(0.08),
+            blurRadius: 1,
+            offset: const Offset(0, 0.5),
+          ),
+        ],
+      ),
+      child: Text(
+        size,
+        style: TextStyle(
+          color: textColor,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.3,
+        ),
+      ),
+    );
   }
 
   /// Validates if a size name exists in our size system
