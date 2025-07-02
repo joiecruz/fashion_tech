@@ -800,81 +800,79 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
       color: Colors.indigo,
       children: [
         // Add Variant Button - Only show when section is expanded
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            OutlinedButton.icon(
-              onPressed: () async {
-                final int previousVariantCount = _variants.length;
-                
-                setState(() {
-                  _variants.add(FormProductVariant(
-                    id: 'temp_${DateTime.now().millisecondsSinceEpoch}',
-                    productID: 'temp_product',
-                    size: SizeUtils.sizeOptions.first,
-                    color: 'Mixed', // Color will be determined by fabrics
-                    quantityInStock: 0,
-                    quantity: 0, // No prefilled quantity - user must enter
-                    fabrics: [],
-                  ));
-                });
-                
-                // Only scroll if there were previous variants
-                if (previousVariantCount > 0) {
-                  // Auto-scroll to show the new variant after a short delay to allow UI to update
-                  await Future.delayed(const Duration(milliseconds: 300));
-                  if (_scrollController.hasClients && _variantsSectionKey.currentContext != null) {
-                    try {
-                      final RenderBox renderBox = _variantsSectionKey.currentContext!.findRenderObject() as RenderBox;
-                      final variantsSectionPosition = renderBox.localToGlobal(Offset.zero);
-                      
-                      // Calculate approximate position of the new variant
-                      // Each variant card is approximately 400-450px tall including margins and content
-                      final approximateVariantHeight = 420.0;
-                      final variantsSectionHeaderHeight = 100.0; // Header + padding
-                      
-                      // Position of the new variant (last one in the list)
-                      final newVariantPosition = variantsSectionPosition.dy + 
-                                               variantsSectionHeaderHeight + 
-                                               (previousVariantCount * approximateVariantHeight);
-                      
-                      // Calculate target scroll position to show the new variant nicely
-                      final targetPosition = _scrollController.offset + newVariantPosition - 200; // 200px from top of viewport
-                      
-                      _scrollController.animateTo(
-                        targetPosition.clamp(0.0, _scrollController.position.maxScrollExtent),
-                        duration: const Duration(milliseconds: 600),
-                        curve: Curves.easeOutCubic,
-                      );
-                    } catch (e) {
-                      // Fallback: scroll to a reasonable position
-                      final fallbackPosition = _scrollController.position.maxScrollExtent * 0.8;
-                      _scrollController.animateTo(
-                        fallbackPosition,
-                        duration: const Duration(milliseconds: 600),
-                        curve: Curves.easeOutCubic,
-                      );
-                    }
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: () async {
+              final int previousVariantCount = _variants.length;
+              
+              setState(() {
+                _variants.add(FormProductVariant(
+                  id: 'temp_${DateTime.now().millisecondsSinceEpoch}',
+                  productID: 'temp_product',
+                  size: SizeUtils.sizeOptions.first,
+                  color: 'Mixed', // Color will be determined by fabrics
+                  quantityInStock: 0,
+                  quantity: 0, // No prefilled quantity - user must enter
+                  fabrics: [],
+                ));
+              });
+              
+              // Only scroll if there were previous variants
+              if (previousVariantCount > 0) {
+                // Auto-scroll to show the new variant after a short delay to allow UI to update
+                await Future.delayed(const Duration(milliseconds: 300));
+                if (_scrollController.hasClients && _variantsSectionKey.currentContext != null) {
+                  try {
+                    final RenderBox renderBox = _variantsSectionKey.currentContext!.findRenderObject() as RenderBox;
+                    final variantsSectionPosition = renderBox.localToGlobal(Offset.zero);
+                    
+                    // Calculate approximate position of the new variant
+                    // Each variant card is approximately 400-450px tall including margins and content
+                    final approximateVariantHeight = 420.0;
+                    final variantsSectionHeaderHeight = 100.0; // Header + padding
+                    
+                    // Position of the new variant (last one in the list)
+                    final newVariantPosition = variantsSectionPosition.dy + 
+                                             variantsSectionHeaderHeight + 
+                                             (previousVariantCount * approximateVariantHeight);
+                    
+                    // Calculate target scroll position to show the new variant nicely
+                    final targetPosition = _scrollController.offset + newVariantPosition - 200; // 200px from top of viewport
+                    
+                    _scrollController.animateTo(
+                      targetPosition.clamp(0.0, _scrollController.position.maxScrollExtent),
+                      duration: const Duration(milliseconds: 600),
+                      curve: Curves.easeOutCubic,
+                    );
+                  } catch (e) {
+                    // Fallback: scroll to a reasonable position
+                    final fallbackPosition = _scrollController.position.maxScrollExtent * 0.8;
+                    _scrollController.animateTo(
+                      fallbackPosition,
+                      duration: const Duration(milliseconds: 600),
+                      curve: Curves.easeOutCubic,
+                    );
                   }
                 }
-              },
-              icon: Icon(Icons.add_circle_outline, size: 16),
-              label: Text(
-                'Add Variant',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-              ),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.blue.shade600,
-                side: BorderSide(color: Colors.blue.shade300, width: 1),
-                backgroundColor: Colors.blue.shade50,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                minimumSize: Size(0, 36),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
+              }
+            },
+            icon: Icon(Icons.add_circle_outline, size: 16),
+            label: Text(
+              'Add Variant',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+            ),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.blue.shade600,
+              side: BorderSide(color: Colors.blue.shade300, width: 1),
+              backgroundColor: Colors.blue.shade50,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              minimumSize: Size(double.infinity, 44),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
               ),
             ),
-          ],
+          ),
         ),
         const SizedBox(height: 16),
         // Variants content
