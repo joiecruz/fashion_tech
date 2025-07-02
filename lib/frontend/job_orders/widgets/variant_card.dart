@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/form_models.dart';
 import '../../../utils/color_utils.dart';
+import '../../../utils/size_utils.dart';
 
 class VariantCard extends StatelessWidget {
   final FormProductVariant variant;
@@ -81,11 +82,9 @@ class VariantCard extends StatelessWidget {
                 Expanded(
                   child: DropdownButtonFormField<String>(
                     value: variant.size,
-                    items: ['Small', 'Medium', 'Large', 'XL', 'XXL'].map((size) => 
-                      DropdownMenuItem(value: size, child: Text(size))
-                    ).toList(),
+                    items: SizeUtils.buildSizeDropdownItems(showDescriptions: true),
                     onChanged: (val) {
-                      variant.size = val ?? 'Small';
+                      variant.size = val ?? SizeUtils.sizeOptions.first;
                       onVariantChanged(index);
                     },
                     decoration: InputDecoration(

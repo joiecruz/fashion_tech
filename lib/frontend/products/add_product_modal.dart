@@ -9,6 +9,8 @@ import 'package:flutter/foundation.dart';
 import '../../models/product.dart';
 import '../../models/product_image.dart';
 import '../../utils/utils.dart';
+import '../../utils/size_utils.dart';
+import '../../utils/color_utils.dart';
 
 // Helper class for product variant input
 class ProductVariantInput {
@@ -58,10 +60,6 @@ class _AddProductModalState extends State<AddProductModal>
     'bottom',
     'outerwear',
     'accessories',
-  ];
-
-  final List<String> _sizeOptions = [
-    'XS', 'S', 'M', 'L', 'XL', 'XXL', 'One Size'
   ];
 
   // Animation controller for smooth transitions
@@ -1388,7 +1386,7 @@ Widget _buildImageGrid() {
                               onPressed: () {
                                 setState(() {
                                   _variants.add(ProductVariantInput(
-                                    size: _sizeOptions.first,
+                                    size: SizeUtils.sizeOptions.first,
                                     color: ColorUtils.colorOptions.first,
                                     quantityInStock: 0,
                                   ));
@@ -1461,12 +1459,7 @@ Widget _buildImageGrid() {
                                             labelText: 'Size',
                                             border: OutlineInputBorder(),
                                           ),
-                                          items: _sizeOptions.map((size) {
-                                            return DropdownMenuItem(
-                                              value: size,
-                                              child: Text(size),
-                                            );
-                                          }).toList(),
+                                          items: SizeUtils.buildSizeDropdownItems(showDescriptions: true),
                                           onChanged: (value) {
                                             setState(() {
                                               _variants[index].size = value!;

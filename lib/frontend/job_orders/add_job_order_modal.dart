@@ -26,6 +26,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../utils/color_utils.dart';
+import '../../utils/size_utils.dart';
 import 'models/form_models.dart';
 import 'widgets/variant_card.dart';
 import 'widgets/variant_breakdown_summary.dart';
@@ -834,7 +835,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
                     _variants.add(FormProductVariant(
                       id: 'temp_${DateTime.now().millisecondsSinceEpoch}',
                       productID: 'temp_product',
-                      size: 'Small',
+                      size: SizeUtils.sizeOptions.first,
                       color: 'Mixed', // Color will be determined by fabrics
                       quantityInStock: 0,
                       quantity: 0, // No prefilled quantity - user must enter
