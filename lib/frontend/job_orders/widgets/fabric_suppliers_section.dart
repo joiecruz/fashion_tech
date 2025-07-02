@@ -19,23 +19,9 @@ class FabricSuppliersSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.shade100,
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
           if (variants.isEmpty)
             Container(
               padding: const EdgeInsets.all(32),
@@ -77,8 +63,7 @@ class FabricSuppliersSection extends StatelessWidget {
           else
             _buildSuppliersList(),
         ],
-      ),
-    );
+      );
   }
 
   Widget _buildSuppliersList() {
