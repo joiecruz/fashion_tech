@@ -69,6 +69,17 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
 
   Map<String, double> _fabricAllocated = {};
 
+  // Track expanded/collapsed state for each section
+  Map<String, bool> _sectionExpanded = {
+    'Basic Information': true,  // Start with this section expanded
+    'Timeline': true,          // Timeline is also critical - expand by default
+    'Assignment & Quantities': false,
+    'Additional Details': false,
+    'Product Variants': false,
+    'Fabric Suppliers': false,
+    'Variant Breakdown': false,
+  };
+
   // Animation controller for smooth transitions
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -103,6 +114,14 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
     _quantityController.addListener(() {
       setState(() {});
     });
+    
+    // Add listeners to key controllers to update completion status dynamically
+    _jobOrderNameController.addListener(() => setState(() {}));
+    _customerNameController.addListener(() => setState(() {}));
+    _orderDateController.addListener(() => setState(() {}));
+    _dueDateController.addListener(() => setState(() {}));
+    _assignedToController.addListener(() => setState(() {}));
+    _priceController.addListener(() => setState(() {}));
 
     // Start the animation
     _animationController.forward();
@@ -370,23 +389,12 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
                   const SizedBox(height: 24),
                   
                   // Fabric Suppliers Section
-                  FabricSuppliersSection(
-                    variants: _variants,
-                    userFabrics: _userFabrics,
-                    fabricSuppliers: _fabricSuppliers,
-                    loadingFabricSuppliers: _loadingFabricSuppliers,
-                    parseColor: ColorUtils.parseColor,
-                  ),
+                  _buildFabricSuppliersSection(),
                   
                   const SizedBox(height: 24),
                   
                   // Variant Breakdown Summary Section
-                  VariantBreakdownSummary(
-                    variants: _variants,
-                    userFabrics: _userFabrics,
-                    quantityController: _quantityController,
-                    parseColor: ColorUtils.parseColor,
-                  ),
+                  _buildVariantBreakdownSection(),
                   
                   const SizedBox(height: 24),
                   
@@ -785,189 +793,157 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
   /// 
   /// NO ProductVariant collection documents are created in this modal.
   Widget _buildVariantsSection() {
-    return Container(
+    return _buildSection(
       key: _variantsSectionKey,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.shade100,
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.indigo.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  Icons.category,
-                  color: Colors.indigo.shade600,
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                'Product Variants',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 18,
-                  color: Colors.grey.shade800,
-                ),
-              ),
-              const Spacer(),
-              OutlinedButton.icon(
-                onPressed: () async {
-                  final int previousVariantCount = _variants.length;
-                  
-                  setState(() {
-                    _variants.add(FormProductVariant(
-                      id: 'temp_${DateTime.now().millisecondsSinceEpoch}',
-                      productID: 'temp_product',
-                      size: SizeUtils.sizeOptions.first,
-                      color: 'Mixed', // Color will be determined by fabrics
-                      quantityInStock: 0,
-                      quantity: 0, // No prefilled quantity - user must enter
-                      fabrics: [],
-                    ));
-                  });
-                  
-                  // Only scroll if there were previous variants
-                  if (previousVariantCount > 0) {
-                    // Auto-scroll to show the new variant after a short delay to allow UI to update
-                    await Future.delayed(const Duration(milliseconds: 300));
-                    if (_scrollController.hasClients && _variantsSectionKey.currentContext != null) {
-                      try {
-                        final RenderBox renderBox = _variantsSectionKey.currentContext!.findRenderObject() as RenderBox;
-                        final variantsSectionPosition = renderBox.localToGlobal(Offset.zero);
-                        
-                        // Calculate approximate position of the new variant
-                        // Each variant card is approximately 400-450px tall including margins and content
-                        final approximateVariantHeight = 420.0;
-                        final variantsSectionHeaderHeight = 100.0; // Header + padding
-                        
-                        // Position of the new variant (last one in the list)
-                        final newVariantPosition = variantsSectionPosition.dy + 
-                                                 variantsSectionHeaderHeight + 
-                                                 (previousVariantCount * approximateVariantHeight);
-                        
-                        // Calculate target scroll position to show the new variant nicely
-                        final targetPosition = _scrollController.offset + newVariantPosition - 200; // 200px from top of viewport
-                        
-                        _scrollController.animateTo(
-                          targetPosition.clamp(0.0, _scrollController.position.maxScrollExtent),
-                          duration: const Duration(milliseconds: 600),
-                          curve: Curves.easeOutCubic,
-                        );
-                      } catch (e) {
-                        // Fallback: scroll to a reasonable position
-                        final fallbackPosition = _scrollController.position.maxScrollExtent * 0.8;
-                        _scrollController.animateTo(
-                          fallbackPosition,
-                          duration: const Duration(milliseconds: 600),
-                          curve: Curves.easeOutCubic,
-                        );
-                      }
+      title: 'Product Variants',
+      icon: Icons.category,
+      color: Colors.indigo,
+      children: [
+        // Add Variant Button - Only show when section is expanded
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            OutlinedButton.icon(
+              onPressed: () async {
+                final int previousVariantCount = _variants.length;
+                
+                setState(() {
+                  _variants.add(FormProductVariant(
+                    id: 'temp_${DateTime.now().millisecondsSinceEpoch}',
+                    productID: 'temp_product',
+                    size: SizeUtils.sizeOptions.first,
+                    color: 'Mixed', // Color will be determined by fabrics
+                    quantityInStock: 0,
+                    quantity: 0, // No prefilled quantity - user must enter
+                    fabrics: [],
+                  ));
+                });
+                
+                // Only scroll if there were previous variants
+                if (previousVariantCount > 0) {
+                  // Auto-scroll to show the new variant after a short delay to allow UI to update
+                  await Future.delayed(const Duration(milliseconds: 300));
+                  if (_scrollController.hasClients && _variantsSectionKey.currentContext != null) {
+                    try {
+                      final RenderBox renderBox = _variantsSectionKey.currentContext!.findRenderObject() as RenderBox;
+                      final variantsSectionPosition = renderBox.localToGlobal(Offset.zero);
+                      
+                      // Calculate approximate position of the new variant
+                      // Each variant card is approximately 400-450px tall including margins and content
+                      final approximateVariantHeight = 420.0;
+                      final variantsSectionHeaderHeight = 100.0; // Header + padding
+                      
+                      // Position of the new variant (last one in the list)
+                      final newVariantPosition = variantsSectionPosition.dy + 
+                                               variantsSectionHeaderHeight + 
+                                               (previousVariantCount * approximateVariantHeight);
+                      
+                      // Calculate target scroll position to show the new variant nicely
+                      final targetPosition = _scrollController.offset + newVariantPosition - 200; // 200px from top of viewport
+                      
+                      _scrollController.animateTo(
+                        targetPosition.clamp(0.0, _scrollController.position.maxScrollExtent),
+                        duration: const Duration(milliseconds: 600),
+                        curve: Curves.easeOutCubic,
+                      );
+                    } catch (e) {
+                      // Fallback: scroll to a reasonable position
+                      final fallbackPosition = _scrollController.position.maxScrollExtent * 0.8;
+                      _scrollController.animateTo(
+                        fallbackPosition,
+                        duration: const Duration(milliseconds: 600),
+                        curve: Curves.easeOutCubic,
+                      );
                     }
                   }
-                },
-                icon: Icon(Icons.add_circle_outline, size: 16),
-                label: Text(
-                  'Add Variant',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-                ),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.blue.shade600,
-                  side: BorderSide(color: Colors.blue.shade300, width: 1),
-                  backgroundColor: Colors.blue.shade50,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  minimumSize: Size(0, 36),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
+                }
+              },
+              icon: Icon(Icons.add_circle_outline, size: 16),
+              label: Text(
+                'Add Variant',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
               ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          if (_variants.isEmpty)
-            Container(
-              padding: const EdgeInsets.all(32),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade200),
-              ),
-              child: Center(
-                child: Column(
-                  children: [
-                    Icon(
-                      Icons.category_outlined,
-                      size: 48,
-                      color: Colors.grey.shade400,
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'No variants added yet',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.grey.shade600,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Add product variants to specify sizes and fabrics',
-                      style: TextStyle(
-                        color: Colors.grey.shade500,
-                        fontSize: 14,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.blue.shade600,
+                side: BorderSide(color: Colors.blue.shade300, width: 1),
+                backgroundColor: Colors.blue.shade50,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                minimumSize: Size(0, 36),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
                 ),
               ),
-            )
-          else
-            Column(
-              children: _variants.asMap().entries.map((entry) {
-                int idx = entry.key;
-                FormProductVariant variant = entry.value;
-                // Calculate sum of all variant quantities
-                int sumVariants = _variants.fold(0, (sum, v) => sum + v.quantity);
-                return VariantCard(
-                  variant: variant,
-                  index: idx,
-                  userFabrics: _userFabrics,
-                  fabricAllocated: _fabricAllocated,
-                  quantityController: _quantityController,
-                  sumVariants: sumVariants,
-                  onRemove: () {
-                    setState(() {
-                      _variants.removeAt(idx);
-                      _onFabricYardageChanged();
-                    });
-                  },
-                  onVariantChanged: (index) {
-                    setState(() {});
-                  },
-                  onFabricYardageChanged: _onFabricYardageChanged,
-                );
-              }).toList(),
             ),
-        ],
-      ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        // Variants content
+        if (_variants.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(32),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Center(
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.category_outlined,
+                    size: 48,
+                    color: Colors.grey.shade400,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'No variants added yet',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.grey.shade600,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Add product variants to specify sizes and fabrics',
+                    style: TextStyle(
+                      color: Colors.grey.shade500,
+                      fontSize: 14,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          )
+        else
+          Column(
+            children: _variants.asMap().entries.map((entry) {
+              int idx = entry.key;
+              FormProductVariant variant = entry.value;
+              // Calculate sum of all variant quantities
+              int sumVariants = _variants.fold(0, (sum, v) => sum + v.quantity);
+              return VariantCard(
+                variant: variant,
+                index: idx,
+                userFabrics: _userFabrics,
+                fabricAllocated: _fabricAllocated,
+                quantityController: _quantityController,
+                sumVariants: sumVariants,
+                onRemove: () {
+                  setState(() {
+                    _variants.removeAt(idx);
+                    _onFabricYardageChanged();
+                  });
+                },
+                onVariantChanged: (index) {
+                  setState(() {});
+                },
+                onFabricYardageChanged: _onFabricYardageChanged,
+              );
+            }).toList(),
+          ),
+      ],
     );
   }
 
@@ -1008,19 +984,24 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
     Key? key,
     bool hasError = false,
   }) {
+    final bool isExpanded = _sectionExpanded[title] ?? false;
+    final bool isCompleted = _isSectionCompleted(title);
+    
     return Container(
       key: key,
-      padding: const EdgeInsets.all(20),
+      margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: hasError ? Colors.red.shade300 : Colors.grey.shade200,
-          width: hasError ? 2 : 1,
+          color: hasError ? Colors.red.shade300 : 
+                 isCompleted ? Colors.green.shade200 : Colors.grey.shade200,
+          width: hasError ? 2 : isCompleted ? 2 : 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: hasError ? Colors.red.shade100 : Colors.grey.shade100,
+            color: hasError ? Colors.red.shade100 : 
+                   isCompleted ? Colors.green.shade100 : Colors.grey.shade100,
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -1029,33 +1010,82 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: hasError ? Colors.red.shade50 : Colors.grey.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  hasError ? Icons.error_outline : icon,
-                  color: hasError ? Colors.red.shade600 : Colors.grey.shade600,
-                  size: 20,
-                ),
+          // Header - always visible, clickable to expand/collapse
+          InkWell(
+            onTap: () => _toggleSection(title),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: hasError ? Colors.red.shade50 : 
+                             isCompleted ? Colors.green.shade50 : color.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      hasError ? Icons.error_outline : 
+                      isCompleted ? Icons.check_circle_outline : icon,
+                      color: hasError ? Colors.red.shade600 : 
+                             isCompleted ? Colors.green.shade600 : color,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 18,
+                            color: Colors.grey.shade800,
+                          ),
+                        ),
+                        if (isCompleted && !isExpanded)
+                          Text(
+                            'Completed',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.green.shade600,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  AnimatedRotation(
+                    turns: isExpanded ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 200),
+                    child: Icon(
+                      Icons.keyboard_arrow_down,
+                      color: Colors.grey.shade600,
+                      size: 24,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 12),
-              Text(
-                title,
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 18,
-                  color: Colors.grey.shade800,
-                ),
-              ),
-            ],
+            ),
           ),
-          const SizedBox(height: 20),
-          ...children,
+          // Content - conditionally visible with animation
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+            height: isExpanded ? null : 0,
+            child: isExpanded
+                ? Container(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: children,
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
         ],
       ),
     );
@@ -1673,6 +1703,70 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
       );
     }
   }
+
+  void _toggleSection(String sectionTitle) {
+    setState(() {
+      _sectionExpanded[sectionTitle] = !(_sectionExpanded[sectionTitle] ?? false);
+    });
+  }
+
+  /// Check if a section has required fields completed
+  bool _isSectionCompleted(String sectionTitle) {
+    switch (sectionTitle) {
+      case 'Basic Information':
+        return _jobOrderNameController.text.trim().isNotEmpty &&
+               _customerNameController.text.trim().isNotEmpty;
+      case 'Timeline':
+        return _orderDateController.text.trim().isNotEmpty &&
+               _dueDateController.text.trim().isNotEmpty;
+      case 'Assignment & Quantities':
+        return _assignedToController.text.trim().isNotEmpty &&
+               _quantityController.text.trim().isNotEmpty &&
+               _priceController.text.trim().isNotEmpty;
+      case 'Product Variants':
+        return _variants.isNotEmpty && _variants.every((v) => v.fabrics.isNotEmpty);
+      case 'Fabric Suppliers':
+        return _variants.isNotEmpty && _variants.any((v) => v.fabrics.isNotEmpty);
+      case 'Variant Breakdown':
+        return _variants.isNotEmpty;
+      default:
+        return false;
+    }
+  }
+
+  Widget _buildFabricSuppliersSection() {
+    return _buildSection(
+      title: 'Fabric Suppliers',
+      icon: Icons.local_shipping,
+      color: Colors.teal,
+      children: [
+        FabricSuppliersSection(
+          variants: _variants,
+          userFabrics: _userFabrics,
+          fabricSuppliers: _fabricSuppliers,
+          loadingFabricSuppliers: _loadingFabricSuppliers,
+          parseColor: ColorUtils.parseColor,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildVariantBreakdownSection() {
+    return _buildSection(
+      title: 'Variant Breakdown',
+      icon: Icons.analytics,
+      color: Colors.deepPurple,
+      children: [
+        VariantBreakdownSummary(
+          variants: _variants,
+          userFabrics: _userFabrics,
+          quantityController: _quantityController,
+          parseColor: ColorUtils.parseColor,
+        ),
+      ],
+    );
+  }
+
 }
 
 // Validation error class for better error handling
