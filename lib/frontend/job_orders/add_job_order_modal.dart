@@ -424,8 +424,11 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
                   
                   const SizedBox(height: 24),
                   
-                  // Save Button
-                  _buildSaveButton(),
+                  // Save Button with bottom padding
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 20),
+                    child: _buildSaveButton(),
+                  ),
                 ],
               ),
             ),
@@ -556,12 +559,14 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
   }
 
   Widget _buildBasicInfoSection() {
-    return _buildSection(
-      key: _basicInfoSectionKey,
-      title: 'Basic Information',
-      icon: Icons.info_outline,
-      color: Colors.blue,
-      children: [
+    return Container(
+      margin: const EdgeInsets.only(top: 20), // Add top external padding
+      child: _buildSection(
+        key: _basicInfoSectionKey,
+        title: 'Basic Information',
+        icon: Icons.info_outline,
+        color: Colors.blue,
+        children: [
         _buildTextField(
           controller: _jobOrderNameController,
           label: 'Job Order Name',
@@ -594,6 +599,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
           },
         ),
       ],
+      ),
     );
   }
 
@@ -1024,11 +1030,11 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
             onTap: () => _toggleSection(title),
             borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
             child: Container(
-              padding: const EdgeInsets.all(20),
+              padding: EdgeInsets.all(isExpanded ? 20 : 16),
               child: Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(8),
+                    padding: EdgeInsets.all(isExpanded ? 8 : 6),
                     decoration: BoxDecoration(
                       color: hasError ? Colors.red.shade50 : 
                              isCompleted ? Colors.green.shade50 : color.withOpacity(0.1),
@@ -1039,7 +1045,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
                       isCompleted ? Icons.check_circle_outline : icon,
                       color: hasError ? Colors.red.shade600 : 
                              isCompleted ? Colors.green.shade600 : color,
-                      size: 20,
+                      size: isExpanded ? 20 : 18,
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -1051,7 +1057,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
                           title,
                           style: TextStyle(
                             fontWeight: FontWeight.w600,
-                            fontSize: 18,
+                            fontSize: isExpanded ? 18 : 16,
                             color: Colors.grey.shade800,
                           ),
                         ),
@@ -1073,7 +1079,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
                     child: Icon(
                       Icons.keyboard_arrow_down,
                       color: Colors.grey.shade600,
-                      size: 24,
+                      size: isExpanded ? 24 : 20,
                     ),
                   ),
                 ],
