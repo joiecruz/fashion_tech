@@ -944,12 +944,15 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
               children: _variants.asMap().entries.map((entry) {
                 int idx = entry.key;
                 FormProductVariant variant = entry.value;
+                // Calculate sum of all variant quantities
+                int sumVariants = _variants.fold(0, (sum, v) => sum + v.quantity);
                 return VariantCard(
                   variant: variant,
                   index: idx,
                   userFabrics: _userFabrics,
                   fabricAllocated: _fabricAllocated,
                   quantityController: _quantityController,
+                  sumVariants: sumVariants,
                   onRemove: () {
                     setState(() {
                       _variants.removeAt(idx);

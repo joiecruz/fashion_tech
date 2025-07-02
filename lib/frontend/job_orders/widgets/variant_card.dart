@@ -24,6 +24,7 @@ class VariantCard extends StatelessWidget {
   final VoidCallback onRemove;
   final Function(int) onVariantChanged;
   final Function() onFabricYardageChanged;
+  final int sumVariants; // Sum of all variant quantities
 
   const VariantCard({
     Key? key,
@@ -35,6 +36,7 @@ class VariantCard extends StatelessWidget {
     required this.onRemove,
     required this.onVariantChanged,
     required this.onFabricYardageChanged,
+    required this.sumVariants, // Required parameter
   }) : super(key: key);
 
   @override
@@ -377,19 +379,50 @@ class VariantCard extends StatelessWidget {
 
   Widget _buildQuantityAllocationProgress() {
     int globalQty = int.tryParse(quantityController.text) ?? 0;
-    int variantQty = variant.quantity;
-    // Note: This would need access to all variants to calculate sumVariants
-    // For now, we'll show individual progress
-    double progress = globalQty > 0 ? (variantQty / globalQty).clamp(0.0, 1.0) : 0.0;
-    bool isOverAllocated = variantQty > globalQty;
+    int sumQty = sumVariants; // Use sum of all variants instead of individual
+    bool isExact = sumQty == globalQty && globalQty > 0;
+    bool isOver = sumQty > globalQty;
+    double progress = globalQty > 0 ? (sumQty / globalQty).clamp(0.0, 1.0) : 0.0;
+
+    Color barColor = isExact
+        ? Colors.blue.shade400
+        : isOver
+            ? Colors.red.shade400
+            : Colors.orange.shade400;
+    Color bgColor = isExact
+        ? Colors.blue.shade50
+        : isOver
+            ? Colors.red.shade50
+            : Colors.orange.shade50;
+    Color borderColor = isExact
+        ? Colors.blue.shade200
+        : isOver
+            ? Colors.red.shade200
+            : Colors.orange.shade200;
+    Color textColor = isExact
+        ? Colors.blue.shade700
+        : isOver
+            ? Colors.red.shade700
+            : Colors.orange.shade700;
+    IconData icon = isExact
+        ? Icons.check_circle_rounded
+        : isOver
+            ? Icons.warning_rounded
+            : Icons.info_outline_rounded;
+
+    String statusText = isExact
+        ? 'Perfect! All variants allocated.'
+        : isOver
+            ? 'Over-allocated by ${sumQty - globalQty}'
+            : 'Unallocated: ${globalQty - sumQty}';
     
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isOverAllocated ? Colors.red.shade50 : Colors.green.shade50,
+        color: bgColor,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: isOverAllocated ? Colors.red.shade200 : Colors.green.shade200,
+          color: borderColor,
           width: 1,
         ),
       ),
@@ -398,14 +431,10 @@ class VariantCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(
-                isOverAllocated ? Icons.warning_rounded : Icons.check_circle_rounded,
-                size: 16,
-                color: isOverAllocated ? Colors.red.shade600 : Colors.green.shade600,
-              ),
-              const SizedBox(width: 6),
+              Icon(icon, size: 18, color: textColor),
+              const SizedBox(width: 8),
               Text(
-                'Quantity Allocation',
+                'Total Variant Allocation',
                 style: TextStyle(
                   fontWeight: FontWeight.w600,
                   fontSize: 14,
@@ -414,17 +443,18 @@ class VariantCard extends StatelessWidget {
               ),
               const Spacer(),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: isOverAllocated ? Colors.red.shade100 : Colors.green.shade100,
+                  color: bgColor,
                   borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: borderColor),
                 ),
                 child: Text(
-                  '${variantQty}/${globalQty}',
+                  '${sumQty} / ${globalQty}',
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: isOverAllocated ? Colors.red.shade700 : Colors.green.shade700,
+                    color: textColor,
                   ),
                 ),
               ),
@@ -435,22 +465,18 @@ class VariantCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(6),
             child: LinearProgressIndicator(
               value: progress,
-              minHeight: 6,
+              minHeight: 8,
               backgroundColor: Colors.grey.shade200,
-              valueColor: AlwaysStoppedAnimation<Color>(
-                isOverAllocated ? Colors.red.shade400 : Colors.green.shade400,
-              ),
+              valueColor: AlwaysStoppedAnimation<Color>(barColor),
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           Text(
-            isOverAllocated 
-                ? 'Exceeds global quantity'
-                : 'Within allocation limits',
+            statusText,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: 13,
               fontWeight: FontWeight.w500,
-              color: isOverAllocated ? Colors.red.shade700 : Colors.green.shade700,
+              color: textColor,
             ),
           ),
         ],
