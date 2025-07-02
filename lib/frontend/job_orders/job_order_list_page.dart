@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'add_job_order_modal.dart';
+import 'job_order_edit_modal.dart';
 
 class JobOrderListPage extends StatefulWidget {
   const JobOrderListPage({super.key});
@@ -8,7 +9,7 @@ class JobOrderListPage extends StatefulWidget {
   State<JobOrderListPage> createState() => _JobOrderListPageState();
 }
 
-class _JobOrderListPageState extends State<JobOrderListPage> 
+class _JobOrderListPageState extends State<JobOrderListPage>
     with SingleTickerProviderStateMixin {
   String _selectedStatus = 'All';
   String _searchQuery = '';
@@ -35,7 +36,7 @@ class _JobOrderListPageState extends State<JobOrderListPage>
   @override
   void initState() {
     super.initState();
-    
+
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 800),
       vsync: this,
@@ -60,7 +61,7 @@ class _JobOrderListPageState extends State<JobOrderListPage>
 
   Future<void> _preloadData() async {
     print('DEBUG: Starting to preload data...');
-    
+
     // Fetch all users for ERDv8 compliance (createdBy, assignedTo, acceptedBy)
     final usersSnap = await FirebaseFirestore.instance.collection('users').get();
     print('DEBUG: Found ${usersSnap.docs.length} users');
@@ -76,7 +77,7 @@ class _JobOrderListPageState extends State<JobOrderListPage>
       for (var doc in productsSnap.docs)
         doc.id: (doc.data()['name'] ?? '') as String
     };
-    
+
     productData = {
       for (var doc in productsSnap.docs)
         doc.id: {
@@ -92,22 +93,22 @@ class _JobOrderListPageState extends State<JobOrderListPage>
     setState(() {
       _dataLoaded = true;
     });
-    
+
     _animationController.forward();
   }
 
   void _updateStats(List<QueryDocumentSnapshot> jobOrders) {
     _totalOrders = jobOrders.length;
-    _openOrders = jobOrders.where((doc) => 
+    _openOrders = jobOrders.where((doc) =>
       (doc.data() as Map<String, dynamic>)['status'] == 'Open'
     ).length;
-    _inProgressOrders = jobOrders.where((doc) => 
+    _inProgressOrders = jobOrders.where((doc) =>
       (doc.data() as Map<String, dynamic>)['status'] == 'In Progress'
     ).length;
-    _doneOrders = jobOrders.where((doc) => 
+    _doneOrders = jobOrders.where((doc) =>
       (doc.data() as Map<String, dynamic>)['status'] == 'Done'
     ).length;
-    
+
     // Count overdue orders
     final now = DateTime.now();
     _overdueOrders = jobOrders.where((doc) {
@@ -184,14 +185,14 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                         prefixIcon: Icon(Icons.search, color: Colors.grey[600]),
                         border: InputBorder.none,
                         contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16, 
+                          horizontal: 16,
                           vertical: 16,
                         ),
                       ),
                     ),
                   ),
                   const SizedBox(height: 16),
-                  
+
                   // Status filter dropdown (compact)
                   Row(
                     children: [
@@ -209,7 +210,7 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                 ],
               ),
             ),
-            
+
             // Main content
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
@@ -221,18 +222,18 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
                   }
-                  
+
                   if (snapshot.hasError) {
                     return Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.error_outline, 
-                            size: 64, 
+                          Icon(Icons.error_outline,
+                            size: 64,
                             color: Colors.red[300],
                           ),
                           const SizedBox(height: 16),
-                          Text('Error loading job orders', 
+                          Text('Error loading job orders',
                             style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.w600,
@@ -240,44 +241,44 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                             ),
                           ),
                           const SizedBox(height: 8),
-                          Text('${snapshot.error}', 
+                          Text('${snapshot.error}',
                             style: TextStyle(color: Colors.grey[600]),
                           ),
                         ],
                       ),
                     );
                   }
-                  
+
                   if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                     return _buildEmptyState();
                   }
-                  
+
                   var jobOrders = snapshot.data!.docs;
                   _updateStats(jobOrders);
-                  
+
                   // Apply status filter
                   if (_selectedStatus != 'All') {
                     jobOrders = jobOrders.where((doc) =>
                       (doc.data() as Map<String, dynamic>)['status'] == _selectedStatus
                     ).toList();
                   }
-                  
+
                   // Apply search filter
                   if (_searchQuery.isNotEmpty) {
                     jobOrders = jobOrders.where((doc) {
                       final data = doc.data() as Map<String, dynamic>;
-                      final jobOrderName = data['name'] ?? ''; // Search by job order name
+                      final jobOrderName = data['name'] ?? '';
                       final customerName = data['customerName'] ?? '';
                       final assignedToName = userNames[data['assignedTo']] ?? '';
-                      final productName = productNames[data['productID']] ?? ''; // Keep product name for additional search
-                      
+                      final productName = productNames[data['productID']] ?? '';
+
                       return jobOrderName.toLowerCase().contains(_searchQuery) ||
                              customerName.toLowerCase().contains(_searchQuery) ||
                              assignedToName.toLowerCase().contains(_searchQuery) ||
-                             productName.toLowerCase().contains(_searchQuery); // Allow searching by related product too
+                             productName.toLowerCase().contains(_searchQuery);
                     }).toList();
                   }
-                  
+
                   return CustomScrollView(
                     physics: const AlwaysScrollableScrollPhysics(),
                     slivers: [
@@ -285,10 +286,10 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                       SliverToBoxAdapter(
                         child: _buildOverviewSection(),
                       ),
-                      
+
                       // Job orders list
                       SliverPadding(
-                        padding: const EdgeInsets.only(bottom: 100), // Add bottom padding to prevent overflow
+                        padding: const EdgeInsets.only(bottom: 100),
                         sliver: SliverList(
                           delegate: SliverChildBuilderDelegate(
                             (context, index) {
@@ -321,7 +322,7 @@ class _JobOrderListPageState extends State<JobOrderListPage>
           ],
         ),
       ),
-      
+
       // Floating Action Button
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () async {
@@ -349,7 +350,7 @@ class _JobOrderListPageState extends State<JobOrderListPage>
 
   Widget _buildStatusDropdown() {
     final statusOptions = ['All', 'Open', 'In Progress', 'Done'];
-    
+
     return PopupMenuButton<String>(
       onSelected: (String newValue) {
         setState(() {
@@ -463,8 +464,6 @@ class _JobOrderListPageState extends State<JobOrderListPage>
         return Icons.filter_list;
     }
   }
-
-
 
   Widget _buildEmptyState() {
     return Center(
@@ -608,7 +607,7 @@ class _JobOrderListPageState extends State<JobOrderListPage>
               opacity: _isStatsExpanded ? 1.0 : 0.0,
               child: _isStatsExpanded ? Container(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-                child: _overdueOrders > 0 
+                child: _overdueOrders > 0
                   ? Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -705,8 +704,6 @@ class _JobOrderListPageState extends State<JobOrderListPage>
     );
   }
 
-
-
   Widget _buildStatCard({
     required IconData icon,
     required Color iconColor,
@@ -718,7 +715,7 @@ class _JobOrderListPageState extends State<JobOrderListPage>
     return Container(
       padding: EdgeInsets.all(isCompact ? 8 : 16),
       decoration: BoxDecoration(
-        gradient: isUrgent 
+        gradient: isUrgent
           ? LinearGradient(
               colors: [Colors.red[50]!, Colors.red[100]!.withOpacity(0.3)],
               begin: Alignment.topLeft,
@@ -746,8 +743,8 @@ class _JobOrderListPageState extends State<JobOrderListPage>
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            icon, 
-            color: iconColor, 
+            icon,
+            color: iconColor,
             size: isCompact ? 16 : 24,
           ),
           SizedBox(height: isCompact ? 4 : 8),
@@ -776,7 +773,7 @@ class _JobOrderListPageState extends State<JobOrderListPage>
 
   Widget _buildJobOrderCard(QueryDocumentSnapshot doc, int index) {
     final data = doc.data() as Map<String, dynamic>;
-    
+
     // ERDv8 JobOrder fields
     final String jobOrderID = doc.id;
     final String jobOrderName = data['name'] ?? 'Unnamed Job Order';
@@ -787,22 +784,22 @@ class _JobOrderListPageState extends State<JobOrderListPage>
     final Timestamp? dueDateTimestamp = data['dueDate'] as Timestamp?;
     final String assignedTo = data['assignedTo'] ?? '';
     final Timestamp? createdAtTimestamp = data['createdAt'] as Timestamp?;
-    
+
     // Convert timestamps
     final DateTime? dueDate = dueDateTimestamp?.toDate();
     final DateTime? createdAt = createdAtTimestamp?.toDate();
-    
+
     // Get related data
     final productInfo = productData[productID] ?? {};
     final String productCategory = productInfo['category'] ?? '';
     final bool isUpcycled = productInfo['isUpcycled'] ?? false;
     final String assignedToName = userNames[assignedTo] ?? assignedTo;
-    
+
     // Check if overdue
-    final bool isOverdue = dueDate != null && 
-                          dueDate.isBefore(DateTime.now()) && 
+    final bool isOverdue = dueDate != null &&
+                          dueDate.isBefore(DateTime.now()) &&
                           status != 'Done';
-    final int overdueDays = isOverdue ? 
+    final int overdueDays = isOverdue ?
         DateTime.now().difference(dueDate).inDays : 0;
 
     return Container(
@@ -851,7 +848,7 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                     ),
                   ),
                   const SizedBox(width: 12),
-                  
+
                   // Job order name and product
                   Expanded(
                     child: Column(
@@ -931,9 +928,9 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                   ),
                 ],
               ),
-              
+
               const SizedBox(height: 12),
-              
+
               // Compact info grid
               Row(
                 children: [
@@ -960,7 +957,7 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                     ),
                   ),
                   const SizedBox(width: 16),
-                  
+
                   // Dates column
                   Expanded(
                     flex: 2,
@@ -987,7 +984,7 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                   ),
                 ],
               ),
-              
+
               // Category and upcycled tags (if applicable)
               if (productCategory.isNotEmpty || isUpcycled) ...[
                 const SizedBox(height: 8),
@@ -1031,19 +1028,28 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                   ],
                 ),
               ],
-              
+
               const SizedBox(height: 12),
-              
+
               // Compact action buttons
               Row(
                 children: [
                   // Edit button
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: () {
-                        print('Edit job order: $jobOrderID');
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Edit "$jobOrderName" feature coming soon!')),
+                      onPressed: () async {
+                        await showModalBottomSheet(
+                          context: context,
+                          isScrollControlled: true,
+                          backgroundColor: Colors.transparent,
+                          builder: (context) => Container(
+                            margin: const EdgeInsets.only(top: 100),
+                            decoration: const BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                            ),
+                            child: JobOrderEditModal(jobOrderId: jobOrderID),
+                          ),
                         );
                       },
                       icon: const Icon(Icons.edit, size: 14),
@@ -1057,7 +1063,7 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                     ),
                   ),
                   const SizedBox(width: 6),
-                  
+
                   // Delete button
                   Expanded(
                     child: OutlinedButton.icon(
@@ -1079,20 +1085,20 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                             ],
                           ),
                         );
-                        
+
                         if (confirm == true) {
                           await FirebaseFirestore.instance
-                                .collection('jobOrders') // replace with your collection name
-                                .doc(jobOrderID) // this is the document ID to delete
+                                .collection('jobOrders')
+                                .doc(jobOrderID)
                                 .delete();
 
                           print('Delete job order: $jobOrderID');
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              backgroundColor: Colors.green, // Change SnackBar background
+                              backgroundColor: Colors.green,
                               content: Text(
                                 'Successfully Deleted "$jobOrderName"',
-                                style: const TextStyle(color: Colors.white), // Optional: make text readable
+                                style: const TextStyle(color: Colors.white),
                               ),
                             ),
                           );
@@ -1109,7 +1115,7 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                     ),
                   ),
                   const SizedBox(width: 6),
-                  
+
                   // Mark as Done / Completed indicator
                   if (status != 'Done')
                     Expanded(
@@ -1132,7 +1138,7 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                               ],
                             ),
                           );
-                          
+
                           if (confirm == true) {
                             print('Mark as done: $jobOrderID');
                             ScaffoldMessenger.of(context).showSnackBar(
@@ -1245,7 +1251,7 @@ class _JobOrderListPageState extends State<JobOrderListPage>
   String _formatCompactDate(DateTime date) {
     final now = DateTime.now();
     final difference = now.difference(date).inDays;
-    
+
     if (difference == 0) {
       return 'Today';
     } else if (difference == 1) {

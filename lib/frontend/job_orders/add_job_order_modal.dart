@@ -32,6 +32,7 @@ import 'widgets/variant_card.dart';
 import 'widgets/variant_breakdown_summary.dart';
 import 'widgets/fabric_suppliers_section.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+
 class AddJobOrderModal extends StatefulWidget {
   const AddJobOrderModal({Key? key}) : super(key: key);
 

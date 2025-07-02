@@ -16,7 +16,15 @@ class JobOrderEditModal extends StatefulWidget {
   @override
   State<JobOrderEditModal> createState() => _JobOrderEditModalState();
 }
+class FormVariantFabric {
+  final String fabricId;
+  final double yardageUsed;
 
+  FormVariantFabric({
+    required this.fabricId,
+    required this.yardageUsed,
+  });
+}
 class _JobOrderEditModalState extends State<JobOrderEditModal>
     with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
@@ -104,7 +112,7 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
             'quantity': data['quantity'] ?? 0,
             'color': data['color'] ?? '#FF0000',
             'qualityGrade': data['qualityGrade'] ?? '',
-            'expensePerYard': data['expensePerYard'] ?? 0.0,
+            'pricePerUnit': data['pricePerUnit'] ?? 0.0,
             'swatchImageURL': data['swatchImageURL'] ?? '',
           };
         }).toList();
@@ -190,31 +198,44 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
       _isUpcycled = jobOrder['isUpcycled'] ?? false;
       _jobStatus = jobOrder['status'] ?? 'In Progress';
 
-      // Fetch variants (JobOrderDetails)
+      // Fetch all jobOrderDetails for this job order
       final detailsSnapshot = await FirebaseFirestore.instance
           .collection('jobOrderDetails')
           .where('jobOrderID', isEqualTo: widget.jobOrderId)
           .get();
-      final List<FormProductVariant> variants = [];
+
+      // Group details by (size, color, quantity) to support multiple fabrics per variant
+      final Map<String, FormProductVariant> variantMap = {};
       for (final doc in detailsSnapshot.docs) {
         final data = doc.data();
-        variants.add(FormProductVariant(
-          id: doc.id,
-          productID: jobOrder['productID'] ?? '',
-          size: data['size'] ?? '',
-          color: data['color'] ?? '',
-          quantityInStock: 0,
-          quantity: data['quantity'] ?? 0,
-          fabrics: [
-            FormVariantFabric(
-              fabricId: data['fabricID'] ?? '',
-              yardageUsed: (data['yardageUsed'] ?? 0).toDouble(),
-            )
-          ],
-        ));
+        final size = data['size'] ?? '';
+        final color = data['color'] ?? '';
+        final quantity = data['quantity'] ?? 0;
+        final key = '$size|$color|$quantity';
+
+        final fabric = VariantFabric(
+          fabricId: data['fabricID'] ?? '',
+          fabricName: data['fabricName'] ?? '',
+          yardageUsed: (data['yardageUsed'] ?? 0).toDouble(),
+        );
+
+        if (!variantMap.containsKey(key)) {
+          variantMap[key] = FormProductVariant(
+            id: doc.id,
+            productID: jobOrder['productID'] ?? '',
+            size: size,
+            color: color,
+            quantityInStock: 0,
+            quantity: quantity,
+            fabrics: [fabric],
+          );
+        } else {
+          variantMap[key]!.fabrics.add(fabric);
+        }
       }
+
       setState(() {
-        _variants = variants;
+        _variants = variantMap.values.toList();
         _loadingJobOrder = false;
       });
     } catch (e) {
@@ -514,106 +535,148 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
       key: _additionalDetailsSectionKey,
     );
   }
-Widget _buildVariantsSection() {
-  return Container(
-    key: _variantsSectionKey,
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Product Variants',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Colors.deepPurple,
-          ),
-        ),
-        const SizedBox(height: 8),
-        if (_variants.isEmpty)
-          Container(
-            padding: const EdgeInsets.all(32),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade50,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey.shade200),
+
+  Widget _buildVariantsSection() {
+    return Container(
+      key: _variantsSectionKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Product Variants',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.deepPurple,
             ),
-            child: Center(
-              child: Column(
-                children: [
-                  Icon(
-                    Icons.category_outlined,
-                    size: 48,
-                    color: Colors.grey.shade400,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'No variants added yet',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.grey.shade600,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Add product variants to specify sizes and fabrics',
-                    style: TextStyle(
-                      color: Colors.grey.shade500,
-                      fontSize: 14,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
+          ),
+          const SizedBox(height: 8),
+          if (_variants.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(32),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade200),
               ),
+              child: Center(
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.category_outlined,
+                      size: 48,
+                      color: Colors.grey.shade400,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'No variants added yet',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.grey.shade600,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Add product variants to specify sizes and fabrics',
+                      style: TextStyle(
+                        color: Colors.grey.shade500,
+                        fontSize: 14,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            Column(
+              children: _variants.asMap().entries.map((entry) {
+                int idx = entry.key;
+                FormProductVariant variant = entry.value;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    VariantCard(
+                      variant: variant,
+                      index: idx,
+                      userFabrics: _userFabrics,
+                      fabricAllocated: _fabricAllocated,
+                      quantityController: _quantityController,
+                      sumVariants: _variants.fold<int>(0, (sum, v) => sum + (v.quantity ?? 0)),
+                      onRemove: () {
+                        setState(() {
+                          _variants.removeAt(idx);
+                        });
+                      },
+                      onVariantChanged: (index) {
+                        setState(() {});
+                      },
+                      onFabricYardageChanged: () {
+                        setState(() {});
+                      },
+                    ),
+                    // Show fabric colors and yards for each variant
+                    ...variant.fabrics.map((f) {
+                      final fabric = _userFabrics.firstWhere(
+                        (fab) => fab['fabricID'] == f.fabricId,
+                        orElse: () => <String, dynamic>{},
+                      );
+                      final fabricName = fabric != null ? fabric['name'] : 'Unknown';
+                      final fabricColor = fabric != null ? fabric['color'] : '#CCCCCC';
+                      return Padding(
+                        padding: const EdgeInsets.only(left: 24, top: 4, bottom: 4),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 18,
+                              height: 18,
+                              margin: const EdgeInsets.only(right: 8),
+                              decoration: BoxDecoration(
+                                color: ColorUtils.parseColor(fabricColor),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(color: Colors.grey.shade300),
+                              ),
+                            ),
+                            Text(
+                              '$fabricName',
+                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              '${f.yardageUsed.toStringAsFixed(2)} yds',
+                              style: const TextStyle(fontSize: 13, color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  ],
+                );
+              }).toList(),
             ),
-          )
-        else
-          Column(
-            children: _variants.asMap().entries.map((entry) {
-              int idx = entry.key;
-              FormProductVariant variant = entry.value;
-              return VariantCard(
-                variant: variant,
-                index: idx,
-                userFabrics: _userFabrics,
-                fabricAllocated: _fabricAllocated,
-                quantityController: _quantityController,
-                onRemove: () {
-                  setState(() {
-                    _variants.removeAt(idx);
-                  });
-                },
-                onVariantChanged: (index) {
-                  setState(() {});
-                },
-                onFabricYardageChanged: () {
-                  setState(() {});
-                },
-              );
-            }).toList(),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            icon: Icon(Icons.add),
+            label: Text('Add Variant'),
+            onPressed: () {
+              setState(() {
+                _variants.add(FormProductVariant(
+                  id: UniqueKey().toString(),
+                  productID: '',
+                  size: '',
+                  color: '',
+                  quantityInStock: 0,
+                  quantity: 1,
+                  fabrics: [],
+                ));
+              });
+            },
           ),
-        const SizedBox(height: 12),
-        OutlinedButton.icon(
-          icon: Icon(Icons.add),
-          label: Text('Add Variant'),
-          onPressed: () {
-            setState(() {
-              _variants.add(FormProductVariant(
-                id: UniqueKey().toString(),
-                productID: '',
-                size: '',
-                color: '',
-                quantityInStock: 0,
-                quantity: 1,
-                fabrics: [],
-              ));
-            });
-          },
-        ),
-      ],
-    ),
-  );
-}
+        ],
+      ),
+    );
+  }
 
   Widget _buildSaveButton() {
     return ElevatedButton(
@@ -819,7 +882,7 @@ Widget _buildVariantsSection() {
         }
       }
 
-      // Update or add variants
+      // Update or add variants (only the first fabric per variant is updated/added here)
       for (final variant in _variants) {
         if (existingDetails.docs.any((d) => d.id == variant.id)) {
           await detailsRef.doc(variant.id).update({
