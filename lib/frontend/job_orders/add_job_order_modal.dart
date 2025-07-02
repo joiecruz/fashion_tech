@@ -308,52 +308,78 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
                 color: Colors.white,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
               ),
-              child: ListView(
-                controller: _scrollController,
-                padding: const EdgeInsets.all(20),
+              child: Column(
                 children: [
-                  // Top notch for better modal closing UX
-                  Center(
-                    child: GestureDetector(
-                      onPanStart: (details) {
-                        // Track the start of drag
-                      },
-                      onPanUpdate: (details) {
-                        // Close modal when dragging down significantly
-                        if (details.delta.dy > 8) {
-                          _closeModal();
-                        }
-                      },
-                      onTap: () {
-                        // Close on tap as well
-                        _closeModal();
-                      },
-                      child: Container(
-                        width: 60,
-                        height: 20,
-                        margin: const EdgeInsets.only(bottom: 20),
-                        decoration: BoxDecoration(
-                          color: Colors.transparent,
-                          borderRadius: BorderRadius.circular(10),
+                  // Sticky header area (notch + title)
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.grey.shade200,
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
                         ),
-                        child: Center(
-                          child: Container(
-                            width: 40,
-                            height: 4,
-                            decoration: BoxDecoration(
-                              color: Colors.grey.shade300,
-                              borderRadius: BorderRadius.circular(2),
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        // Top notch for better modal closing UX
+                        Center(
+                          child: GestureDetector(
+                            onPanStart: (details) {
+                              // Track the start of drag
+                            },
+                            onPanUpdate: (details) {
+                              // Close modal when dragging down significantly
+                              if (details.delta.dy > 8) {
+                                _closeModal();
+                              }
+                            },
+                            onTap: () {
+                              // Close on tap as well
+                              _closeModal();
+                            },
+                            child: Container(
+                              width: 60,
+                              height: 20,
+                              margin: const EdgeInsets.only(bottom: 20),
+                              decoration: BoxDecoration(
+                                color: Colors.transparent,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Center(
+                                child: Container(
+                                  width: 40,
+                                  height: 4,
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.shade300,
+                                    borderRadius: BorderRadius.circular(2),
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
                         ),
-                      ),
+                        
+                        // Header
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: _buildHeader(),
+                        ),
+                        
+                        const SizedBox(height: 24),
+                      ],
                     ),
                   ),
                   
-                  // Header
-                  _buildHeader(),
-                  
-                  const SizedBox(height: 24),
+                  // Scrollable content area
+                  Expanded(
+                    child: ListView(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      children: [
                   
                   // Form
                   Form(
@@ -402,11 +428,14 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
                   _buildSaveButton(),
                 ],
               ),
-            );
-          },
-        ),
-      ),
-    );
+            ),
+            ],
+          ),
+        );
+      },
+    ),
+  ),
+);
   }
 
   Widget _buildLoadingState() {
@@ -482,7 +511,6 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
 
   Widget _buildHeader() {
     return Container(
-      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -501,22 +529,24 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
           ),
         ],
       ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                Icons.work_outline,
+                color: Colors.white,
+                size: 28,
+              ),
             ),
-            child: Icon(
-              Icons.work_outline,
-              color: Colors.white,
-              size: 28,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
+            const SizedBox(width: 16),
+            Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -541,7 +571,8 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
           ),
         ],
       ),
-    );
+    ),
+  );
   }
 
   Widget _buildBasicInfoSection() {
