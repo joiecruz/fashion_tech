@@ -126,7 +126,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
             'quantity': data['quantity'] ?? 0,
             'color': data['color'] ?? '#FF0000',
             'qualityGrade': data['qualityGrade'] ?? '',
-            'expensePerYard': data['expensePerYard'] ?? 0.0,
+            'pricePerUnit': data['pricePerUnit'] ?? 0.0,
             'swatchImageURL': data['swatchImageURL'] ?? '',
           };
         }).toList();
@@ -459,7 +459,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
                     'quantity': 100,
                     'color': '#FF0000',
                     'qualityGrade': 'Standard',
-                    'expensePerYard': 10.0,
+                    'pricePerUnit': 10.0,
                     'swatchImageURL': '',
                   }
                 ];

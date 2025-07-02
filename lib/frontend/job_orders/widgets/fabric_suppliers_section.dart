@@ -160,6 +160,8 @@ class FabricSuppliersSection extends StatelessWidget {
       );
       
       print('Processing fabric $fabricId: $fabricData');
+      print('Available fabric fields: ${fabricData.keys.toList()}');
+      print('Price fields check: pricePerUnit=${fabricData['pricePerUnit']}, price=${fabricData['price']}, cost=${fabricData['cost']}, pricePerYard=${fabricData['pricePerYard']}');
       
       if (fabricSuppliers.containsKey(fabricId)) {
         final supplier = fabricSuppliers[fabricId]!;
@@ -177,7 +179,7 @@ class FabricSuppliersSection extends StatelessWidget {
           'fabricColor': fabricData['color'] ?? '#FF0000',
           'fabricType': fabricData['type'] ?? 'Unknown',
           'qualityGrade': fabricData['qualityGrade'] ?? 'Standard',
-          'expensePerYard': (fabricData['expensePerYard'] ?? 0).toDouble(),
+          'pricePerUnit': (fabricData['pricePerUnit'] ?? 0).toDouble(),
           'supplier': supplier,
         });
       } else {
@@ -409,7 +411,7 @@ class FabricSuppliersSection extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
                               Text(
-                                '₱${(fabric['expensePerYard'] ?? 0).toDouble().toStringAsFixed(2)}',
+                                '₱${(fabric['pricePerUnit'] ?? 0).toDouble().toStringAsFixed(2)}',
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
                                   color: Colors.green.shade700,
