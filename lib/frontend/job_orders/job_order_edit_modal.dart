@@ -16,6 +16,7 @@ class JobOrderEditModal extends StatefulWidget {
   @override
   State<JobOrderEditModal> createState() => _JobOrderEditModalState();
 }
+
 class FormVariantFabric {
   final String fabricId;
   final double yardageUsed;
@@ -25,6 +26,7 @@ class FormVariantFabric {
     required this.yardageUsed,
   });
 }
+
 class _JobOrderEditModalState extends State<JobOrderEditModal>
     with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
@@ -60,6 +62,10 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
 
   bool _loadingJobOrder = true;
   bool _saving = false;
+
+  // Example options for size and color (replace with your actual options)
+  final List<String> _sizeOptions = ['S', 'M', 'L', 'XL'];
+  final List<String> _colorOptions = ['Red', 'Blue', 'Green', 'Black', 'White'];
 
   @override
   void initState() {
@@ -622,8 +628,12 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
                         (fab) => fab['fabricID'] == f.fabricId,
                         orElse: () => <String, dynamic>{},
                       );
-                      final fabricName = fabric != null ? fabric['name'] : 'Unknown';
-                      final fabricColor = fabric != null ? fabric['color'] : '#CCCCCC';
+                      final fabricName = fabric != null && fabric['name'] != null && fabric['name'].toString().isNotEmpty
+                          ? fabric['name']
+                          : (f.fabricName ?? 'Unknown');
+                      final fabricColor = fabric != null && fabric['color'] != null
+                          ? fabric['color']
+                          : '#CCCCCC';
                       return Padding(
                         padding: const EdgeInsets.only(left: 24, top: 4, bottom: 4),
                         child: Row(
@@ -664,11 +674,19 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
                 _variants.add(FormProductVariant(
                   id: UniqueKey().toString(),
                   productID: '',
-                  size: '',
-                  color: '',
+                  size: _sizeOptions.isNotEmpty ? _sizeOptions.first : '',
+                  color: _colorOptions.isNotEmpty ? _colorOptions.first : '',
                   quantityInStock: 0,
                   quantity: 1,
-                  fabrics: [],
+                  fabrics: _userFabrics.isNotEmpty
+                      ? [
+                          VariantFabric(
+                            fabricId: _userFabrics.first['fabricID'],
+                            fabricName: _userFabrics.first['name'],
+                            yardageUsed: 0.0,
+                          ),
+                        ]
+                      : [],
                 ));
               });
             },
@@ -808,7 +826,7 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
     String? Function(String?)? validator,
   }) {
     return DropdownButtonFormField<String>(
-      value: value,
+      value: items.contains(value) ? value : (items.isNotEmpty ? items.first : null),
       items: items
           .map((e) => DropdownMenuItem<String>(
                 value: e,
@@ -844,73 +862,126 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
   }
 
   Future<void> _updateJobOrder() async {
-    if (!_formKey.currentState!.validate()) return;
+    print('[DEBUG] _updateJobOrder called');
+    print('[DEBUG] jobOrderName: "${_jobOrderNameController.text}"');
+    print('[DEBUG] customerName: "${_customerNameController.text}"');
+    print('[DEBUG] orderDate: "${_orderDateController.text}"');
+    print('[DEBUG] dueDate: "${_dueDateController.text}"');
+    print('[DEBUG] assignedTo: "${_assignedToController.text}"');
+    print('[DEBUG] quantity: "${_quantityController.text}"');
+    print('[DEBUG] price: "${_priceController.text}"');
+    print('[DEBUG] specialInstructions: "${_specialInstructionsController.text}"');
+    print('[DEBUG] isUpcycled: $_isUpcycled');
+    print('[DEBUG] jobStatus: $_jobStatus');
+    print('[DEBUG] _variants.length: ${_variants.length}');
+    for (final v in _variants) {
+      print('[DEBUG] Variant id: ${v.id}, size: ${v.size}, color: ${v.color}, quantity: ${v.quantity}, fabrics: ${v.fabrics.length}');
+      for (final f in v.fabrics) {
+        print('[DEBUG]   Fabric: id=${f.fabricId}, name=${f.fabricName}, yardage=${f.yardageUsed}');
+      }
+    }
+
+    if (!_formKey.currentState!.validate()) {
+      print('[DEBUG] Form not valid');
+      return;
+    }
     setState(() => _saving = true);
 
-    try {
-      // Update job order document
-      await FirebaseFirestore.instance
-          .collection('jobOrders')
-          .doc(widget.jobOrderId)
-          .update({
-        'name': _jobOrderNameController.text.trim(),
-        'customerName': _customerNameController.text.trim(),
-        'orderDate': _orderDateController.text.isNotEmpty
-            ? Timestamp.fromDate(DateTime.parse(_orderDateController.text))
-            : null,
-        'dueDate': _dueDateController.text.isNotEmpty
-            ? Timestamp.fromDate(DateTime.parse(_dueDateController.text))
-            : null,
-        'assignedTo': _assignedToController.text.trim(),
-        'quantity': int.tryParse(_quantityController.text) ?? 0,
-        'price': double.tryParse(_priceController.text) ?? 0.0,
-        'specialInstructions': _specialInstructionsController.text.trim(),
-        'isUpcycled': _isUpcycled,
-        'status': _jobStatus,
-      });
+try {
+  print('[DEBUG] Updating job order document...');
+  await FirebaseFirestore.instance
+      .collection('jobOrders')
+      .doc(widget.jobOrderId)
+      .update({
+    'name': _jobOrderNameController.text.trim(),
+    'customerName': _customerNameController.text.trim(),
+    'orderDate': _orderDateController.text.isNotEmpty
+        ? Timestamp.fromDate(DateTime.tryParse(_orderDateController.text) ?? DateTime.now())
+        : null,
+    'dueDate': _dueDateController.text.isNotEmpty
+        ? Timestamp.fromDate(DateTime.tryParse(_dueDateController.text) ?? DateTime.now())
+        : null,
+    'assignedTo': _assignedToController.text.trim(),
+    'quantity': int.tryParse(_quantityController.text) ?? 0,
+    'price': double.tryParse(_priceController.text) ?? 0.0,
+    'specialInstructions': _specialInstructionsController.text.trim(),
+    'isUpcycled': _isUpcycled,
+    'status': _jobStatus,
+  });
+  print('[DEBUG] Job order document updated.');
 
-      // Update job order details (variants)
-      final detailsRef = FirebaseFirestore.instance.collection('jobOrderDetails');
-      final existingDetails = await detailsRef
-          .where('jobOrderID', isEqualTo: widget.jobOrderId)
-          .get();
+  // Update job order details (variants)
+  final detailsRef = FirebaseFirestore.instance.collection('jobOrderDetails');
+  final existingDetails = await detailsRef
+      .where('jobOrderID', isEqualTo: widget.jobOrderId)
+      .get();
+  print('[DEBUG] Fetched ${existingDetails.docs.length} existing jobOrderDetails.');
 
-      // Delete removed variants
-      for (final doc in existingDetails.docs) {
-        if (!_variants.any((v) => v.id == doc.id)) {
-          await detailsRef.doc(doc.id).delete();
-        }
-      }
-
-      // Update or add variants (only the first fabric per variant is updated/added here)
-      for (final variant in _variants) {
-        if (existingDetails.docs.any((d) => d.id == variant.id)) {
-          await detailsRef.doc(variant.id).update({
-            'size': variant.size,
-            'color': variant.color,
-            'quantity': variant.quantity,
-            'fabricID': variant.fabrics.isNotEmpty ? variant.fabrics[0].fabricId : '',
-            'yardageUsed': variant.fabrics.isNotEmpty ? variant.fabrics[0].yardageUsed : 0.0,
-          });
-        } else {
-          await detailsRef.add({
-            'jobOrderID': widget.jobOrderId,
-            'size': variant.size,
-            'color': variant.color,
-            'quantity': variant.quantity,
-            'fabricID': variant.fabrics.isNotEmpty ? variant.fabrics[0].fabricId : '',
-            'yardageUsed': variant.fabrics.isNotEmpty ? variant.fabrics[0].yardageUsed : 0.0,
-          });
-        }
-      }
-
-      if (mounted) Navigator.of(context).pop(true);
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to update job order: $e')),
-      );
-    } finally {
-      setState(() => _saving = false);
+  // Delete removed variants
+  for (final doc in existingDetails.docs) {
+    if (!_variants.any((v) => v.id == doc.id)) {
+      print('[DEBUG] Deleting removed variant: ${doc.id}');
+      await detailsRef.doc(doc.id).delete();
     }
   }
+  for (final variant in _variants) {
+    try {
+      print('[DEBUG] Processing variant: ${variant.id}');
+      print('[DEBUG]   size: ${variant.size}, color: ${variant.color}, quantity: ${variant.quantity}');
+      if (variant.fabrics.isEmpty) {
+        print('[ERROR]   Variant has no fabrics!');
+        continue;
+      }
+      final fabric = variant.fabrics.firstWhere(
+        (f) => f.fabricId != null && f.fabricId.isNotEmpty && f.fabricName != null && f.fabricName.isNotEmpty,
+        orElse: () => VariantFabric(fabricId: '', fabricName: '', yardageUsed: 0.0),
+      );
+      if (fabric.fabricId.isEmpty || fabric.fabricName.isEmpty) {
+        print('[ERROR] Skipping variant: no valid fabric with non-empty id and name');
+        continue;
+      }
+      print('[DEBUG] About to update/add variant with:');
+      print('  size: ${variant.size}');
+      print('  color: ${variant.color}');
+      print('  quantity: ${variant.quantity}');
+      print('  fabricID: ${fabric.fabricId}');
+      print('  fabricName: ${fabric.fabricName}');
+      print('  yardageUsed: ${fabric.yardageUsed}');
+
+      final existingDocIndex = existingDetails.docs.indexWhere((d) => d.id == variant.id);
+      if (existingDocIndex != -1) {
+        print('[DEBUG] Updating existing variant: ${variant.id}');
+        await detailsRef.doc(variant.id).update({
+          'size': variant.size,
+          'color': variant.color,
+          'quantity': variant.quantity,
+          'fabricID': fabric.fabricId,
+          'yardageUsed': fabric.yardageUsed,
+          'fabricName': fabric.fabricName,
+        });
+      } else {
+        print('[DEBUG] Adding new variant...');
+        final docRef = await detailsRef.add({
+          'jobOrderID': widget.jobOrderId,
+          'size': variant.size,
+          'color': variant.color,
+          'quantity': variant.quantity,
+          'fabricID': fabric.fabricId,
+          'yardageUsed': fabric.yardageUsed,
+          'fabricName': fabric.fabricName,
+        });
+        print('[DEBUG] New variant added with id: ${docRef.id}');
+      }
+    } catch (e, stack) {
+      print('[ERROR] Exception while processing variant: $e');
+      print(stack);
+    }
+  }
+} catch (e, stack) {
+  print('[ERROR] Exception in _updateJobOrder: $e');
+  print(stack);
+} finally {
+  setState(() => _saving = false);
 }
+  }
+    }

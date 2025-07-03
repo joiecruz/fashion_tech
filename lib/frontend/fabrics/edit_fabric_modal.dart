@@ -161,82 +161,114 @@ class _EditFabricModalState extends State<EditFabricModal> {
     }
   }
 
-void _submitForm() async {
-  if (_swatchImage != null && _swatchImageUrl == null) {
-    FocusScope.of(context).unfocus();
-    await Future.delayed(const Duration(milliseconds: 100));
-    String message = _swatchImage == null
-        ? 'Please select a fabric swatch image.'
-        : _uploading
-            ? 'Image is still uploading. Please wait for upload to complete.'
-            : 'Image upload failed. Please try uploading the image again.';
-    await showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Missing Swatch Image'),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
+  Future<void> _submitForm() async {
+    if (_swatchImage != null && _swatchImageUrl == null) {
+      FocusScope.of(context).unfocus();
+      await Future.delayed(const Duration(milliseconds: 100));
+      String message = _swatchImage == null
+          ? 'Please select a fabric swatch image.'
+          : _uploading
+              ? 'Image is still uploading. Please wait for upload to complete.'
+              : 'Image upload failed. Please try uploading the image again.';
+      await showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Missing Swatch Image'),
+          content: Text(message),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    if (_formKey.currentState!.validate()) {
+      // Confirmation prompt before saving
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Confirm Save'),
+          content: const Text('Are you sure you want to save changes to this fabric?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      );
+      if (confirm != true) return;
+
+      // 1. Fetch previous data for undo
+      final prevSnapshot = await FirebaseFirestore.instance
+          .collection('fabrics')
+          .doc(widget.fabricId)
+          .get();
+      final prevData = prevSnapshot.data();
+
+      // 2. Prepare new data
+      final updatedData = {
+        'name': _nameController.text,
+        'type': _selectedType,
+        'color': _selectedColor,
+        'quantity': int.tryParse(_quantityController.text) ?? 0,
+        'pricePerUnit': double.tryParse(_expenseController.text) ?? 0.0,
+        'qualityGrade': _selectedQuality,
+        'minOrder': int.tryParse(_minOrderController.text) ?? 0,
+        'isUpcycled': _isUpcycled,
+        'swatchImageURL': _swatchImageUrl,
+        'lastEdited': Timestamp.now(),
+      };
+
+      // 3. Update Firestore
+      await FirebaseFirestore.instance
+          .collection('fabrics')
+          .doc(widget.fabricId)
+          .update(updatedData);
+
+      // 4. Show SnackBar with Undo
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Fabric updated successfully!'),
+            backgroundColor: Colors.green,
+            action: SnackBarAction(
+              label: 'Undo',
+              textColor: Colors.white,
+              onPressed: () async {
+                if (prevData != null) {
+                  await FirebaseFirestore.instance
+                      .collection('fabrics')
+                      .doc(widget.fabricId)
+                      .update(prevData);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Undo successful!'),
+                        backgroundColor: Colors.orange,
+                      ),
+                    );
+                  }
+                }
+              },
+            ),
           ),
-        ],
-      ),
-    );
-    return;
+        );
+      }
+
+      // 5. Close the modal
+      Navigator.pop(context, updatedData);
+    }
   }
 
-  if (_formKey.currentState!.validate()) {
-    // Confirmation prompt before saving
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Confirm Save'),
-        content: const Text('Are you sure you want to save changes to this fabric?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-    if (confirm != true) return;
-
-    await FirebaseFirestore.instance.collection('fabrics').doc(widget.fabricId).update({
-      'name': _nameController.text,
-      'type': _selectedType,
-      'color': _selectedColor,
-      'quantity': int.tryParse(_quantityController.text) ?? 0,
-      'pricePerUnit': double.tryParse(_expenseController.text) ?? 0.0,
-      'qualityGrade': _selectedQuality,
-      'minOrder': int.tryParse(_minOrderController.text) ?? 0,
-      'isUpcycled': _isUpcycled,
-      'swatchImageURL': _swatchImageUrl,
-      'lastEdited': Timestamp.now(),
-    });
-
-    await showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Success'),
-        content: const Text('Fabric updated successfully!'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-
-    Navigator.pop(context);
-  }
-}
   @override
   void dispose() {
     _nameController.dispose();

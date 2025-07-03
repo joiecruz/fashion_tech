@@ -802,6 +802,38 @@ class _JobOrderListPageState extends State<JobOrderListPage>
     final int overdueDays = isOverdue ?
         DateTime.now().difference(dueDate).inDays : 0;
 
+    // Fabric information
+    final fabricName = (data['fabricName'] != null && data['fabricName'].toString().isNotEmpty)
+        ? data['fabricName']
+        : '';
+
+    // If you have a VariantFabric class and want to use it, you must define it elsewhere.
+    // The following lines are commented out because 'VariantFabric', 'variantMap', 'key', 'FormProductVariant', 'jobOrder', 'size', and 'color' are also undefined in this context.
+    // Uncomment and adjust as needed if you have these definitions.
+
+    // final fabric = VariantFabric(
+    //   fabricId: data['fabricID'] ?? '',
+    //   fabricName: fabricName,
+    //   yardageUsed: (data['yardageUsed'] ?? 0).toDouble(),
+    // );
+
+    // Only add valid fabrics
+    // if (fabric.fabricId.isNotEmpty && fabric.fabricName.isNotEmpty) {
+    //   if (!variantMap.containsKey(key)) {
+    //     variantMap[key] = FormProductVariant(
+    //       id: doc.id,
+    //       productID: jobOrder['productID'] ?? '',
+    //       size: size,
+    //       color: color,
+    //       quantityInStock: 0,
+    //       quantity: quantity,
+    //       fabrics: [fabric],
+    //     );
+    //   } else {
+    //     variantMap[key]!.fabrics.add(fabric);
+    //   }
+    // }
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(

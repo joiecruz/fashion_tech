@@ -284,82 +284,107 @@ Widget _buildImagePreview() {
     );
   }
 }
+Future<void> _saveProduct() async {
+  if (!_formKey.currentState!.validate()) return;
 
-  Future<void> _saveProduct() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    if (_variants.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please add at least one product variant')),
-      );
-      return;
-    }
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-          final docId = widget.productData['id'] ?? widget.productData['productID'];
-          if (docId == null) {
-            throw Exception('No document ID provided for update.');
-          }
-
-      final Map<String, dynamic> productData = {
-        'name': _nameController.text.trim(),
-        'price': double.tryParse(_priceController.text) ?? 0,
-        'category': _selectedCategory,
-        'supplier': _supplierController.text.trim(),
-        'notes': _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
-        'isUpcycled': _isUpcycled,
-        'isMade': _isMade,
-        'imageURL': _productImageUrl,
-        'variants': _variants.map((v) => {
-          'size': v.size,
-          'color': v.color,
-          'quantityInStock': v.quantityInStock,
-        }).toList(),
-        'acquisitionDate': _acquisitionDate,
-        'updatedAt': DateTime.now(),
-      };
-
-      if (widget.productData['createdAt'] != null) {
-        productData['createdAt'] = widget.productData['createdAt'];
-      }
-
-      await FirebaseFirestore.instance
-          .collection('products')
-          .doc(docId)
-          .update(productData);
-      await Future.delayed(const Duration(milliseconds: 300));
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Product updated successfully!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        Navigator.of(context).pop(true);
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error updating product: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
+  if (_variants.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Please add at least one product variant')),
+    );
+    return;
   }
 
+  setState(() {
+    _isLoading = true;
+  });
+
+  try {
+    final docId = widget.productData['id'] ?? widget.productData['productID'];
+    if (docId == null) {
+      throw Exception('No document ID provided for update.');
+    }
+
+    // 1. Fetch and store the previous product data for undo
+    final prevSnapshot = await FirebaseFirestore.instance
+        .collection('products')
+        .doc(docId)
+        .get();
+    final prevData = prevSnapshot.data();
+
+    final Map<String, dynamic> productData = {
+      'name': _nameController.text.trim(),
+      'price': double.tryParse(_priceController.text) ?? 0,
+      'category': _selectedCategory,
+      'supplier': _supplierController.text.trim(),
+      'notes': _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
+      'isUpcycled': _isUpcycled,
+      'isMade': _isMade,
+      'imageURL': _productImageUrl,
+      'variants': _variants.map((v) => {
+        'size': v.size,
+        'color': v.color,
+        'quantityInStock': v.quantityInStock,
+      }).toList(),
+      'acquisitionDate': _acquisitionDate,
+      'updatedAt': DateTime.now(),
+    };
+
+    if (widget.productData['createdAt'] != null) {
+      productData['createdAt'] = widget.productData['createdAt'];
+    }
+
+    await FirebaseFirestore.instance
+        .collection('products')
+        .doc(docId)
+        .update(productData);
+    await Future.delayed(const Duration(milliseconds: 300));
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Product updated successfully!'),
+          backgroundColor: Colors.green,
+          action: SnackBarAction(
+            label: 'Undo',
+            textColor: Colors.white,
+            onPressed: () async {
+              if (prevData != null) {
+                await FirebaseFirestore.instance
+                    .collection('products')
+                    .doc(docId)
+                    .update(prevData);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Undo successful!'),
+                      backgroundColor: Colors.orange,
+                    ),
+                  );
+                }
+              }
+            },
+          ),
+        ),
+      );
+      Navigator.of(context).pop(true);
+    }
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error updating product: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  } finally {
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+}
   @override
   Widget build(BuildContext context) {
     return Column(
