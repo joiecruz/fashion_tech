@@ -1011,84 +1011,108 @@ Future<void> _deleteFabricById(String fabricId) async {
                   const SizedBox(height: 16),
                   Row(
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '₱${pricePerUnit.toStringAsFixed(2)}',
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black87,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            minOrder > 0 
-                                ? 'Total Value: ₱${totalValue.toStringAsFixed(2)} • Min Order: $minOrder'
-                                : 'Total Value: ₱${totalValue.toStringAsFixed(2)}',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const Spacer(),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          // Date information
-                          if (fabric['createdAt'] != null || fabric['lastEdited'] != null) ...[
-                            if (fabric['lastEdited'] != null)
-                              Text(
-                                'Edited ${_formatDate((fabric['lastEdited'] as Timestamp).toDate())}',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: Colors.grey[500],
-                                ),
-                              )
-                            else if (fabric['createdAt'] != null)
-                              Text(
-                                'Created ${_formatDate((fabric['createdAt'] as Timestamp).toDate())}',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: Colors.grey[500],
-                                ),
-                              ),
-                            const SizedBox(height: 4),
-                          ],
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: isOutOfStock 
-                                  ? Colors.red[50]
-                                  : isLowStock 
-                                      ? Colors.orange[50]
-                                      : Colors.blue[50],
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: isOutOfStock 
-                                    ? Colors.red[200]!
-                                    : isLowStock 
-                                        ? Colors.orange[200]!
-                                        : Colors.blue[200]!,
+                      Expanded(
+                        flex: 3,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '₱${pricePerUnit.toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
                               ),
                             ),
-                            child: Text(
-                              'Stock: $quantity units',
+                            const SizedBox(height: 2),
+                            Text(
+                              'Total Value: ₱${totalValue.toStringAsFixed(2)}',
                               style: TextStyle(
                                 fontSize: 12,
-                                fontWeight: FontWeight.w600,
+                                color: Colors.grey[600],
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            if (minOrder > 0)
+                              Text(
+                                'Min Order: $minOrder yards',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[600],
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        flex: 2,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            // Date information
+                            if (fabric['createdAt'] != null || fabric['lastEdited'] != null) ...[
+                              if (fabric['lastEdited'] != null)
+                                Text(
+                                  'Edited ${_formatDate((fabric['lastEdited'] as Timestamp).toDate())}',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.grey[500],
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.end,
+                                )
+                              else if (fabric['createdAt'] != null)
+                                Text(
+                                  'Created ${_formatDate((fabric['createdAt'] as Timestamp).toDate())}',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.grey[500],
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.end,
+                                ),
+                              const SizedBox(height: 4),
+                            ],
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
                                 color: isOutOfStock 
-                                    ? Colors.red[700]
+                                    ? Colors.red[50]
                                     : isLowStock 
-                                        ? Colors.orange[700]
-                                        : Colors.blue[700],
+                                        ? Colors.orange[50]
+                                        : Colors.blue[50],
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: isOutOfStock 
+                                      ? Colors.red[200]!
+                                      : isLowStock 
+                                          ? Colors.orange[200]!
+                                          : Colors.blue[200]!,
+                                ),
+                              ),
+                              child: Text(
+                                'Stock: $quantity units',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: isOutOfStock 
+                                      ? Colors.red[700]
+                                      : isLowStock 
+                                          ? Colors.orange[700]
+                                          : Colors.blue[700],
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ],
                   ),
