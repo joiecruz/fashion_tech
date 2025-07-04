@@ -791,9 +791,31 @@ class _JobOrderListPageState extends State<JobOrderListPage>
 
     // Get related data
     final productInfo = productData[productID] ?? {};
-    final String productCategory = productInfo['category'] ?? '';
-    final bool isUpcycled = productInfo['isUpcycled'] ?? false;
-    final String assignedToName = userNames[assignedTo] ?? assignedTo;
+    final List<dynamic> productVariants = productInfo['variants'] ?? [];
+    final List<dynamic> productFabrics = productInfo['fabrics'] ?? [];
+
+    // Try to find the matching variant for this job order
+    Map<String, dynamic>? matchedVariant;
+    if (data['variantID'] != null && data['variantID'].toString().isNotEmpty) {
+      matchedVariant = productVariants.cast<Map<String, dynamic>>().firstWhere(
+        (v) => v['variantID'] == data['variantID'],
+        orElse: () => {},
+      );
+    }
+
+    // Try to find the matching fabric for this job order
+    Map<String, dynamic>? matchedFabric;
+    if (data['fabricID'] != null && data['fabricID'].toString().isNotEmpty) {
+      matchedFabric = productFabrics.cast<Map<String, dynamic>>().firstWhere(
+        (f) => f['fabricID'] == data['fabricID'],
+        orElse: () => {},
+      );
+    }
+
+    // Extract color, size, and fabric name
+    final String variantColor = matchedVariant?['color'] ?? '';
+    final String variantSize = matchedVariant?['size'] ?? '';
+    final String fabricName = matchedFabric?['fabricName'] ?? '';
 
     // Check if overdue
     final bool isOverdue = dueDate != null &&
@@ -801,38 +823,6 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                           status != 'Done';
     final int overdueDays = isOverdue ?
         DateTime.now().difference(dueDate).inDays : 0;
-
-    // Fabric information
-    final fabricName = (data['fabricName'] != null && data['fabricName'].toString().isNotEmpty)
-        ? data['fabricName']
-        : '';
-
-    // If you have a VariantFabric class and want to use it, you must define it elsewhere.
-    // The following lines are commented out because 'VariantFabric', 'variantMap', 'key', 'FormProductVariant', 'jobOrder', 'size', and 'color' are also undefined in this context.
-    // Uncomment and adjust as needed if you have these definitions.
-
-    // final fabric = VariantFabric(
-    //   fabricId: data['fabricID'] ?? '',
-    //   fabricName: fabricName,
-    //   yardageUsed: (data['yardageUsed'] ?? 0).toDouble(),
-    // );
-
-    // Only add valid fabrics
-    // if (fabric.fabricId.isNotEmpty && fabric.fabricName.isNotEmpty) {
-    //   if (!variantMap.containsKey(key)) {
-    //     variantMap[key] = FormProductVariant(
-    //       id: doc.id,
-    //       productID: jobOrder['productID'] ?? '',
-    //       size: size,
-    //       color: color,
-    //       quantityInStock: 0,
-    //       quantity: quantity,
-    //       fabrics: [fabric],
-    //     );
-    //   } else {
-    //     variantMap[key]!.fabrics.add(fabric);
-    //   }
-    // }
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -982,7 +972,7 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                         _buildInfoRow(
                           icon: Icons.assignment_ind_outlined,
                           label: 'Assigned',
-                          value: assignedToName.isNotEmpty ? assignedToName : 'Unassigned',
+                          value: assignedTo.isNotEmpty ? userNames[assignedTo] ?? assignedTo : 'Unassigned',
                           isCompact: true,
                         ),
                       ],
@@ -1018,11 +1008,11 @@ class _JobOrderListPageState extends State<JobOrderListPage>
               ),
 
               // Category and upcycled tags (if applicable)
-              if (productCategory.isNotEmpty || isUpcycled) ...[
+              if (productInfo['category'] != null || productInfo['isUpcycled'] == true) ...[
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    if (productCategory.isNotEmpty) ...[
+                    if (productInfo['category'] != null) ...[
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
@@ -1030,7 +1020,7 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
-                          productCategory.toUpperCase(),
+                          (productInfo['category'] as String).toUpperCase(),
                           style: TextStyle(
                             fontSize: 9,
                             fontWeight: FontWeight.w600,
@@ -1038,9 +1028,9 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                           ),
                         ),
                       ),
-                      if (isUpcycled) const SizedBox(width: 6),
+                      if (productInfo['isUpcycled'] == true) const SizedBox(width: 6),
                     ],
-                    if (isUpcycled) ...[
+                    if (productInfo['isUpcycled'] == true) ...[
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
@@ -1054,6 +1044,58 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                             fontWeight: FontWeight.w600,
                             color: Colors.green[700],
                           ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+
+              const SizedBox(height: 12),
+
+              // Color, size, and fabric info (if available)
+              if (variantColor.isNotEmpty || variantSize.isNotEmpty || fabricName.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    if (variantColor.isNotEmpty) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.blue[50],
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          'Color: $variantColor',
+                          style: TextStyle(fontSize: 10, color: Colors.blue[700], fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                    ],
+                    if (variantSize.isNotEmpty) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.purple[50],
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          'Size: $variantSize',
+                          style: TextStyle(fontSize: 10, color: Colors.purple[700], fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                    ],
+                    if (fabricName.isNotEmpty) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.green[50],
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          'Fabric: $fabricName',
+                          style: TextStyle(fontSize: 10, color: Colors.green[700], fontWeight: FontWeight.w600),
                         ),
                       ),
                     ],
@@ -1170,13 +1212,148 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                               ],
                             ),
                           );
+if (confirm == true) {
+  print('[DEBUG] Marking job order as done: $jobOrderID');
+  // Mark job order as done
+  await FirebaseFirestore.instance
+      .collection('jobOrders')
+      .doc(jobOrderID)
+      .update({'status': 'Done'});
+  print('[DEBUG] Job order status updated to Done.');
 
-                          if (confirm == true) {
-                            print('Mark as done: $jobOrderID');
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Mark "$jobOrderName" as done feature coming soon!')),
-                            );
-                          }
+  // Create a transaction (expense)
+  final transactionRef = await FirebaseFirestore.instance.collection('transactions').add({
+    'jobOrderID': jobOrderID,
+    'amount': productInfo['price'] ?? 0.0,
+    'type': 'expense',
+    'date': Timestamp.now(),
+    'description': 'Expense for job order "$jobOrderName"',
+    'createdAt': Timestamp.now(),
+    'createdBy': assignedTo,
+  });
+  print('[DEBUG] Transaction created: ${transactionRef.id}');
+
+  String actualProductID = productID;
+
+  // Check if the product exists
+  bool productExists = false;
+  if (actualProductID.isNotEmpty && actualProductID != 'placeholder_product_id') {
+    final productDoc = await FirebaseFirestore.instance.collection('products').doc(actualProductID).get();
+    productExists = productDoc.exists;
+  }
+if (!productExists) {
+  // Prepare variant and fabric arrays
+  final List<Map<String, dynamic>> variants = [];
+  final List<Map<String, dynamic>> fabrics = [];
+
+  if (data['variantID'] != null && data['variantID'].toString().isNotEmpty) {
+    variants.add({
+      'variantID': data['variantID'],
+      'size': data['size'] ?? '',
+      'color': data['color'] ?? '',
+      'quantity': quantity,
+      'updatedAt': Timestamp.now(),
+      'jobOrderID': jobOrderID,
+    });
+  }
+
+  if (data['fabricID'] != null && data['fabricID'].toString().isNotEmpty) {
+    fabrics.add({
+      'fabricID': data['fabricID'],
+      'fabricName': data['fabricName'] ?? '',
+      'yardageUsed': data['yardageUsed'] ?? 0,
+      'usedAt': Timestamp.now(),
+      'jobOrderID': jobOrderID,
+    });
+  }
+
+  // Create a new product with variants and fabrics arrays
+  final newProductRef = await FirebaseFirestore.instance.collection('products').add({
+    'name': jobOrderName,
+    'stock': quantity,
+    'price': productInfo['price'] ?? 0.0,
+    'isUpcycled': productInfo['isUpcycled'] ?? false,
+    'isMade': true,
+    'createdAt': Timestamp.now(),
+    'variants': variants,
+    'fabrics': fabrics,
+    // Add other fields as needed
+  });
+  actualProductID = newProductRef.id;
+  print('[DEBUG] Created new product with ID: $actualProductID');
+
+  // Optionally, update the job order to reference the new product
+  await FirebaseFirestore.instance.collection('jobOrders').doc(jobOrderID).update({
+    'productID': actualProductID,
+  });
+  print('[DEBUG] Updated job order $jobOrderID with new productID.');
+} else {
+// Prepare variant and fabric lists
+final List<Map<String, dynamic>> variants = [];
+final List<Map<String, dynamic>> fabrics = [];
+print('[DEBUG] Job order data: $data');
+if ((data['variantID'] ?? '').toString().isNotEmpty) {
+  variants.add({
+    'variantID': data['variantID'],
+    'size': data['size'] ?? '',
+    'color': data['color'] ?? '',
+    'quantityInStock': quantity,
+    'updatedAt': Timestamp.now(),
+    'jobOrderID': jobOrderID,
+  });
+} else {
+  variants.add({
+    'variantID': 'default',
+    'size': '',
+    'color': '',
+    'quantity': quantity,
+    'updatedAt': Timestamp.now(),
+    'jobOrderID': jobOrderID,
+  });
+}
+
+if ((data['fabricID'] ?? '').toString().isNotEmpty) {
+  fabrics.add({
+    'fabricID': data['fabricID'],
+    'fabricName': data['fabricName'] ?? '',
+    'yardageUsed': data['yardageUsed'] ?? 0,
+    'usedAt': Timestamp.now(),
+    'jobOrderID': jobOrderID,
+  });
+} else {
+  fabrics.add({
+    'fabricID': 'default',
+    'fabricName': '',
+    'yardageUsed': 0,
+    'usedAt': Timestamp.now(),
+    'jobOrderID': jobOrderID,
+  });
+}
+
+// Update the existing product: add to variants and fabrics arrays
+final productRef = FirebaseFirestore.instance.collection('products').doc(actualProductID);
+await productRef.update({
+  'name': jobOrderName,
+  'stock': quantity,
+  'price': productInfo['price'] ?? 0.0,
+  'isUpcycled': productInfo['isUpcycled'] ?? false,
+  'isMade': true,
+  if (variants.isNotEmpty) 'variants': FieldValue.arrayUnion(variants),
+  if (fabrics.isNotEmpty) 'fabrics': FieldValue.arrayUnion(fabrics),
+});
+print('[DEBUG] Product $actualProductID updated with job order info, variants, and fabrics.');
+}
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      backgroundColor: Colors.green,
+      content: Text('Marked "$jobOrderName" as done, logged expense, and updated product.'),
+    ),
+  );
+  print('[DEBUG] All operations completed for job order $jobOrderID.');
+}
+
+
                         },
                         icon: const Icon(Icons.check, size: 14),
                         label: const Text('Done', style: TextStyle(fontSize: 12)),
