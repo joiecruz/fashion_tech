@@ -43,6 +43,13 @@ class _AddFabricModalState extends State<AddFabricModal> {
   void initState() {
     super.initState();
     _loadSuppliers();
+    
+    // Add listeners to text controllers for live validation updates
+    _nameController.addListener(() => setState(() {}));
+    _quantityController.addListener(() => setState(() {}));
+    _expenseController.addListener(() => setState(() {}));
+    _minOrderController.addListener(() => setState(() {}));
+    _reasonsController.addListener(() => setState(() {}));
   }
 
   Future<void> _loadSuppliers() async {
@@ -311,43 +318,75 @@ void _submitForm() async {
     return;
   }
 
-    if (_formKey.currentState!.validate()) {
-      final currentUser = FirebaseAuth.instance.currentUser;
-      
-      try {
-        // Add the fabric document
-        final fabricDoc = await FirebaseFirestore.instance.collection('fabrics').add({
-          'name': _nameController.text,
-          'type': _selectedType,
-          'colorID': _selectedColor, // ERDv9: Changed from 'color' to 'colorID'
-          'categoryID': _selectedType, // ERDv9: Added categoryID field
-          'quantity': int.tryParse(_quantityController.text) ?? 0,
-          'pricePerUnit': double.tryParse(_expenseController.text) ?? 0.0,
-          'qualityGrade': _selectedQuality,
-          'minOrder': int.tryParse(_minOrderController.text) ?? 0,
-          'isUpcycled': _isUpcycled,
-          'swatchImageURL': _swatchImageUrl,
-          'supplierID': _selectedSupplierId, // Add supplier ID for reference
-          'createdBy': currentUser?.uid ?? 'anonymous', // ERDv8 requirement
-          'createdAt': Timestamp.now(),
-          'lastEdited': Timestamp.now(),
-        });
+  if (_formKey.currentState!.validate()) {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    
+    // Handle default values and auto-generation
+    final fabricName = _nameController.text.trim().isEmpty 
+        ? _generateFabricCode() 
+        : _nameController.text.trim();
+    
+    final quantity = _quantityController.text.trim().isEmpty 
+        ? 0.0 
+        : (double.tryParse(_quantityController.text.trim()) ?? 0.0);
+    
+    final minOrder = _minOrderController.text.trim().isEmpty 
+        ? 0.0 
+        : (double.tryParse(_minOrderController.text.trim()) ?? 0.0);
+    
+    // Cross-field validation (only if both values are provided and > 0)
+    if (quantity > 0 && minOrder > quantity) {
+      await showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Validation Error'),
+          content: const Text('Minimum order quantity cannot be greater than available quantity.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+    
+    try {
+      // Add the fabric document
+      final fabricDoc = await FirebaseFirestore.instance.collection('fabrics').add({
+        'name': fabricName,
+        'type': _selectedType,
+        'colorID': _selectedColor, // ERDv9: Changed from 'color' to 'colorID'
+        'categoryID': _selectedType, // ERDv9: Added categoryID field
+        'quantity': quantity,
+        'pricePerUnit': double.tryParse(_expenseController.text) ?? 0.0,
+        'qualityGrade': _selectedQuality,
+        'minOrder': minOrder,
+        'isUpcycled': _isUpcycled,
+        'swatchImageURL': _swatchImageUrl,
+        'supplierID': _selectedSupplierId, // Add supplier ID for reference
+        'notes': _reasonsController.text.trim().isEmpty ? null : _reasonsController.text.trim(),
+        'createdBy': currentUser?.uid ?? 'anonymous', // ERDv8 requirement
+        'createdAt': Timestamp.now(),
+        'lastEdited': Timestamp.now(),
+      });
 
-        // If a supplier is selected, create the supplier-fabric relationship using backend service
-        if (_selectedSupplierId != null) {
-          await AddSupplierFabricBackend.addSupplierFabric(
-            supplierID: _selectedSupplierId!,
-            fabricID: fabricDoc.id,
-            supplyPrice: double.tryParse(_expenseController.text) ?? 0.0,
-            minOrder: int.tryParse(_minOrderController.text),
-            daysToDeliver: null, // Can be updated later
-          );
-        }
+      // If a supplier is selected, create the supplier-fabric relationship using backend service
+      if (_selectedSupplierId != null) {
+        await AddSupplierFabricBackend.addSupplierFabric(
+          supplierID: _selectedSupplierId!,
+          fabricID: fabricDoc.id,
+          supplyPrice: double.tryParse(_expenseController.text) ?? 0.0,
+          minOrder: minOrder.toInt(),
+          daysToDeliver: null, // Can be updated later
+        );
+      }
 
-        // Show success message
-        await showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
+      // Show success message
+      await showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
             title: const Text('Success'),
             content: Text(_selectedSupplierId != null 
                 ? 'Fabric and supplier relationship added successfully!' 
@@ -391,6 +430,91 @@ void _submitForm() async {
     _minOrderController.dispose();
     _reasonsController.dispose();
     super.dispose();
+  }
+
+  // Helper method to show validation summary
+  void _showValidationSummary() async {
+    final errors = <String>[];
+    
+    // Check only required fields
+    if (_expenseController.text.trim().isEmpty) {
+      errors.add('• Expense per yard is required');
+    }
+    if (_swatchImageUrl == null) {
+      errors.add('• Swatch image is required');
+    }
+    
+    if (errors.isNotEmpty) {
+      await showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Please Complete Required Fields'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('The following fields need attention:'),
+              const SizedBox(height: 8),
+              ...errors.map((error) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Text(error, style: const TextStyle(color: Colors.red)),
+              )),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  // Helper method to validate numeric fields
+  bool _isValidNumber(String value, {bool allowZero = false}) {
+    if (value.trim().isEmpty) return false;
+    final number = double.tryParse(value.trim());
+    return number != null && (allowZero ? number >= 0 : number > 0);
+  }
+
+  // Helper method to get field validation state
+  bool _isFieldValid(String fieldName) {
+    switch (fieldName) {
+      case 'name':
+        // Name is optional - always valid
+        return true;
+      case 'quantity':
+        // Quantity is optional - always valid
+        return true;
+      case 'expense':
+        return _isValidNumber(_expenseController.text, allowZero: true);
+      case 'minOrder':
+        // MinOrder is optional - always valid
+        return true;
+      case 'image':
+        return _swatchImageUrl != null;
+      default:
+        return true;
+    }
+  }
+
+  // Helper method to check if the entire form is valid
+  bool _isFormValid() {
+    return _isFieldValid('expense') && 
+           _selectedType.isNotEmpty && 
+           _selectedColor.isNotEmpty && 
+           _selectedQuality.isNotEmpty;
+  }
+
+  // Helper method to generate unique fabric code
+  String _generateFabricCode() {
+    final now = DateTime.now();
+    final timestamp = now.millisecondsSinceEpoch.toString().substring(7); // Last 6 digits
+    final typeCode = _selectedType.substring(0, 2).toUpperCase();
+    final colorCode = _selectedColor.substring(0, 2).toUpperCase();
+    return 'FAB-$typeCode$colorCode-$timestamp';
   }
 
   Color _getQualityPreviewColor(String quality) {
@@ -604,17 +728,44 @@ void _submitForm() async {
                         TextFormField(
                           controller: _nameController,
                           decoration: InputDecoration(
-                            hintText: 'Enter fabric name',
+                            hintText: 'Enter fabric name or leave empty for auto-generated code',
+                            filled: true,
+                            fillColor: Colors.grey.shade50,
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(color: Colors.grey[300]!),
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide.none,
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: Colors.grey.shade200),
                             ),
                             focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(color: Colors.blue[600]!),
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: Colors.blue.shade400, width: 2),
                             ),
+                            errorBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: Colors.red.shade400, width: 2),
+                            ),
+                            focusedErrorBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: Colors.red.shade400, width: 2),
+                            ),
+                            errorMaxLines: 2,
                           ),
-                          validator: (val) => val!.isEmpty ? 'Please enter a fabric name' : null,
+                          validator: (val) {
+                            // Fabric name is optional - no validation needed
+                            if (val != null && val.trim().isNotEmpty) {
+                              final trimmed = val.trim();
+                              if (trimmed.length > 100) return 'Fabric name is too long (max: 100 characters)';
+                              // Allow letters, numbers, spaces, and common punctuation
+                              if (!RegExp(r"^[a-zA-Z0-9\s\-\(\)\.,%]+$").hasMatch(trimmed)) {
+                                return 'Please enter a valid fabric name (letters, numbers, spaces, hyphens only)';
+                              }
+                            }
+                            return null;
+                          },
+                          autovalidateMode: AutovalidateMode.onUserInteraction,
                         ),
                       ],
                     ),
@@ -641,13 +792,25 @@ void _submitForm() async {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Text(
-                                  'Fabric Type',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.grey[800],
-                                  ),
+                                Row(
+                                  children: [
+                                    Text(
+                                      'Fabric Type',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.grey[800],
+                                      ),
+                                    ),
+                                    Text(
+                                      ' *',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.red,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                                 const SizedBox(height: 8),
                                 Flexible(
@@ -655,14 +818,29 @@ void _submitForm() async {
                                     value: _selectedType,
                                     isExpanded: true,
                                     decoration: InputDecoration(
+                                      filled: true,
+                                      fillColor: Colors.grey.shade50,
                                       border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: BorderSide(color: Colors.grey[300]!),
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: BorderSide.none,
+                                      ),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: BorderSide(color: Colors.grey.shade200),
                                       ),
                                       focusedBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: BorderSide(color: Colors.blue[600]!),
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: BorderSide(color: Colors.blue.shade400, width: 2),
                                       ),
+                                      errorBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: BorderSide(color: Colors.red.shade400, width: 2),
+                                      ),
+                                      focusedErrorBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: BorderSide(color: Colors.red.shade400, width: 2),
+                                      ),
+                                      errorMaxLines: 2,
                                       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                                     ),
                                     items: [
@@ -688,12 +866,16 @@ void _submitForm() async {
                                         ),
                                       );
                                     }).toList(),
+                                    validator: (val) {
+                                      if (val == null || val.isEmpty) return 'Please select a fabric type';
+                                      return null;
+                                    },
+                                    autovalidateMode: AutovalidateMode.onUserInteraction,
                                     onChanged: (value) {
                                       setState(() {
                                         _selectedType = value!;
                                       });
                                     },
-                                    validator: (val) => val == null ? 'Required' : null,
                                   ),
                                 ),
                               ],
@@ -717,13 +899,25 @@ void _submitForm() async {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Text(
-                                  'Color',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.grey[800],
-                                  ),
+                                Row(
+                                  children: [
+                                    Text(
+                                      'Color',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.grey[800],
+                                      ),
+                                    ),
+                                    Text(
+                                      ' *',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.red,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                                 const SizedBox(height: 8),
                                 Flexible(
@@ -731,20 +925,40 @@ void _submitForm() async {
                                     value: _selectedColor,
                                     isExpanded: true,
                                     decoration: InputDecoration(
+                                      filled: true,
+                                      fillColor: Colors.grey.shade50,
                                       border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: BorderSide(color: Colors.grey[300]!),
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: BorderSide.none,
+                                      ),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: BorderSide(color: Colors.grey.shade200),
                                       ),
                                       focusedBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: BorderSide(color: Colors.blue[600]!),
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: BorderSide(color: Colors.blue.shade400, width: 2),
                                       ),
+                                      errorBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: BorderSide(color: Colors.red.shade400, width: 2),
+                                      ),
+                                      focusedErrorBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: BorderSide(color: Colors.red.shade400, width: 2),
+                                      ),
+                                      errorMaxLines: 2,
                                       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                                     ),
                                     selectedItemBuilder: (context) {
                                       return ColorUtils.buildColorSelectedItems(context, size: 16);
                                     },
                                     items: ColorUtils.buildColorDropdownItems(),
+                                    validator: (val) {
+                                      if (val == null || val.isEmpty) return 'Please select a color';
+                                      return null;
+                                    },
+                                    autovalidateMode: AutovalidateMode.onUserInteraction,
                                     onChanged: (value) {
                                       setState(() {
                                         _selectedColor = value!;
@@ -782,7 +996,7 @@ void _submitForm() async {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Text(
-                                  'Quantity (yards)',
+                                  'Quantity',
                                   style: TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.w600,
@@ -793,19 +1007,47 @@ void _submitForm() async {
                                 Flexible(
                                   child: TextFormField(
                                     controller: _quantityController,
-                                    keyboardType: TextInputType.number,
+                                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
                                     decoration: InputDecoration(
-                                      hintText: '0',
+                                      hintText: 'Enter quantity or leave empty for 0',
+                                      suffixText: 'yards',
+                                      filled: true,
+                                      fillColor: Colors.grey.shade50,
                                       border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: BorderSide(color: Colors.grey[300]!),
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: BorderSide.none,
+                                      ),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: BorderSide(color: Colors.grey.shade200),
                                       ),
                                       focusedBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: BorderSide(color: Colors.blue[600]!),
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: BorderSide(color: Colors.blue.shade400, width: 2),
                                       ),
+                                      errorBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: BorderSide(color: Colors.red.shade400, width: 2),
+                                      ),
+                                      focusedErrorBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: BorderSide(color: Colors.red.shade400, width: 2),
+                                      ),
+                                      errorMaxLines: 2,
                                       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                                     ),
+                                    validator: (val) {
+                                      // Quantity is optional - only validate if provided
+                                      if (val != null && val.trim().isNotEmpty) {
+                                        final trimmed = val.trim();
+                                        final quantity = double.tryParse(trimmed);
+                                        if (quantity == null) return 'Please enter a valid number';
+                                        if (quantity < 0) return 'Quantity cannot be negative';
+                                        // Allow multiple decimal places - no restriction
+                                      }
+                                      return null;
+                                    },
+                                    autovalidateMode: AutovalidateMode.onUserInteraction,
                                   ),
                                 ),
                               ],
@@ -829,31 +1071,76 @@ void _submitForm() async {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Text(
-                                  'Expense per yard (₱)',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.grey[800],
-                                  ),
+                                Row(
+                                  children: [
+                                    Flexible(
+                                      child: Text(
+                                        'Expense per yard (₱)',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.grey[800],
+                                        ),
+                                      ),
+                                    ),
+                                    Text(
+                                      ' *',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.red,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                                 const SizedBox(height: 8),
                                 Flexible(
                                   child: TextFormField(
                                     controller: _expenseController,
-                                    keyboardType: TextInputType.number,
+                                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
                                     decoration: InputDecoration(
-                                      hintText: '0.00',
+                                      hintText: 'Enter cost per yard (e.g., 150.50)',
+                                      suffixText: '₱/yard',
+                                      filled: true,
+                                      fillColor: Colors.grey.shade50,
                                       border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: BorderSide(color: Colors.grey[300]!),
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: BorderSide.none,
+                                      ),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: BorderSide(color: Colors.grey.shade200),
                                       ),
                                       focusedBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: BorderSide(color: Colors.blue[600]!),
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: BorderSide(color: Colors.blue.shade400, width: 2),
                                       ),
+                                      errorBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: BorderSide(color: Colors.red.shade400, width: 2),
+                                      ),
+                                      focusedErrorBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: BorderSide(color: Colors.red.shade400, width: 2),
+                                      ),
+                                      errorMaxLines: 2,
                                       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                                     ),
+                                    validator: (val) {
+                                      if (val?.isEmpty ?? true) return 'Expense per yard is required';
+                                      final trimmed = val!.trim();
+                                      if (trimmed.isEmpty) return 'Expense cannot be empty';
+                                      final expense = double.tryParse(trimmed);
+                                      if (expense == null) return 'Please enter a valid amount';
+                                      if (expense < 0) return 'Expense cannot be negative';
+                                      if (expense > 100000) return 'Expense is too large (max: ₱100,000/yard)';
+                                      // Check for reasonable decimal precision (max 2 decimal places)
+                                      if (trimmed.contains('.') && trimmed.split('.')[1].length > 2) {
+                                        return 'Please use at most 2 decimal places';
+                                      }
+                                      return null;
+                                    },
+                                    autovalidateMode: AutovalidateMode.onUserInteraction,
                                   ),
                                 ),
                               ],
@@ -885,13 +1172,27 @@ void _submitForm() async {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Text(
-                                  'Quality Grade',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.grey[800],
-                                  ),
+                                Row(
+                                  children: [
+                                    Flexible(
+                                      child: Text(
+                                        'Quality Grade',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.grey[800],
+                                        ),
+                                      ),
+                                    ),
+                                    Text(
+                                      ' *',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.red,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                                 const SizedBox(height: 8),
                                 Flexible(
@@ -899,14 +1200,29 @@ void _submitForm() async {
                                     value: _selectedQuality,
                                     isExpanded: true,
                                     decoration: InputDecoration(
+                                      filled: true,
+                                      fillColor: Colors.grey.shade50,
                                       border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: BorderSide(color: Colors.grey[300]!),
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: BorderSide.none,
+                                      ),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: BorderSide(color: Colors.grey.shade200),
                                       ),
                                       focusedBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: BorderSide(color: Colors.blue[600]!),
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: BorderSide(color: Colors.blue.shade400, width: 2),
                                       ),
+                                      errorBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: BorderSide(color: Colors.red.shade400, width: 2),
+                                      ),
+                                      focusedErrorBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: BorderSide(color: Colors.red.shade400, width: 2),
+                                      ),
+                                      errorMaxLines: 2,
                                       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                                     ),
                                     items: [
@@ -938,6 +1254,11 @@ void _submitForm() async {
                                         ),
                                       );
                                     }).toList(),
+                                    validator: (val) {
+                                      if (val == null || val.isEmpty) return 'Please select a quality grade';
+                                      return null;
+                                    },
+                                    autovalidateMode: AutovalidateMode.onUserInteraction,
                                     onChanged: (value) {
                                       setState(() {
                                         _selectedQuality = value!;
@@ -978,19 +1299,47 @@ void _submitForm() async {
                                 Flexible(
                                   child: TextFormField(
                                     controller: _minOrderController,
-                                    keyboardType: TextInputType.number,
+                                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
                                     decoration: InputDecoration(
-                                      hintText: '0',
+                                      hintText: 'Enter minimum order or leave empty for 0',
+                                      suffixText: 'yards',
+                                      filled: true,
+                                      fillColor: Colors.grey.shade50,
                                       border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: BorderSide(color: Colors.grey[300]!),
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: BorderSide.none,
+                                      ),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: BorderSide(color: Colors.grey.shade200),
                                       ),
                                       focusedBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: BorderSide(color: Colors.blue[600]!),
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: BorderSide(color: Colors.blue.shade400, width: 2),
                                       ),
+                                      errorBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: BorderSide(color: Colors.red.shade400, width: 2),
+                                      ),
+                                      focusedErrorBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: BorderSide(color: Colors.red.shade400, width: 2),
+                                      ),
+                                      errorMaxLines: 2,
                                       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                                     ),
+                                    validator: (val) {
+                                      // Minimum order is optional - only validate if provided
+                                      if (val != null && val.trim().isNotEmpty) {
+                                        final trimmed = val.trim();
+                                        final minOrder = double.tryParse(trimmed);
+                                        if (minOrder == null) return 'Please enter a valid number';
+                                        if (minOrder < 0) return 'Minimum order cannot be negative';
+                                        // Allow multiple decimal places - no restriction
+                                      }
+                                      return null;
+                                    },
+                                    autovalidateMode: AutovalidateMode.onUserInteraction,
                                   ),
                                 ),
                               ],
@@ -1044,14 +1393,29 @@ void _submitForm() async {
                                 hint: const Text('Select a supplier (optional)'),
                                 isExpanded: true,
                                 decoration: InputDecoration(
+                                  filled: true,
+                                  fillColor: Colors.grey.shade50,
                                   border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                    borderSide: BorderSide(color: Colors.grey[300]!),
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(color: Colors.grey.shade200),
                                   ),
                                   focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                    borderSide: BorderSide(color: Colors.blue[600]!),
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(color: Colors.blue.shade400, width: 2),
                                   ),
+                                  errorBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(color: Colors.red.shade400, width: 2),
+                                  ),
+                                  focusedErrorBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(color: Colors.red.shade400, width: 2),
+                                  ),
+                                  errorMaxLines: 2,
                                   contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                                 ),
                                 items: [
@@ -1071,6 +1435,7 @@ void _submitForm() async {
                                     );
                                   }),
                                 ],
+                                // Note: No validator needed since supplier selection is optional
                                 onChanged: (value) {
                                   setState(() {
                                     _selectedSupplierId = value;
@@ -1177,25 +1542,132 @@ void _submitForm() async {
                           controller: _reasonsController,
                           decoration: InputDecoration(
                             hintText: 'Any additional notes about this fabric...',
+                            filled: true,
+                            fillColor: Colors.grey.shade50,
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(color: Colors.grey[300]!),
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide.none,
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: Colors.grey.shade200),
                             ),
                             focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(color: Colors.blue[600]!),
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: Colors.blue.shade400, width: 2),
                             ),
+                            errorBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: Colors.red.shade400, width: 2),
+                            ),
+                            focusedErrorBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: Colors.red.shade400, width: 2),
+                            ),
+                            errorMaxLines: 2,
                             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                           ),
                           maxLines: 3,
                           maxLength: 200,
+                          validator: (val) {
+                            if (val != null && val.isNotEmpty) {
+                              final trimmed = val.trim();
+                              if (trimmed.length > 200) return 'Notes are too long (max: 200 characters)';
+                              // Check for reasonable note content (prevent just special characters)
+                              if (trimmed.isNotEmpty && !RegExp(r'[a-zA-Z0-9]').hasMatch(trimmed)) {
+                                return 'Notes should contain meaningful text';
+                              }
+                            }
+                            return null;
+                          },
+                          autovalidateMode: AutovalidateMode.onUserInteraction,
                         ),
                       ],
                     ),
                   ),
                 ),
 
-                const SizedBox(height: 32),
+                const SizedBox(height: 24),
+
+                // Help Text Section
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    border: Border.all(color: Colors.blue.shade200),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.info_outline, color: Colors.blue.shade600, size: 20),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Before You Save',
+                            style: TextStyle(
+                              color: Colors.blue.shade800,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '• Make sure all required fields are filled out correctly\n'
+                        '• Upload a clear swatch image for better identification\n'
+                        '• Double-check quantities and pricing information\n'
+                        '• Review supplier selection if applicable',
+                        style: TextStyle(
+                          color: Colors.blue.shade700,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Validation Status Indicator
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: _isFormValid() ? Colors.green.shade50 : Colors.orange.shade50,
+                    border: Border.all(
+                      color: _isFormValid() ? Colors.green.shade200 : Colors.orange.shade200,
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        _isFormValid() ? Icons.check_circle : Icons.warning,
+                        color: _isFormValid() ? Colors.green.shade600 : Colors.orange.shade600,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _isFormValid() 
+                              ? 'All required fields are complete'
+                              : 'Please complete all required fields',
+                          style: TextStyle(
+                            color: _isFormValid() ? Colors.green.shade800 : Colors.orange.shade800,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 16),
 
                 // Save Button
                 SizedBox(
@@ -1203,8 +1675,21 @@ void _submitForm() async {
                   child: ElevatedButton.icon(
                     onPressed: (_uploading || (_swatchImage != null && _swatchImageUrl == null)) 
                         ? null 
-                        : _submitForm,
-                    icon: const Icon(Icons.save, size: 20),
+                        : () {
+                            // Show validation summary if form is invalid
+                            if (!_formKey.currentState!.validate()) {
+                              _showValidationSummary();
+                              return;
+                            }
+                            _submitForm();
+                          },
+                    icon: _uploading 
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Icon(Icons.save, size: 20),
                     label: Text(
                       _uploading ? 'Uploading Image...' : 'Save Fabric',
                       style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
