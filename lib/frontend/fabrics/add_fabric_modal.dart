@@ -106,8 +106,46 @@ class _AddFabricModalState extends State<AddFabricModal> {
 Future<void> _pickImage() async {
   try {
     final picker = ImagePicker();
-    final picked = await picker.pickImage(
-      source: ImageSource.gallery,
+    XFile? picked;
+
+    // Show dialog to choose between camera and gallery
+    final ImageSource? source = await showDialog<ImageSource>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Select Image Source'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.camera_alt, color: Colors.blue),
+                title: const Text('Take Photo'),
+                subtitle: const Text('Use camera to take a new photo'),
+                onTap: () => Navigator.pop(context, ImageSource.camera),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library, color: Colors.green),
+                title: const Text('Choose from Gallery'),
+                subtitle: const Text('Select from existing photos'),
+                onTap: () => Navigator.pop(context, ImageSource.gallery),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+          ],
+        );
+      },
+    );
+
+    // If user cancelled the dialog, return
+    if (source == null) return;
+
+    picked = await picker.pickImage(
+      source: source,
       imageQuality: 80,
       maxWidth: 800,
       maxHeight: 800,
@@ -125,7 +163,7 @@ Future<void> _pickImage() async {
       } else {
         // On mobile/desktop, use File
         setState(() {
-          _swatchImage = File(picked.path);
+          _swatchImage = File(picked!.path);
           _swatchImageUrl = null;
         });
         if (await _swatchImage!.exists()) {
@@ -397,7 +435,7 @@ void _submitForm() async {
           Icon(Icons.camera_alt, color: Colors.orange, size: 40),
           const SizedBox(height: 8),
           Text(
-            'Tap to upload product image',
+            'Tap to take photo or upload image',
             style: TextStyle(color: Colors.orange.shade700),
           ),
           const SizedBox(height: 8),
@@ -410,9 +448,9 @@ void _submitForm() async {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: const [
-                Icon(Icons.upload, color: Colors.orange, size: 18),
+                Icon(Icons.camera_alt, color: Colors.orange, size: 18),
                 SizedBox(width: 6),
-                Text('Upload Image', style: TextStyle(color: Colors.orange)),
+                Text('Camera or Gallery', style: TextStyle(color: Colors.orange)),
               ],
             ),
           ),
