@@ -2,7 +2,7 @@ class ProductVariant {
   final String id;
   final String productID;
   String size;
-  String color;
+  String colorID; // Changed from color to colorID in ERDv9
   int quantityInStock;
 
   int get quantity => quantityInStock;
@@ -12,7 +12,7 @@ class ProductVariant {
     required this.id,
     required this.productID,
     required this.size,
-    required this.color,
+    required this.colorID,
     required this.quantityInStock,
   });
 
@@ -21,7 +21,7 @@ class ProductVariant {
       id: id,
       productID: data['productID'] ?? '',
       size: data['size'] ?? '',
-      color: data['color'] ?? '',
+      colorID: data['colorID'] ?? data['color'] ?? '', // Handle legacy data
       quantityInStock: data['quantityInStock'] ?? 0,
     );
   }
@@ -30,7 +30,7 @@ class ProductVariant {
     return {
       'productID': productID,
       'size': size,
-      'color': color,
+      'colorID': colorID,
       'quantityInStock': quantityInStock,
     };
   }

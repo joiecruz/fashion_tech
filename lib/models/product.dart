@@ -1,24 +1,22 @@
 class Product {
-  final String id; // Maps to productID in ERDv7
+  final String id; // Maps to productID in ERDv9
   final String name;
-  final String? description; // For additional product details, notes, supplier info
-  final String? notes; // ERDv7 field for product-specific notes
+  final String? notes; // ERDv9 field for product-specific notes
   final double price;
-  final String category;
+  final String categoryID; // Changed from category to categoryID in ERDv9
   final bool isUpcycled;
   final bool isMade;
   final String createdBy; // User ID of who created this product
   final DateTime createdAt;
   final DateTime updatedAt;
-  final DateTime? deletedAt; // New field for soft delete in ERDv7
+  final DateTime? deletedAt; // New field for soft delete in ERDv9
 
   Product({
     required this.id,
     required this.name,
-    this.description,
     this.notes,
     required this.price,
-    required this.category,
+    required this.categoryID,
     required this.isUpcycled,
     required this.isMade,
     required this.createdBy,
@@ -31,10 +29,9 @@ class Product {
     return Product(
       id: id,
       name: data['name'] ?? '',
-      description: data['description'],
       notes: data['notes'],
       price: (data['price'] ?? 0).toDouble(),
-      category: data['category'] ?? '',
+      categoryID: data['categoryID'] ?? data['category'] ?? '', // Handle legacy data
       isUpcycled: data['isUpcycled'] ?? false,
       isMade: data['isMade'] ?? false,
       createdBy: data['createdBy'] ?? 'anonymous',
@@ -49,10 +46,9 @@ class Product {
   Map<String, dynamic> toMap() {
     return {
       'name': name,
-      'description': description,
       'notes': notes,
       'price': price,
-      'category': category,
+      'categoryID': categoryID,
       'isUpcycled': isUpcycled,
       'isMade': isMade,
       'createdBy': createdBy,

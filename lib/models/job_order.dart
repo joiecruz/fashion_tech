@@ -5,6 +5,8 @@ enum JobOrderStatus { open, inProgress, done }
 class JobOrder {
   final String id;
   final String productID;
+  final String customerID; // New in ERDv9
+  final String? linkedProductID; // New in ERDv9
   final int quantity;
   final String customerName;
   final JobOrderStatus status;
@@ -14,10 +16,13 @@ class JobOrder {
   final String createdBy;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final String name; // New in ERDv9
 
   JobOrder({
     required this.id,
     required this.productID,
+    required this.customerID,
+    this.linkedProductID,
     required this.quantity,
     required this.customerName,
     required this.status,
@@ -27,12 +32,15 @@ class JobOrder {
     required this.createdBy,
     required this.createdAt,
     required this.updatedAt,
+    required this.name,
   });
 
   factory JobOrder.fromMap(String id, Map<String, dynamic> data) {
     return JobOrder(
       id: id,
       productID: data['productID'] ?? '',
+      customerID: data['customerID'] ?? '',
+      linkedProductID: data['linkedProductID'],
       quantity: data['quantity'] ?? 0,
       customerName: data['customerName'] ?? '',
       status: _statusFromString(data['status'] ?? 'open'),
@@ -48,12 +56,15 @@ class JobOrder {
       updatedAt: (data['updatedAt'] is Timestamp)
           ? (data['updatedAt'] as Timestamp).toDate()
           : DateTime.tryParse(data['updatedAt'].toString()) ?? DateTime.now(),
+      name: data['name'] ?? '',
     );
   }
 
   Map<String, dynamic> toMap() {
     return {
       'productID': productID,
+      'customerID': customerID,
+      'linkedProductID': linkedProductID,
       'quantity': quantity,
       'customerName': customerName,
       'status': _statusToString(status),
@@ -63,6 +74,7 @@ class JobOrder {
       'createdBy': createdBy,
       'createdAt': createdAt,
       'updatedAt': updatedAt,
+      'name': name,
     };
   }
 

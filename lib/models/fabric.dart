@@ -4,7 +4,8 @@ class Fabric {
   final String id;
   final String name;
   final String type;
-  final String color;
+  final String colorID; // New in ERDv9 - references COLOR collection
+  final String categoryID; // New in ERDv9 - references CATEGORY collection
   final String qualityGrade;
   final double quantity; // in yards
   final double expensePerYard;
@@ -20,7 +21,8 @@ class Fabric {
     required this.id,
     required this.name,
     required this.type,
-    required this.color,
+    required this.colorID,
+    required this.categoryID,
     required this.qualityGrade,
     required this.quantity,
     required this.expensePerYard,
@@ -38,7 +40,8 @@ class Fabric {
       id: id,
       name: data['name'] ?? '',
       type: data['type'] ?? '',
-      color: data['color'] ?? '',
+      colorID: data['colorID'] ?? '',
+      categoryID: data['categoryID'] ?? '',
       qualityGrade: data['qualityGrade'] ?? '',
       quantity: (data['quantity'] ?? 0).toDouble(),
       expensePerYard: (data['pricePerUnit'] ?? 0).toDouble(),
@@ -64,7 +67,8 @@ class Fabric {
     return {
       'name': name,
       'type': type,
-      'color': color,
+      'colorID': colorID,
+      'categoryID': categoryID,
       'qualityGrade': qualityGrade,
       'quantity': quantity,
       'pricePerUnit': expensePerYard,
