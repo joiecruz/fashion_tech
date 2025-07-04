@@ -35,6 +35,7 @@ import 'widgets/variant_card.dart';
 import 'widgets/variant_breakdown_summary.dart';
 import 'widgets/fabric_suppliers_section.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+
 class AddJobOrderModal extends StatefulWidget {
   const AddJobOrderModal({Key? key}) : super(key: key);
 
@@ -477,12 +478,11 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
                   ),
                 ],
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
-    ),
-  );
+    );
   }
 
   Widget _buildLoadingState() {
@@ -618,6 +618,9 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
           label: 'Job Order Name',
           hint: 'E.g., Summer Collection Dress',
           icon: Icons.assignment,
+          focusNode: _jobOrderNameFocus,
+          textInputAction: TextInputAction.next,
+          onFieldSubmitted: () => _customerNameFocus.requestFocus(),
           validator: (val) {
             if (val?.isEmpty ?? true) return 'Job order name is required';
             final trimmed = val!.trim();
@@ -632,6 +635,9 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
           label: 'Customer Name',
           hint: 'E.g., John Doe',
           icon: Icons.person,
+          focusNode: _customerNameFocus,
+          textInputAction: TextInputAction.next,
+          onFieldSubmitted: () => _orderDateFocus.requestFocus(),
           validator: (val) {
             if (val?.isEmpty ?? true) return 'Customer name is required';
             final trimmed = val!.trim();
@@ -721,6 +727,9 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
           label: 'Assigned To',
           hint: 'E.g., Maria Santos',
           icon: Icons.person_outline,
+          focusNode: _assignedToFocus,
+          textInputAction: TextInputAction.next,
+          onFieldSubmitted: () => _quantityFocus.requestFocus(),
           validator: (val) {
             if (val?.isEmpty ?? true) return 'Assignment is required';
             final trimmed = val!.trim();
@@ -742,6 +751,9 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
                 label: 'Total Quantity',
                 hint: 'E.g., 10',
                 icon: Icons.numbers,
+                focusNode: _quantityFocus,
+                textInputAction: TextInputAction.next,
+                onFieldSubmitted: () => _priceFocus.requestFocus(),
                 keyboardType: TextInputType.number,
                 validator: (val) {
                   if (val?.isEmpty ?? true) return 'Quantity required';
@@ -768,6 +780,9 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
                 label: 'Price (₱)',
                 hint: 'E.g., 1500.00',
                 icon: Icons.attach_money,
+                focusNode: _priceFocus,
+                textInputAction: TextInputAction.next,
+                onFieldSubmitted: () => _specialInstructionsFocus.requestFocus(),
                 keyboardType: TextInputType.numberWithOptions(decimal: true),
                 validator: (val) {
                   if (val?.isEmpty ?? true) return 'Price required';
@@ -805,6 +820,8 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
           label: 'Special Instructions',
           hint: 'E.g., Custom embroidery, specific requirements...',
           icon: Icons.notes,
+          focusNode: _specialInstructionsFocus,
+          textInputAction: TextInputAction.done,
           maxLines: 3,
           validator: (val) {
             if (val != null && val.trim().length > 500) {
@@ -1160,9 +1177,15 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
     String? Function(String?)? validator,
     TextInputType? keyboardType,
     int maxLines = 1,
+    FocusNode? focusNode,
+    TextInputAction? textInputAction,
+    VoidCallback? onFieldSubmitted,
   }) {
     return TextFormField(
       controller: controller,
+      focusNode: focusNode,
+      textInputAction: textInputAction ?? TextInputAction.next,
+      onFieldSubmitted: onFieldSubmitted != null ? (_) => onFieldSubmitted() : null,
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,

@@ -30,6 +30,9 @@ class FormProductVariant extends ProductVariant {
   List<VariantFabric> fabrics;
   int quantity; // Quantity for JobOrderDetails (ERDv8 requirement)
   
+  // Add color getter for backward compatibility
+  String get color => colorID;
+  
   FormProductVariant({
     required String id,
     required String productID,

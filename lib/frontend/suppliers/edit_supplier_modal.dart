@@ -99,6 +99,14 @@ class _EditSupplierModalState extends State<EditSupplierModal> with SingleTicker
     });
 
     try {
+      // 1. Fetch previous data for undo
+      final prevSnapshot = await FirebaseFirestore.instance
+          .collection('suppliers')
+          .doc(widget.supplierId)
+          .get();
+      final prevData = prevSnapshot.data();
+
+      // 2. Prepare new data
       final supplierData = {
         'supplierName': _supplierNameController.text.trim(),
         'contactNum': _contactNumController.text.trim(),
@@ -108,11 +116,13 @@ class _EditSupplierModalState extends State<EditSupplierModal> with SingleTicker
         'lastEdited': FieldValue.serverTimestamp(),
       };
 
+      // 3. Update Firestore
       await FirebaseFirestore.instance
           .collection('suppliers')
           .doc(widget.supplierId)
           .update(supplierData);
 
+      // 4. Show SnackBar with Undo
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -128,9 +138,29 @@ class _EditSupplierModalState extends State<EditSupplierModal> with SingleTicker
             behavior: SnackBarBehavior.floating,
             margin: const EdgeInsets.all(16),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            action: SnackBarAction(
+              label: 'Undo',
+              textColor: Colors.white,
+              onPressed: () async {
+                if (prevData != null) {
+                  await FirebaseFirestore.instance
+                      .collection('suppliers')
+                      .doc(widget.supplierId)
+                      .update(prevData);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Undo successful!'),
+                        backgroundColor: Colors.orange,
+                      ),
+                    );
+                  }
+                }
+              },
+            ),
           ),
         );
-        Navigator.of(context).pop(true);
+        Navigator.of(context).pop(supplierData);
       }
     } catch (e) {
       if (mounted) {
