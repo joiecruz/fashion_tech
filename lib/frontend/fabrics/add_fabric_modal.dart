@@ -1113,6 +1113,50 @@ void _submitForm() async {
                   ),
                 ),
 
+                const SizedBox(height: 16),
+
+                // Notes & Reasons Card
+                Card(
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Notes & Reasons',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey[800],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        TextFormField(
+                          controller: _reasonsController,
+                          decoration: InputDecoration(
+                            hintText: 'Any additional notes about this fabric...',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(color: Colors.grey[300]!),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(color: Colors.blue[600]!),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                          ),
+                          maxLines: 3,
+                          maxLength: 200,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
                 const SizedBox(height: 32),
 
                 // Save Button
@@ -1139,17 +1183,6 @@ void _submitForm() async {
                 ),
 
                 const SizedBox(height: 16),
-
-                TextFormField(
-                  controller: _reasonsController,
-                  decoration: const InputDecoration(
-                    labelText: 'Notes & Reasons',
-                    hintText: 'Any additional notes about this fabric...',
-                    alignLabelWithHint: true,
-                  ),
-                  maxLines: 3,
-                  maxLength: 200,
-                ),
 
                 // Retry Upload Section
                 if (_swatchImage != null && _swatchImageUrl == null && !_uploading)
