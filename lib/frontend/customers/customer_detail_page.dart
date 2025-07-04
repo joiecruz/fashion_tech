@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import '../../models/customer.dart';
 import '../../models/job_order.dart';
 import '../../services/job_order_service.dart';
+import '../../services/customer_service.dart';
 import '../job_orders/add_job_order_modal.dart';
+import 'edit_customer_modal.dart';
 
 class CustomerDetailPage extends StatefulWidget {
   final Customer customer;
@@ -15,6 +17,7 @@ class CustomerDetailPage extends StatefulWidget {
 
 class _CustomerDetailPageState extends State<CustomerDetailPage> {
   final JobOrderService _jobOrderService = JobOrderService();
+  final CustomerService _customerService = CustomerService();
   List<JobOrder> _jobOrders = [];
   bool _isLoadingJobOrders = true;
 
@@ -43,6 +46,106 @@ class _CustomerDetailPageState extends State<CustomerDetailPage> {
     }
   }
 
+  Future<void> _deleteCustomer() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Customer'),
+        content: Text('Are you sure you want to delete ${widget.customer.fullName}?\n\nThis action cannot be undone and will also delete all associated job orders.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.red,
+              backgroundColor: Colors.red[50],
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        final success = await _customerService.deleteCustomer(widget.customer.id);
+        if (success) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    const Icon(Icons.check_circle, color: Colors.white, size: 16),
+                    const SizedBox(width: 8),
+                    Text('${widget.customer.fullName} deleted successfully'),
+                  ],
+                ),
+                backgroundColor: Colors.green[600],
+                duration: const Duration(seconds: 2),
+                behavior: SnackBarBehavior.floating,
+                margin: const EdgeInsets.all(16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+            );
+            Navigator.pop(context, true); // Return true to indicate customer was deleted
+          }
+        } else {
+          throw Exception('Failed to delete customer');
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.error_outline, color: Colors.white, size: 16),
+                  const SizedBox(width: 8),
+                  Text('Failed to delete customer: ${e.toString()}'),
+                ],
+              ),
+              backgroundColor: Colors.red[600],
+              duration: const Duration(seconds: 3),
+              behavior: SnackBarBehavior.floating,
+              margin: const EdgeInsets.all(16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  void _editCustomer() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        margin: const EdgeInsets.only(top: 100),
+        height: MediaQuery.of(context).size.height - 100,
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: EditCustomerModal(
+          customer: widget.customer,
+          onCustomerUpdated: () {
+            // Refresh the page by popping and returning updated flag
+            Navigator.pop(context, true);
+          },
+        ),
+      ),
+    ).then((result) {
+      if (result == true) {
+        // Customer was updated, pop this page to refresh the list
+        Navigator.pop(context, true);
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -61,6 +164,19 @@ class _CustomerDetailPageState extends State<CustomerDetailPage> {
             fontWeight: FontWeight.w600,
           ),
         ),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.edit, color: Colors.grey[800]),
+            onPressed: _editCustomer,
+            tooltip: 'Edit Customer',
+          ),
+          IconButton(
+            icon: Icon(Icons.delete, color: Colors.red[600]),
+            onPressed: _deleteCustomer,
+            tooltip: 'Delete Customer',
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: SingleChildScrollView(
         child: Column(

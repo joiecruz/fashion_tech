@@ -846,29 +846,38 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
                       // Action buttons
                       Row(
                         children: [
-                          if (customer.email != null && customer.email!.isNotEmpty)
-                            Expanded(
-                              child: ElevatedButton.icon(
-                                onPressed: () {
-                                  // TODO: Implement email functionality
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('Email ${customer.fullName} feature coming soon!')),
-                                  );
-                                },
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.pink[600],
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(vertical: 12),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () => _editCustomer(customer),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.orange[600],
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
                                 ),
-                                icon: const Icon(Icons.email, size: 16),
-                                label: const Text('Email', style: TextStyle(fontWeight: FontWeight.w600)),
                               ),
+                              icon: const Icon(Icons.edit, size: 16),
+                              label: const Text('Edit', style: TextStyle(fontWeight: FontWeight.w600)),
                             ),
-                          if (customer.email != null && customer.email!.isNotEmpty)
-                            const SizedBox(width: 8),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () => _deleteCustomer(customer),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red[600],
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              icon: const Icon(Icons.delete, size: 16),
+                              label: const Text('Delete', style: TextStyle(fontWeight: FontWeight.w600)),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
                           Expanded(
                             child: OutlinedButton.icon(
                               onPressed: () => _navigateToCustomerDetail(customer),
@@ -881,7 +890,7 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
                                 side: BorderSide(color: Colors.grey[300]!),
                               ),
                               icon: const Icon(Icons.visibility, size: 16),
-                              label: const Text('View Details', style: TextStyle(fontWeight: FontWeight.w600)),
+                              label: const Text('View', style: TextStyle(fontWeight: FontWeight.w600)),
                             ),
                           ),
                         ],
@@ -996,6 +1005,98 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
         builder: (context) => CustomerDetailPage(customer: customer),
       ),
     ).then((_) => _loadData());
+  }
+
+  Future<void> _deleteCustomer(Customer customer) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Customer'),
+        content: Text('Are you sure you want to delete ${customer.fullName}?\n\nThis action cannot be undone and will also delete all associated job orders.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.red,
+              backgroundColor: Colors.red[50],
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        final success = await _customerService.deleteCustomer(customer.id);
+        if (success) {
+          _loadData(isRefresh: true);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    const Icon(Icons.check_circle, color: Colors.white, size: 16),
+                    const SizedBox(width: 8),
+                    Text('${customer.fullName} deleted successfully'),
+                  ],
+                ),
+                backgroundColor: Colors.green[600],
+                duration: const Duration(seconds: 2),
+                behavior: SnackBarBehavior.floating,
+                margin: const EdgeInsets.all(16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+            );
+          }
+        } else {
+          throw Exception('Failed to delete customer');
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.error_outline, color: Colors.white, size: 16),
+                  const SizedBox(width: 8),
+                  Text('Failed to delete customer: ${e.toString()}'),
+                ],
+              ),
+              backgroundColor: Colors.red[600],
+              duration: const Duration(seconds: 3),
+              behavior: SnackBarBehavior.floating,
+              margin: const EdgeInsets.all(16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  void _editCustomer(Customer customer) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        margin: const EdgeInsets.only(top: 100),
+        height: MediaQuery.of(context).size.height - 100,
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: AddCustomerModal(
+          customer: customer,
+          onCustomerAdded: () => _loadData(isRefresh: true),
+        ),
+      ),
+    );
   }
 
   void _showAddCustomerModal() {

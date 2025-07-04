@@ -3,21 +3,21 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../models/customer.dart';
 import '../../services/customer_service.dart';
 
-class AddCustomerModal extends StatefulWidget {
-  final Customer? customer;
-  final VoidCallback? onCustomerAdded;
+class EditCustomerModal extends StatefulWidget {
+  final Customer customer;
+  final VoidCallback? onCustomerUpdated;
 
-  const AddCustomerModal({
+  const EditCustomerModal({
     Key? key,
-    this.customer,
-    this.onCustomerAdded,
+    required this.customer,
+    this.onCustomerUpdated,
   }) : super(key: key);
 
   @override
-  State<AddCustomerModal> createState() => _AddCustomerModalState();
+  State<EditCustomerModal> createState() => _EditCustomerModalState();
 }
 
-class _AddCustomerModalState extends State<AddCustomerModal> {
+class _EditCustomerModalState extends State<EditCustomerModal> {
   final _formKey = GlobalKey<FormState>();
   final CustomerService _customerService = CustomerService();
   final ScrollController _scrollController = ScrollController();
@@ -35,18 +35,16 @@ class _AddCustomerModalState extends State<AddCustomerModal> {
   final FocusNode _notesFocus = FocusNode();
   
   bool _isLoading = false;
-  bool _isEditing = false;
 
   @override
   void initState() {
     super.initState();
-    _isEditing = widget.customer != null;
     
-    _fullNameController = TextEditingController(text: widget.customer?.fullName ?? '');
-    _contactController = TextEditingController(text: widget.customer?.contactNum ?? '');
-    _emailController = TextEditingController(text: widget.customer?.email ?? '');
-    _addressController = TextEditingController(text: widget.customer?.address ?? '');
-    _notesController = TextEditingController(text: widget.customer?.notes ?? '');
+    _fullNameController = TextEditingController(text: widget.customer.fullName);
+    _contactController = TextEditingController(text: widget.customer.contactNum);
+    _emailController = TextEditingController(text: widget.customer.email ?? '');
+    _addressController = TextEditingController(text: widget.customer.address ?? '');
+    _notesController = TextEditingController(text: widget.customer.notes ?? '');
     
     // Add listener to automatically scroll when notes field is focused
     _notesFocus.addListener(() {
@@ -104,42 +102,60 @@ class _AddCustomerModalState extends State<AddCustomerModal> {
         throw Exception('User not authenticated');
       }
 
-      final customer = Customer(
-        id: widget.customer?.id ?? '',
+      final updatedCustomer = Customer(
+        id: widget.customer.id,
         fullName: _fullNameController.text.trim(),
         contactNum: _contactController.text.trim(),
         email: _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
         address: _addressController.text.trim().isEmpty ? null : _addressController.text.trim(),
         notes: _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
-        createdBy: widget.customer?.createdBy ?? currentUser.uid,
-        createdAt: widget.customer?.createdAt ?? DateTime.now(),
+        createdBy: widget.customer.createdBy,
+        createdAt: widget.customer.createdAt,
       );
 
-      bool success;
-      if (_isEditing) {
-        success = await _customerService.updateCustomer(widget.customer!.id, customer);
-      } else {
-        final result = await _customerService.addCustomer(customer);
-        success = result != null;
-      }
+      final success = await _customerService.updateCustomer(widget.customer.id, updatedCustomer);
 
       if (success) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(_isEditing ? 'Customer updated successfully' : 'Customer added successfully'),
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.white, size: 16),
+                  const SizedBox(width: 8),
+                  Text('${updatedCustomer.fullName} updated successfully'),
+                ],
+              ),
+              backgroundColor: Colors.green[600],
+              duration: const Duration(seconds: 2),
+              behavior: SnackBarBehavior.floating,
+              margin: const EdgeInsets.all(16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
           );
-          Navigator.pop(context);
-          widget.onCustomerAdded?.call();
+          Navigator.pop(context, true);
+          widget.onCustomerUpdated?.call();
         }
       } else {
-        throw Exception('Failed to save customer');
+        throw Exception('Failed to update customer');
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${e.toString()}')),
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.white, size: 16),
+                const SizedBox(width: 8),
+                Text('Failed to update customer: ${e.toString()}'),
+              ],
+            ),
+            backgroundColor: Colors.red[600],
+            duration: const Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
         );
       }
     } finally {
@@ -193,7 +209,7 @@ class _AddCustomerModalState extends State<AddCustomerModal> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Icon(
-                          Icons.person_add_rounded,
+                          Icons.edit_rounded,
                           color: Colors.pink[700],
                           size: 24,
                         ),
@@ -203,16 +219,16 @@ class _AddCustomerModalState extends State<AddCustomerModal> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              _isEditing ? 'Edit Customer' : 'Add New Customer',
-                              style: const TextStyle(
+                            const Text(
+                              'Edit Customer',
+                              style: TextStyle(
                                 fontSize: 24,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.black87,
                               ),
                             ),
                             Text(
-                              _isEditing ? 'Update customer information' : 'Add customer information to your database',
+                              'Update ${widget.customer.fullName}\'s information',
                               style: const TextStyle(
                                 fontSize: 14,
                                 color: Colors.grey,
@@ -230,8 +246,7 @@ class _AddCustomerModalState extends State<AddCustomerModal> {
             // Form
             Expanded(
               child: Form(
-                key: _formKey,
-                child: SingleChildScrollView(
+                key: _formKey,                child: SingleChildScrollView(
                   controller: _scrollController,
                   keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                   physics: const BouncingScrollPhysics(),
@@ -243,78 +258,78 @@ class _AddCustomerModalState extends State<AddCustomerModal> {
                   ),
                   child: Column(
                     children: [
-                    // Full Name
-                    Card(
-                      elevation: 2,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Text(
-                                  'Full Name',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.grey[800],
-                                  ),
-                                ),
-                                const Text(
-                                  ' *',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.red,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            TextFormField(
-                              controller: _fullNameController,
-                              focusNode: _fullNameFocus,
-                              textInputAction: TextInputAction.next,
-                              onFieldSubmitted: (_) => _contactFocus.requestFocus(),
-                              decoration: InputDecoration(
-                                hintText: 'Enter customer full name',
-                                filled: true,
-                                fillColor: Colors.grey.shade50,
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide.none,
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide(color: Colors.grey.shade200),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide(color: Colors.pink.shade400, width: 2),
-                                ),
-                                errorBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide(color: Colors.red.shade400, width: 2),
+                  // Full Name
+                  Card(
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                'Full Name',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.grey[800],
                                 ),
                               ),
-                              validator: (value) {
-                                if (value == null || value.trim().isEmpty) {
-                                  return 'Full name is required';
-                                }
-                                if (value.trim().length < 2) {
-                                  return 'Full name must be at least 2 characters';
-                                }
-                                return null;
-                              },
+                              const Text(
+                                ' *',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.red,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          TextFormField(
+                            controller: _fullNameController,
+                            focusNode: _fullNameFocus,
+                            textInputAction: TextInputAction.next,
+                            onFieldSubmitted: (_) => _contactFocus.requestFocus(),
+                            decoration: InputDecoration(
+                              hintText: 'Enter customer full name',
+                              filled: true,
+                              fillColor: Colors.grey.shade50,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide.none,
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(color: Colors.grey.shade200),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(color: Colors.pink.shade400, width: 2),
+                              ),
+                              errorBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(color: Colors.red.shade400, width: 2),
+                              ),
                             ),
-                          ],
-                        ),
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Full name is required';
+                              }
+                              if (value.trim().length < 2) {
+                                return 'Full name must be at least 2 characters';
+                              }
+                              return null;
+                            },
+                          ),
+                        ],
                       ),
                     ),
+                  ),
                   
                   const SizedBox(height: 16),
                   
@@ -375,7 +390,7 @@ class _AddCustomerModalState extends State<AddCustomerModal> {
                                   return 'Phone number must be between 10-15 digits';
                                 }
                                 
-                                // Check for valid mobile number patterns (starts with common mobile prefixes)
+                                // Check for valid mobile number patterns
                                 if (!RegExp(r'^(\+?1)?[6-9]\d{9}$|^\+?[1-9]\d{7,14}$').hasMatch(cleanedValue)) {
                                   return 'Please enter a valid mobile number';
                                 }
@@ -576,7 +591,7 @@ class _AddCustomerModalState extends State<AddCustomerModal> {
                   
                   const SizedBox(height: 24),
                   
-                  // Save Button
+                  // Update Button
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
@@ -587,9 +602,9 @@ class _AddCustomerModalState extends State<AddCustomerModal> {
                               height: 20,
                               child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                             )
-                          : Icon(_isEditing ? Icons.save : Icons.add, size: 20),
+                          : const Icon(Icons.save, size: 20),
                       label: Text(
-                        _isLoading ? 'Saving...' : (_isEditing ? 'Update Customer' : 'Add Customer'),
+                        _isLoading ? 'Updating...' : 'Update Customer',
                         style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                       ),
                       style: ElevatedButton.styleFrom(
