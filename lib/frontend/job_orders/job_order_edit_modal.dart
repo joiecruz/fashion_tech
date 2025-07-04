@@ -42,6 +42,14 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
   final TextEditingController _quantityController = TextEditingController();
   final TextEditingController _priceController = TextEditingController();
   final TextEditingController _specialInstructionsController = TextEditingController();
+  
+  // Focus nodes for keyboard handling
+  final FocusNode _jobOrderNameFocus = FocusNode();
+  final FocusNode _customerNameFocus = FocusNode();
+  final FocusNode _assignedToFocus = FocusNode();
+  final FocusNode _quantityFocus = FocusNode();
+  final FocusNode _priceFocus = FocusNode();
+  final FocusNode _specialInstructionsFocus = FocusNode();
   bool _isUpcycled = false;
   String _jobStatus = 'In Progress';
   List<FormProductVariant> _variants = [];
@@ -53,6 +61,17 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
   bool _loadingFabricSuppliers = true;
 
   Map<String, double> _fabricAllocated = {};
+
+  // Track expanded/collapsed state for each section
+  Map<String, bool> _sectionExpanded = {
+    'Basic Information': true,  // Start with this section expanded
+    'Timeline': true,          // Timeline is also critical - expand by default
+    'Assignment & Quantities': false,
+    'Additional Details': false,
+    'Product Variants': false,
+    'Fabric Suppliers': false,
+    'Variant Breakdown': false,
+  };
 
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -94,6 +113,27 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
 
     _quantityController.addListener(() {
       setState(() {});
+    });
+
+    // Add listeners to key controllers to update completion status dynamically
+    _jobOrderNameController.addListener(() => setState(() {}));
+    _customerNameController.addListener(() => setState(() {}));
+    _orderDateController.addListener(() => setState(() {}));
+    _dueDateController.addListener(() => setState(() {}));
+    _assignedToController.addListener(() => setState(() {}));
+    _priceController.addListener(() => setState(() {}));
+
+    // Add listeners for keyboard handling
+    _specialInstructionsFocus.addListener(() {
+      if (_specialInstructionsFocus.hasFocus) {
+        Future.delayed(const Duration(milliseconds: 300), () {
+          _scrollController.animateTo(
+            _scrollController.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+          );
+        });
+      }
     });
 
     _animationController.forward();
@@ -275,6 +315,12 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
     _quantityController.dispose();
     _priceController.dispose();
     _specialInstructionsController.dispose();
+    _jobOrderNameFocus.dispose();
+    _customerNameFocus.dispose();
+    _assignedToFocus.dispose();
+    _quantityFocus.dispose();
+    _priceFocus.dispose();
+    _specialInstructionsFocus.dispose();
     super.dispose();
   }
 
@@ -293,10 +339,10 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
   @override
   Widget build(BuildContext context) {
     if (_loadingFabrics || _loadingFabricSuppliers || _loadingJobOrder) {
-      return Center(child: CircularProgressIndicator());
+      return _buildLoadingState();
     }
     if (_userFabrics.isEmpty) {
-      return Center(child: Text('No Fabrics Available'));
+      return _buildNoFabricsState();
     }
     return FadeTransition(
       opacity: _fadeAnimation,
@@ -313,45 +359,138 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
                 color: Colors.white,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
               ),
-              child: ListView(
-                controller: _scrollController,
-                padding: const EdgeInsets.all(20),
+              child: Column(
                 children: [
-                  _buildHeader(),
-                  const SizedBox(height: 24),
-                  Form(
-                    key: _formKey,
+                  // Sticky header area (notch + title)
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.grey.shade200,
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
                     child: Column(
                       children: [
-                        _buildBasicInfoSection(),
-                        const SizedBox(height: 20),
-                        _buildTimelineSection(),
-                        const SizedBox(height: 20),
-                        _buildAssignmentSection(),
-                        const SizedBox(height: 20),
-                        _buildAdditionalDetailsSection(),
+                        // Top notch for better modal closing UX
+                        Center(
+                          child: GestureDetector(
+                            onPanStart: (details) {
+                              // Track the start of drag
+                            },
+                            onPanUpdate: (details) {
+                              // Close modal when dragging down significantly
+                              if (details.delta.dy > 8) {
+                                Navigator.of(context).pop();
+                              }
+                            },
+                            onTap: () {
+                              // Close on tap as well
+                              Navigator.of(context).pop();
+                            },
+                            child: Container(
+                              width: 60,
+                              height: 20,
+                              margin: const EdgeInsets.only(bottom: 20),
+                              decoration: BoxDecoration(
+                                color: Colors.transparent,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Center(
+                                child: Container(
+                                  width: 40,
+                                  height: 4,
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.shade300,
+                                    borderRadius: BorderRadius.circular(2),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        
+                        // Header
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: _buildHeader(),
+                        ),
+                        
+                        const SizedBox(height: 24),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 24),
-                  _buildVariantsSection(),
-                  const SizedBox(height: 24),
-                  FabricSuppliersSection(
-                    variants: _variants,
-                    userFabrics: _userFabrics,
-                    fabricSuppliers: _fabricSuppliers,
-                    loadingFabricSuppliers: _loadingFabricSuppliers,
-                    parseColor: ColorUtils.parseColor,
+                  
+                  // Scrollable content area
+                  Expanded(
+                    child: SingleChildScrollView(
+                      controller: _scrollController,
+                      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                      physics: const BouncingScrollPhysics(),
+                      padding: EdgeInsets.fromLTRB(
+                        20,
+                        0,
+                        20,
+                        MediaQuery.of(context).viewInsets.bottom + 100,
+                      ),
+                      child: Column(
+                        children: [
+                          // Form
+                          Form(
+                            key: _formKey,
+                            child: Column(
+                              children: [
+                                // Basic Information Section
+                                _buildBasicInfoSection(),
+                                
+                                const SizedBox(height: 20),
+                                
+                                // Timeline Section
+                                _buildTimelineSection(),
+                                
+                                const SizedBox(height: 20),
+                                
+                                // Assignment & Quantities Section
+                                _buildAssignmentSection(),
+                                
+                                const SizedBox(height: 20),
+                                
+                                // Additional Details Section
+                                _buildAdditionalDetailsSection(),
+                              ],
+                            ),
+                          ),
+                          
+                          const SizedBox(height: 24),
+                          
+                          // Product Variants Section
+                          _buildVariantsSection(),
+                          
+                          const SizedBox(height: 24),
+                          
+                          // Fabric Suppliers Section
+                          _buildFabricSuppliersSection(),
+                          
+                          const SizedBox(height: 24),
+                          
+                          // Variant Breakdown Summary Section
+                          _buildVariantBreakdownSection(),
+                          
+                          const SizedBox(height: 24),
+                          
+                          // Save Button with bottom padding
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 20),
+                            child: _buildSaveButton(),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                  const SizedBox(height: 24),
-                  VariantBreakdownSummary(
-                    variants: _variants,
-                    userFabrics: _userFabrics,
-                    quantityController: _quantityController,
-                    parseColor: ColorUtils.parseColor,
-                  ),
-                  const SizedBox(height: 24),
-                  _buildSaveButton(),
                 ],
               ),
             );
@@ -362,87 +501,75 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
   }
 
   Widget _buildHeader() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.blue.shade600,
-            Colors.blue.shade700,
-          ],
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.blue[100]!, Colors.blue[200]!],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(
+            Icons.edit_outlined,
+            color: Colors.blue[700],
+            size: 24,
+          ),
         ),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.blue.shade200,
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(
-              Icons.edit,
-              color: Colors.white,
-              size: 28,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Edit Job Order',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
+        const SizedBox(width: 16),
+        const Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Edit Job Order',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
                 ),
-                SizedBox(height: 4),
-                Text(
-                  'Update production order details',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 16,
-                  ),
+              ),
+              Text(
+                'Update production order details',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
   Widget _buildBasicInfoSection() {
     return _buildSection(
-      title: 'Basic Info',
-      icon: Icons.info,
-      color: Colors.deepPurple,
+      title: 'Basic Information',
+      icon: Icons.info_outline,
+      color: Colors.blue,
       children: [
         _buildTextField(
           controller: _jobOrderNameController,
           label: 'Job Order Name',
-          icon: Icons.title,
+          icon: Icons.assignment,
+          focusNode: _jobOrderNameFocus,
+          textInputAction: TextInputAction.next,
+          onFieldSubmitted: () => _customerNameFocus.requestFocus(),
           validator: (value) =>
               value == null || value.trim().isEmpty ? 'Required' : null,
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 16),
         _buildTextField(
           controller: _customerNameController,
           label: 'Customer Name',
           icon: Icons.person,
+          focusNode: _customerNameFocus,
+          textInputAction: TextInputAction.next,
+          onFieldSubmitted: () => _assignedToFocus.requestFocus(),
           validator: (value) =>
               value == null || value.trim().isEmpty ? 'Required' : null,
         ),
@@ -454,21 +581,29 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
   Widget _buildTimelineSection() {
     return _buildSection(
       title: 'Timeline',
-      icon: Icons.calendar_today,
-      color: Colors.teal,
+      icon: Icons.schedule,
+      color: Colors.green,
       children: [
-        _buildDateField(
-          controller: _orderDateController,
-          label: 'Order Date',
-          icon: Icons.event,
-        ),
-        const SizedBox(height: 12),
-        _buildDateField(
-          controller: _dueDateController,
-          label: 'Due Date',
-          icon: Icons.event_available,
-          validator: (value) =>
-              value == null || value.trim().isEmpty ? 'Required' : null,
+        Row(
+          children: [
+            Expanded(
+              child: _buildDateField(
+                controller: _orderDateController,
+                label: 'Order Date',
+                icon: Icons.event,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: _buildDateField(
+                controller: _dueDateController,
+                label: 'Due Date',
+                icon: Icons.schedule,
+                validator: (value) =>
+                    value == null || value.trim().isEmpty ? 'Required' : null,
+              ),
+            ),
+          ],
         ),
       ],
       key: _timelineSectionKey,
@@ -477,7 +612,7 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
 
   Widget _buildAssignmentSection() {
     return _buildSection(
-      title: 'Assignment',
+      title: 'Assignment & Quantities',
       icon: Icons.assignment_ind,
       color: Colors.orange,
       children: [
@@ -485,8 +620,21 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
           controller: _assignedToController,
           label: 'Assigned To',
           icon: Icons.person_add,
+          focusNode: _assignedToFocus,
+          textInputAction: TextInputAction.next,
+          onFieldSubmitted: () => _quantityFocus.requestFocus(),
           validator: (value) =>
               value == null || value.trim().isEmpty ? 'Required' : null,
+        ),
+        const SizedBox(height: 16),
+        _buildTextField(
+          controller: _quantityController,
+          label: 'Total Quantity',
+          icon: Icons.confirmation_number,
+          focusNode: _quantityFocus,
+          textInputAction: TextInputAction.next,
+          onFieldSubmitted: () => _priceFocus.requestFocus(),
+          keyboardType: TextInputType.number,
         ),
       ],
       key: _assignmentSectionKey,
@@ -500,26 +648,24 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
       color: Colors.indigo,
       children: [
         _buildTextField(
-          controller: _quantityController,
-          label: 'Total Quantity',
-          icon: Icons.confirmation_number,
-          keyboardType: TextInputType.number,
-        ),
-        const SizedBox(height: 12),
-        _buildTextField(
           controller: _priceController,
           label: 'Price',
           icon: Icons.attach_money,
+          focusNode: _priceFocus,
+          textInputAction: TextInputAction.next,
+          onFieldSubmitted: () => _specialInstructionsFocus.requestFocus(),
           keyboardType: TextInputType.number,
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 16),
         _buildTextField(
           controller: _specialInstructionsController,
           label: 'Special Instructions',
           icon: Icons.comment,
+          focusNode: _specialInstructionsFocus,
+          textInputAction: TextInputAction.done,
           maxLines: 2,
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 16),
         _buildSwitchTile(
           title: 'Upcycled',
           subtitle: 'Is this an upcycled job order?',
@@ -527,7 +673,7 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
           onChanged: (val) => setState(() => _isUpcycled = val),
           icon: Icons.recycling,
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 16),
         _buildDropdownField(
           value: _jobStatus,
           label: 'Job Status',
@@ -541,156 +687,149 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
   }
 
   Widget _buildVariantsSection() {
-    return Container(
-      key: _variantsSectionKey,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Product Variants',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.deepPurple,
+    return _buildSection(
+      title: 'Product Variants',
+      icon: Icons.category,
+      color: Colors.deepPurple,
+      children: [
+        if (_variants.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(32),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey.shade200),
             ),
-          ),
-          const SizedBox(height: 8),
-          if (_variants.isEmpty)
-            Container(
-              padding: const EdgeInsets.all(32),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade200),
+            child: Center(
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.category_outlined,
+                    size: 48,
+                    color: Colors.grey.shade400,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'No variants added yet',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.grey.shade600,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Add product variants to specify sizes and fabrics',
+                    style: TextStyle(
+                      color: Colors.grey.shade500,
+                      fontSize: 14,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
               ),
-              child: Center(
-                child: Column(
-                  children: [
-                    Icon(
-                      Icons.category_outlined,
-                      size: 48,
-                      color: Colors.grey.shade400,
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'No variants added yet',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.grey.shade600,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Add product variants to specify sizes and fabrics',
-                      style: TextStyle(
-                        color: Colors.grey.shade500,
-                        fontSize: 14,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
-              ),
-            )
-          else
-            Column(
-              children: _variants.asMap().entries.map((entry) {
-                int idx = entry.key;
-                FormProductVariant variant = entry.value;
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    VariantCard(
-                      variant: variant,
-                      index: idx,
-                      userFabrics: _userFabrics,
-                      fabricAllocated: _fabricAllocated,
-                      quantityController: _quantityController,
-                      sumVariants: _variants.fold<int>(0, (sum, v) => sum + v.quantity),
-                      onRemove: () {
-                        setState(() {
-                          _variants.removeAt(idx);
-                        });
-                      },
-                      onVariantChanged: (index) {
-                        setState(() {});
-                      },
-                      onFabricYardageChanged: () {
-                        setState(() {});
-                      },
-                    ),
-                    // Show fabric colors and yards for each variant
-                    ...variant.fabrics.map((f) {
-                      final fabric = _userFabrics.firstWhere(
-                        (fab) => fab['fabricID'] == f.fabricId,
-                        orElse: () => <String, dynamic>{},
-                      );
-                      final fabricName = fabric.isNotEmpty && fabric['name'] != null && fabric['name'].toString().isNotEmpty
-                          ? fabric['name']
-                          : f.fabricName.isNotEmpty ? f.fabricName : 'Unknown';
-                      final fabricColor = fabric.isNotEmpty && fabric['color'] != null
-                          ? fabric['color']
-                          : '#CCCCCC';
-                      return Padding(
-                        padding: const EdgeInsets.only(left: 24, top: 4, bottom: 4),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 18,
-                              height: 18,
-                              margin: const EdgeInsets.only(right: 8),
-                              decoration: BoxDecoration(
-                                color: ColorUtils.parseColor(fabricColor),
-                                borderRadius: BorderRadius.circular(4),
-                                border: Border.all(color: Colors.grey.shade300),
-                              ),
-                            ),
-                            Text(
-                              '$fabricName',
-                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              '${f.yardageUsed.toStringAsFixed(2)} yds',
-                              style: const TextStyle(fontSize: 13, color: Colors.grey),
-                            ),
-                          ],
-                        ),
-                      );
-                    }).toList(),
-                  ],
-                );
-              }).toList(),
             ),
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            icon: Icon(Icons.add),
-            label: Text('Add Variant'),
-            onPressed: () {
-              setState(() {
-                _variants.add(FormProductVariant(
-                  id: UniqueKey().toString(),
-                  productID: '',
-                  size: _sizeOptions.isNotEmpty ? _sizeOptions.first : '',
-                  colorID: _colorOptions.isNotEmpty ? _colorOptions.first : '', // ERDv9: Changed from color to colorID
-                  quantityInStock: 0,
-                  quantity: 1,
-                  fabrics: _userFabrics.isNotEmpty
-                      ? [
-                          VariantFabric(
-                            fabricId: _userFabrics.first['fabricID'],
-                            fabricName: _userFabrics.first['name'],
-                            yardageUsed: 0.0,
+          )
+        else
+          Column(
+            children: _variants.asMap().entries.map((entry) {
+              int idx = entry.key;
+              FormProductVariant variant = entry.value;
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  VariantCard(
+                    variant: variant,
+                    index: idx,
+                    userFabrics: _userFabrics,
+                    fabricAllocated: _fabricAllocated,
+                    quantityController: _quantityController,
+                    sumVariants: _variants.fold<int>(0, (sum, v) => sum + v.quantity),
+                    onRemove: () {
+                      setState(() {
+                        _variants.removeAt(idx);
+                      });
+                    },
+                    onVariantChanged: (index) {
+                      setState(() {});
+                    },
+                    onFabricYardageChanged: () {
+                      setState(() {});
+                      _onFabricYardageChanged();
+                    },
+                  ),
+                  // Show fabric colors and yards for each variant
+                  ...variant.fabrics.map((f) {
+                    final fabric = _userFabrics.firstWhere(
+                      (fab) => fab['fabricID'] == f.fabricId,
+                      orElse: () => <String, dynamic>{},
+                    );
+                    final fabricName = fabric.isNotEmpty && fabric['name'] != null && fabric['name'].toString().isNotEmpty
+                        ? fabric['name']
+                        : f.fabricName.isNotEmpty ? f.fabricName : 'Unknown';
+                    final fabricColor = fabric.isNotEmpty && fabric['color'] != null
+                        ? fabric['color']
+                        : '#CCCCCC';
+                    return Padding(
+                      padding: const EdgeInsets.only(left: 24, top: 4, bottom: 4),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 18,
+                            height: 18,
+                            margin: const EdgeInsets.only(right: 8),
+                            decoration: BoxDecoration(
+                              color: ColorUtils.parseColor(fabricColor),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(color: Colors.grey.shade300),
+                            ),
                           ),
-                        ]
-                      : [],
-                ));
-              });
-            },
+                          Text(
+                            '$fabricName',
+                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${f.yardageUsed.toStringAsFixed(2)} yds',
+                            style: const TextStyle(fontSize: 13, color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                  const SizedBox(height: 8),
+                ],
+              );
+            }).toList(),
           ),
-        ],
-      ),
+        const SizedBox(height: 16),
+        OutlinedButton.icon(
+          icon: Icon(Icons.add),
+          label: Text('Add Variant'),
+          onPressed: () {
+            setState(() {
+              _variants.add(FormProductVariant(
+                id: UniqueKey().toString(),
+                productID: '',
+                size: _sizeOptions.isNotEmpty ? _sizeOptions.first : '',
+                colorID: _colorOptions.isNotEmpty ? _colorOptions.first : '', // ERDv9: Changed from color to colorID
+                quantityInStock: 0,
+                quantity: 1,
+                fabrics: _userFabrics.isNotEmpty
+                    ? [
+                        VariantFabric(
+                          fabricId: _userFabrics.first['fabricID'],
+                          fabricName: _userFabrics.first['name'],
+                          yardageUsed: 0.0,
+                        ),
+                      ]
+                    : [],
+              ));
+            });
+          },
+        ),
+      ],
+      key: _variantsSectionKey,
     );
   }
 
@@ -737,37 +876,106 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
     Key? key,
     bool hasError = false,
   }) {
+    final bool isExpanded = _sectionExpanded[title] ?? false;
+    final bool isCompleted = _isSectionCompleted(title);
+    
     return Container(
       key: key,
-      padding: const EdgeInsets.all(16),
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: hasError ? Colors.red.shade50 : Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(12),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: hasError ? Colors.red : color.withOpacity(0.2),
-          width: 1.2,
+          color: hasError ? Colors.red.shade300 : 
+                 isCompleted ? Colors.green.shade200 : Colors.grey.shade200,
+          width: hasError ? 2 : isCompleted ? 2 : 1,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: hasError ? Colors.red.shade100 : 
+                   isCompleted ? Colors.green.shade100 : Colors.grey.shade100,
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(icon, color: color),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: TextStyle(
-                  color: color,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
+          // Header - always visible, clickable to expand/collapse
+          InkWell(
+            onTap: () => _toggleSection(title),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+            child: Container(
+              padding: EdgeInsets.all(isExpanded ? 20 : 16),
+              child: Row(
+                children: [
+                  Container(
+                    padding: EdgeInsets.all(isExpanded ? 8 : 6),
+                    decoration: BoxDecoration(
+                      color: hasError ? Colors.red.shade50 : 
+                             isCompleted ? Colors.green.shade50 : color.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      hasError ? Icons.error_outline : 
+                      isCompleted ? Icons.check_circle_outline : icon,
+                      color: hasError ? Colors.red.shade600 : 
+                             isCompleted ? Colors.green.shade600 : color,
+                      size: isExpanded ? 20 : 18,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: isExpanded ? 18 : 16,
+                            color: Colors.grey.shade800,
+                          ),
+                        ),
+                        if (isCompleted && !isExpanded)
+                          Text(
+                            'Completed',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.green.shade600,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  AnimatedRotation(
+                    turns: isExpanded ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 200),
+                    child: Icon(
+                      Icons.keyboard_arrow_down,
+                      color: Colors.grey.shade600,
+                      size: isExpanded ? 24 : 20,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // Content - only visible when expanded
+          if (isExpanded)
+            AnimatedSize(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: children,
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          ...children,
+            ),
         ],
       ),
     );
@@ -781,9 +989,15 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
     String? Function(String?)? validator,
     TextInputType? keyboardType,
     int maxLines = 1,
+    FocusNode? focusNode,
+    TextInputAction? textInputAction,
+    VoidCallback? onFieldSubmitted,
   }) {
     return TextFormField(
       controller: controller,
+      focusNode: focusNode,
+      textInputAction: textInputAction ?? TextInputAction.next,
+      onFieldSubmitted: onFieldSubmitted != null ? (_) => onFieldSubmitted() : null,
       validator: validator,
       keyboardType: keyboardType,
       maxLines: maxLines,
@@ -859,6 +1073,18 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
     );
   }
 
+  void _onFabricYardageChanged() {
+    final Map<String, double> allocation = {};
+    for (final variant in _variants) {
+      for (final fabric in variant.fabrics) {
+        allocation[fabric.fabricId] = (allocation[fabric.fabricId] ?? 0) + (fabric.yardageUsed);
+      }
+    }
+    setState(() {
+      _fabricAllocated = allocation;
+    });
+  }
+
   Future<void> _updateJobOrder() async {
     print('[DEBUG] _updateJobOrder called');
     print('[DEBUG] jobOrderName: "${_jobOrderNameController.text}"');
@@ -881,8 +1107,50 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
 
     if (!_formKey.currentState!.validate()) {
       print('[DEBUG] Form not valid');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Row(
+            children: [
+              Icon(Icons.warning, color: Colors.white, size: 20),
+              SizedBox(width: 8),
+              Text('Please fill in all required fields'),
+            ],
+          ),
+          backgroundColor: Colors.orange[600],
+          duration: const Duration(seconds: 3),
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.all(16),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+      );
       return;
     }
+
+    // Show confirmation dialog
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Update Job Order'),
+        content: const Text('Are you sure you want to update this job order?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green[600],
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Update'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
     setState(() => _saving = true);
 
 try {
@@ -905,6 +1173,7 @@ try {
     'specialInstructions': _specialInstructionsController.text.trim(),
     'isUpcycled': _isUpcycled,
     'status': _jobStatus,
+    'updatedAt': FieldValue.serverTimestamp(),
   });
   print('[DEBUG] Job order document updated.');
 
@@ -922,22 +1191,28 @@ try {
       await detailsRef.doc(doc.id).delete();
     }
   }
+  
+  // Process variants
   for (final variant in _variants) {
     try {
       print('[DEBUG] Processing variant: ${variant.id}');
       print('[DEBUG]   size: ${variant.size}, color: ${variant.color}, quantity: ${variant.quantity}');
+      
       if (variant.fabrics.isEmpty) {
-        print('[ERROR]   Variant has no fabrics!');
+        print('[WARNING] Variant has no fabrics, skipping...');
         continue;
       }
+      
       final fabric = variant.fabrics.firstWhere(
         (f) => f.fabricId.isNotEmpty && f.fabricName.isNotEmpty,
         orElse: () => VariantFabric(fabricId: '', fabricName: '', yardageUsed: 0.0),
       );
-      if (fabric.fabricId.isEmpty || fabric.fabricName.isEmpty) {
-        print('[ERROR] Skipping variant: no valid fabric with non-empty id and name');
+      
+      if (fabric.fabricId.isEmpty) {
+        print('[WARNING] Skipping variant: no valid fabric');
         continue;
       }
+      
       print('[DEBUG] About to update/add variant with:');
       print('  size: ${variant.size}');
       print('  color: ${variant.color}');
@@ -946,27 +1221,30 @@ try {
       print('  fabricName: ${fabric.fabricName}');
       print('  yardageUsed: ${fabric.yardageUsed}');
 
-      final existingDocIndex = existingDetails.docs.indexWhere((d) => d.id == variant.id);
-      if (existingDocIndex != -1) {
+      final existingDoc = existingDetails.docs.where((d) => d.id == variant.id).firstOrNull;
+      if (existingDoc != null) {
         print('[DEBUG] Updating existing variant: ${variant.id}');
         await detailsRef.doc(variant.id).update({
           'size': variant.size,
-          'color': variant.colorID, // ERDv9: Changed from color to colorID
+          'color': variant.color,
           'quantity': variant.quantity,
           'fabricID': fabric.fabricId,
           'yardageUsed': fabric.yardageUsed,
           'fabricName': fabric.fabricName,
+          'updatedAt': FieldValue.serverTimestamp(),
         });
       } else {
         print('[DEBUG] Adding new variant...');
         final docRef = await detailsRef.add({
           'jobOrderID': widget.jobOrderId,
           'size': variant.size,
-          'color': variant.colorID, // ERDv9: Changed from color to colorID
+          'color': variant.color,
           'quantity': variant.quantity,
           'fabricID': fabric.fabricId,
           'yardageUsed': fabric.yardageUsed,
           'fabricName': fabric.fabricName,
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
         });
         print('[DEBUG] New variant added with id: ${docRef.id}');
       }
@@ -975,11 +1253,179 @@ try {
       print(stack);
     }
   }
+
+  // Show success message
+  if (mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Row(
+          children: [
+            Icon(Icons.check_circle, color: Colors.white, size: 20),
+            SizedBox(width: 8),
+            Text('Job order updated successfully!'),
+          ],
+        ),
+        backgroundColor: Colors.green[600],
+        duration: const Duration(seconds: 3),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+    );
+  }
+
+  // Close the modal after successful update
+  if (mounted) {
+    Navigator.of(context).pop(true); // Return true to indicate success
+  }
+
 } catch (e, stack) {
   print('[ERROR] Exception in _updateJobOrder: $e');
   print(stack);
+  
+  // Show error message
+  if (mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.error_outline, color: Colors.white, size: 20),
+            const SizedBox(width: 8),
+            Expanded(child: Text('Failed to update job order: ${e.toString()}')),
+          ],
+        ),
+        backgroundColor: Colors.red[600],
+        duration: const Duration(seconds: 5),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+    );
+  }
 } finally {
-  setState(() => _saving = false);
+  if (mounted) {
+    setState(() => _saving = false);
+  }
 }
   }
+
+  Widget _buildLoadingState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircularProgressIndicator(),
+          SizedBox(height: 16),
+          Text('Loading job order data...'),
+          SizedBox(height: 8),
+          Text(
+            _loadingJobOrder ? 'Loading job order...' : 'Job order loaded ✓',
+            style: TextStyle(
+              color: _loadingJobOrder ? Colors.grey : Colors.green,
+              fontSize: 12,
+            ),
+          ),
+          Text(
+            _loadingFabrics ? 'Loading fabrics...' : 'Fabrics loaded ✓',
+            style: TextStyle(
+              color: _loadingFabrics ? Colors.grey : Colors.green,
+              fontSize: 12,
+            ),
+          ),
+          Text(
+            _loadingFabricSuppliers ? 'Loading fabric suppliers...' : 'Fabric suppliers loaded ✓',
+            style: TextStyle(
+              color: _loadingFabricSuppliers ? Colors.grey : Colors.green,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNoFabricsState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.inventory_2_outlined, size: 64, color: Colors.grey),
+          SizedBox(height: 16),
+          Text(
+            'No Fabrics Available',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          SizedBox(height: 8),
+          Text(
+            'Please add some fabrics before editing this job order.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFabricSuppliersSection() {
+    return _buildSection(
+      title: 'Fabric Suppliers',
+      icon: Icons.local_shipping,
+      color: Colors.teal,
+      children: [
+        FabricSuppliersSection(
+          variants: _variants,
+          userFabrics: _userFabrics,
+          fabricSuppliers: _fabricSuppliers,
+          loadingFabricSuppliers: _loadingFabricSuppliers,
+          parseColor: ColorUtils.parseColor,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildVariantBreakdownSection() {
+    return _buildSection(
+      title: 'Variant Breakdown',
+      icon: Icons.inventory,
+      color: Colors.purple,
+      children: [
+        VariantBreakdownSummary(
+          variants: _variants,
+          userFabrics: _userFabrics,
+          quantityController: _quantityController,
+          parseColor: ColorUtils.parseColor,
+        ),
+      ],
+    );
+  }
+
+  bool _isSectionCompleted(String sectionTitle) {
+    switch (sectionTitle) {
+      case 'Basic Information':
+        return _jobOrderNameController.text.isNotEmpty &&
+               _customerNameController.text.isNotEmpty;
+      case 'Timeline':
+        return _orderDateController.text.isNotEmpty &&
+               _dueDateController.text.isNotEmpty;
+      case 'Assignment & Quantities':
+        return _assignedToController.text.isNotEmpty &&
+               _quantityController.text.isNotEmpty;
+      case 'Additional Details':
+        return true; // Optional section
+      case 'Product Variants':
+        return _variants.isNotEmpty;
+      case 'Fabric Suppliers':
+        return _fabricSuppliers.isNotEmpty;
+      case 'Variant Breakdown':
+        return _variants.isNotEmpty;
+      default:
+        return false;
     }
+  }
+
+  void _toggleSection(String sectionTitle) {
+    setState(() {
+      _sectionExpanded[sectionTitle] = !(_sectionExpanded[sectionTitle] ?? false);
+    });
+  }
+}

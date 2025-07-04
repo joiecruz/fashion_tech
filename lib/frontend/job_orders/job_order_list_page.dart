@@ -21,6 +21,7 @@ class _JobOrderListPageState extends State<JobOrderListPage>
   Map<String, Map<String, dynamic>> productData = {};
   bool _dataLoaded = false;
   bool _isStatsExpanded = true;
+  bool _isRefreshing = false;  // Add refresh state
 
   // Animation
   late AnimationController _animationController;
@@ -95,6 +96,68 @@ class _JobOrderListPageState extends State<JobOrderListPage>
     });
 
     _animationController.forward();
+  }
+
+  Future<void> _refreshData() async {
+    if (_isRefreshing) return;
+    
+    setState(() {
+      _isRefreshing = true;
+    });
+
+    try {
+      // Clear existing data
+      userNames.clear();
+      productNames.clear();
+      productData.clear();
+      
+      // Reload all data
+      await _preloadData();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.refresh, color: Colors.white, size: 16),
+                SizedBox(width: 8),
+                Text('Job orders refreshed successfully'),
+              ],
+            ),
+            backgroundColor: Colors.green[600],
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.white, size: 16),
+                const SizedBox(width: 8),
+                Expanded(child: Text('Failed to refresh: ${e.toString()}')),
+              ],
+            ),
+            backgroundColor: Colors.red[600],
+            duration: const Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRefreshing = false;
+        });
+      }
+    }
   }
 
   void _updateStats(List<QueryDocumentSnapshot> jobOrders) {
@@ -193,7 +256,7 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                   ),
                   const SizedBox(height: 16),
 
-                  // Status filter dropdown (compact)
+                  // Status filter dropdown and refresh button
                   Row(
                     children: [
                       Text(
@@ -205,6 +268,39 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                       ),
                       const SizedBox(width: 12),
                       _buildStatusDropdown(),
+                      const Spacer(),
+                      // Refresh button
+                      Tooltip(
+                        message: 'Refresh job orders',
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(8),
+                            onTap: _isRefreshing ? null : _refreshData,
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              child: _isRefreshing
+                                  ? SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor: AlwaysStoppedAnimation<Color>(Colors.orange[600]!),
+                                      ),
+                                    )
+                                  : AnimatedRotation(
+                                      turns: _isRefreshing ? 1 : 0,
+                                      duration: const Duration(milliseconds: 500),
+                                      child: Icon(
+                                        Icons.refresh,
+                                        color: Colors.orange[600],
+                                        size: 20,
+                                      ),
+                                    ),
+                            ),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ],
@@ -279,42 +375,47 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                     }).toList();
                   }
 
-                  return CustomScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    slivers: [
-                      // Overview section (like inventory pages)
-                      SliverToBoxAdapter(
-                        child: _buildOverviewSection(),
-                      ),
+                  return RefreshIndicator(
+                    onRefresh: _refreshData,
+                    color: Colors.orange[600],
+                    backgroundColor: Colors.white,
+                    child: CustomScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      slivers: [
+                        // Overview section (like inventory pages)
+                        SliverToBoxAdapter(
+                          child: _buildOverviewSection(),
+                        ),
 
-                      // Job orders list
-                      SliverPadding(
-                        padding: const EdgeInsets.only(bottom: 100),
-                        sliver: SliverList(
-                          delegate: SliverChildBuilderDelegate(
-                            (context, index) {
-                              return TweenAnimationBuilder<double>(
-                                duration: Duration(milliseconds: 300 + (index * 50)),
-                                tween: Tween(begin: 0.0, end: 1.0),
-                                builder: (context, value, child) {
-                                  return Transform.translate(
-                                    offset: Offset(0, 20 * (1 - value)),
-                                    child: Opacity(
-                                      opacity: value,
-                                      child: Padding(
-                                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                                        child: _buildJobOrderCard(jobOrders[index], index),
+                        // Job orders list
+                        SliverPadding(
+                          padding: const EdgeInsets.only(bottom: 100),
+                          sliver: SliverList(
+                            delegate: SliverChildBuilderDelegate(
+                              (context, index) {
+                                return TweenAnimationBuilder<double>(
+                                  duration: Duration(milliseconds: 300 + (index * 50)),
+                                  tween: Tween(begin: 0.0, end: 1.0),
+                                  builder: (context, value, child) {
+                                    return Transform.translate(
+                                      offset: Offset(0, 20 * (1 - value)),
+                                      child: Opacity(
+                                        opacity: value,
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                                          child: _buildJobOrderCard(jobOrders[index], index),
+                                        ),
                                       ),
-                                    ),
-                                  );
-                                },
-                              );
-                            },
-                            childCount: jobOrders.length,
+                                    );
+                                  },
+                                );
+                              },
+                              childCount: jobOrders.length,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   );
                 },
               ),

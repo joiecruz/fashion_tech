@@ -250,54 +250,61 @@ class VariantCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      ...variant.fabrics.map((fabric) {
-                        final fabricData = userFabrics.firstWhere(
-                          (f) => f['id'] == fabric.fabricId,
-                          orElse: () => {'color': '#FF0000', 'name': 'Unknown'},
-                        );
-                        final color = ColorUtils.parseColor(fabricData['color'] as String);
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: Column(
-                            children: [
-                              Container(
-                                width: 24,
-                                height: 24,
-                                decoration: BoxDecoration(
-                                  color: color,
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: color.computeLuminance() > 0.5
-                                        ? Colors.grey.shade600 
-                                        : Colors.white,
-                                    width: 2,
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.15),
-                                      blurRadius: 3,
-                                      offset: const Offset(0, 1),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        ...variant.fabrics.map((fabric) {
+                          final fabricData = userFabrics.firstWhere(
+                            (f) => f['id'] == fabric.fabricId,
+                            orElse: () => {'color': '#FF0000', 'name': 'Unknown'},
+                          );
+                          final color = ColorUtils.parseColor(fabricData['color'] as String);
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: Column(
+                              children: [
+                                Container(
+                                  width: 20,
+                                  height: 20,
+                                  decoration: BoxDecoration(
+                                    color: color,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: color.computeLuminance() > 0.5
+                                          ? Colors.grey.shade600 
+                                          : Colors.white,
+                                      width: 1.5,
                                     ),
-                                  ],
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.15),
+                                        blurRadius: 2,
+                                        offset: const Offset(0, 1),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                fabricData['name'] as String,
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: Colors.grey.shade600,
+                                const SizedBox(height: 4),
+                                SizedBox(
+                                  width: 60,
+                                  child: Text(
+                                    fabricData['name'] as String,
+                                    style: TextStyle(
+                                      fontSize: 9,
+                                      color: Colors.grey.shade600,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                    maxLines: 1,
+                                    textAlign: TextAlign.center,
+                                  ),
                                 ),
-                                overflow: TextOverflow.ellipsis,
-                                maxLines: 1,
-                              ),
-                            ],
-                          ),
-                        );
-                      }).toList(),
-                    ],
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -372,113 +379,6 @@ class VariantCard extends StatelessWidget {
                 return _buildFabricRow(fabric, fabricIndex);
               }).toList(),
             ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildQuantityAllocationProgress() {
-    int globalQty = int.tryParse(quantityController.text) ?? 0;
-    int sumQty = sumVariants; // Use sum of all variants instead of individual
-    bool isExact = sumQty == globalQty && globalQty > 0;
-    bool isOver = sumQty > globalQty;
-    double progress = globalQty > 0 ? (sumQty / globalQty).clamp(0.0, 1.0) : 0.0;
-
-    Color barColor = isExact
-        ? Colors.blue.shade400
-        : isOver
-            ? Colors.red.shade400
-            : Colors.orange.shade400;
-    Color bgColor = isExact
-        ? Colors.blue.shade50
-        : isOver
-            ? Colors.red.shade50
-            : Colors.orange.shade50;
-    Color borderColor = isExact
-        ? Colors.blue.shade200
-        : isOver
-            ? Colors.red.shade200
-            : Colors.orange.shade200;
-    Color textColor = isExact
-        ? Colors.blue.shade700
-        : isOver
-            ? Colors.red.shade700
-            : Colors.orange.shade700;
-    IconData icon = isExact
-        ? Icons.check_circle_rounded
-        : isOver
-            ? Icons.warning_rounded
-            : Icons.info_outline_rounded;
-
-    String statusText = isExact
-        ? 'Perfect! All variants allocated.'
-        : isOver
-            ? 'Over-allocated by ${sumQty - globalQty}'
-            : 'Unallocated: ${globalQty - sumQty}';
-    
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: borderColor,
-          width: 1,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 18, color: textColor),
-              const SizedBox(width: 8),
-              Text(
-                'Total Variant Allocation',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
-                  color: Colors.grey.shade700,
-                ),
-              ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: bgColor,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: borderColor),
-                ),
-                child: Text(
-                  '${sumQty} / ${globalQty}',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: textColor,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(6),
-            child: LinearProgressIndicator(
-              value: progress,
-              minHeight: 8,
-              backgroundColor: Colors.grey.shade200,
-              valueColor: AlwaysStoppedAnimation<Color>(barColor),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            statusText,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: textColor,
-            ),
-          ),
         ],
       ),
     );
@@ -710,25 +610,28 @@ class VariantCard extends StatelessWidget {
                     color: overAllocated ? Colors.red.shade600 : Colors.green.shade600,
                   ),
                   const SizedBox(width: 6),
-                  Text(
-                    'Fabric Availability',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: overAllocated ? Colors.red.shade800 : Colors.green.shade800,
+                  Expanded(
+                    child: Text(
+                      'Fabric Availability',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: overAllocated ? Colors.red.shade800 : Colors.green.shade800,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  const Spacer(),
+                  const SizedBox(width: 8),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
                       color: overAllocated ? Colors.red.shade100 : Colors.green.shade100,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
-                      '${allocated.toStringAsFixed(1)}/${available.toStringAsFixed(1)} yds',
+                      '${allocated.toStringAsFixed(1)}/${available.toStringAsFixed(1)}',
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: 10,
                         fontWeight: FontWeight.w600,
                         color: overAllocated ? Colors.red.shade700 : Colors.green.shade700,
                       ),
@@ -754,15 +657,128 @@ class VariantCard extends StatelessWidget {
                     ? 'Over-allocated by ${(allocated - available).toStringAsFixed(1)} yards'
                     : '${(available - allocated).toStringAsFixed(1)} yards remaining',
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: 10,
                   color: overAllocated ? Colors.red.shade600 : Colors.green.shade600,
                   fontWeight: FontWeight.w500,
                 ),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 2,
               ),
             ],
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildQuantityAllocationProgress() {
+    int globalQty = int.tryParse(quantityController.text) ?? 0;
+    int sumQty = sumVariants; // Use sum of all variants instead of individual
+    bool isExact = sumQty == globalQty && globalQty > 0;
+    bool isOver = sumQty > globalQty;
+    double progress = globalQty > 0 ? (sumQty / globalQty).clamp(0.0, 1.0) : 0.0;
+
+    Color barColor = isExact
+        ? Colors.blue.shade400
+        : isOver
+            ? Colors.red.shade400
+            : Colors.orange.shade400;
+    Color bgColor = isExact
+        ? Colors.blue.shade50
+        : isOver
+            ? Colors.red.shade50
+            : Colors.orange.shade50;
+    Color borderColor = isExact
+        ? Colors.blue.shade200
+        : isOver
+            ? Colors.red.shade200
+            : Colors.orange.shade200;
+    Color textColor = isExact
+        ? Colors.blue.shade700
+        : isOver
+            ? Colors.red.shade700
+            : Colors.orange.shade700;
+    IconData icon = isExact
+        ? Icons.check_circle_rounded
+        : isOver
+            ? Icons.warning_rounded
+            : Icons.info_outline_rounded;
+
+    String statusText = isExact
+        ? 'Perfect! All variants allocated.'
+        : isOver
+            ? 'Over-allocated by ${sumQty - globalQty}'
+            : 'Unallocated: ${globalQty - sumQty}';
+    
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: borderColor,
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 16, color: textColor),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'Total Allocation',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    color: Colors.grey.shade700,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: bgColor,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: borderColor),
+                ),
+                child: Text(
+                  '${sumQty}/${globalQty}',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: textColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 6,
+              backgroundColor: Colors.grey.shade200,
+              valueColor: AlwaysStoppedAnimation<Color>(barColor),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            statusText,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w500,
+              color: textColor,
+            ),
+            overflow: TextOverflow.ellipsis,
+            maxLines: 2,
+          ),
+        ],
+      ),
     );
   }
 }

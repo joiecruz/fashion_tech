@@ -51,12 +51,36 @@ class VariantBreakdownSummary extends StatelessWidget {
                     builder: (context) {
                       int globalQty = int.tryParse(quantityController.text) ?? 0;
                       int sumVariants = variants.fold(0, (sum, v) => sum + v.quantity);
-                      bool isBalanced = globalQty == sumVariants;
+                      bool isBalanced = globalQty == sumVariants && globalQty > 0;
+                      bool isOver = sumVariants > globalQty;
+                      
+                      String statusText;
+                      IconData statusIcon;
+                      MaterialColor statusColor;
+                      
+                      if (globalQty == 0) {
+                        statusText = 'Set Total Qty';
+                        statusIcon = Icons.edit;
+                        statusColor = Colors.grey;
+                      } else if (isBalanced) {
+                        statusText = 'Balanced ✓';
+                        statusIcon = Icons.check_circle;
+                        statusColor = Colors.green;
+                      } else if (isOver) {
+                        statusText = 'Over by ${sumVariants - globalQty}';
+                        statusIcon = Icons.warning;
+                        statusColor = Colors.red;
+                      } else {
+                        statusText = 'Under by ${globalQty - sumVariants}';
+                        statusIcon = Icons.info;
+                        statusColor = Colors.orange;
+                      }
+                      
                       return _buildSummaryCard(
-                        'Quantity Status',
-                        isBalanced ? 'Balanced' : 'Unbalanced',
-                        isBalanced ? Icons.check_circle : Icons.warning,
-                        isBalanced ? Colors.green : Colors.red,
+                        'Allocation',
+                        statusText,
+                        statusIcon,
+                        statusColor,
                       );
                     },
                   ),
@@ -339,6 +363,7 @@ class VariantBreakdownSummary extends StatelessWidget {
 
   Widget _buildQuantityBarChart(BuildContext context) {
     int globalQty = int.tryParse(quantityController.text) ?? 0;
+    int sumVariants = variants.fold(0, (sum, v) => sum + v.quantity);
     
     if (globalQty == 0 || variants.isEmpty) {
       return Container(
@@ -357,45 +382,147 @@ class VariantBreakdownSummary extends StatelessWidget {
       );
     }
 
+    bool isOverAllocated = sumVariants > globalQty;
+    bool isUnderAllocated = sumVariants < globalQty;
+    bool isBalanced = sumVariants == globalQty;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(
+          color: isOverAllocated ? Colors.red.shade200 : 
+                 isBalanced ? Colors.green.shade200 : Colors.orange.shade200,
+          width: isBalanced ? 2 : 1,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.bar_chart, color: Colors.purple.shade600, size: 16),
+              Icon(
+                isOverAllocated ? Icons.warning : isBalanced ? Icons.check_circle : Icons.info,
+                color: isOverAllocated ? Colors.red.shade600 : 
+                       isBalanced ? Colors.green.shade600 : Colors.orange.shade600,
+                size: 16,
+              ),
               const SizedBox(width: 8),
-              Text(
-                'Quantity Allocation Chart',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey.shade800,
+              Expanded(
+                child: Text(
+                  'Quantity Allocation Chart',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade800,
+                    fontSize: 14,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: 8),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                 decoration: BoxDecoration(
-                  color: Colors.purple.shade50,
-                  borderRadius: BorderRadius.circular(12),
+                  color: isOverAllocated ? Colors.red.shade50 : 
+                         isBalanced ? Colors.green.shade50 : Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: isOverAllocated ? Colors.red.shade200 : 
+                           isBalanced ? Colors.green.shade200 : Colors.orange.shade200,
+                  ),
                 ),
                 child: Text(
-                  'Total: $globalQty',
+                  '$sumVariants/$globalQty',
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 11,
                     fontWeight: FontWeight.w600,
-                    color: Colors.purple.shade700,
+                    color: isOverAllocated ? Colors.red.shade700 : 
+                           isBalanced ? Colors.green.shade700 : Colors.orange.shade700,
                   ),
                 ),
               ),
             ],
           ),
+          if (isOverAllocated) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.error_outline, color: Colors.red.shade600, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Over-allocated by ${sumVariants - globalQty} units. Please reduce variant quantities.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.red.shade700,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ] else if (isUnderAllocated) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.orange.shade600, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Under-allocated by ${globalQty - sumVariants} units. Consider adding more variants.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.orange.shade700,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ] else ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.green.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.green.shade600, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Perfect allocation! All units are distributed across variants.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.green.shade700,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           ...variants.asMap().entries.map((entry) {
             int idx = entry.key;
@@ -427,21 +554,24 @@ class VariantBreakdownSummary extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Text(
-                        'Variant ${idx + 1} (${variant.size})',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.grey.shade700,
+                      Expanded(
+                        child: Text(
+                          'Variant ${idx + 1} (${variant.size})',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.grey.shade700,
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      const Spacer(),
+                      const SizedBox(width: 4),
                       Text(
-                        '${variant.quantity} (${(percentage * 100).toStringAsFixed(1)}%)',
+                        '${variant.quantity} (${(percentage * 100).toStringAsFixed(0)}%)',
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 11,
                           fontWeight: FontWeight.w600,
-                          color: Colors.grey.shade800,
+                          color: percentage > 1.0 ? Colors.red.shade700 : Colors.grey.shade800,
                         ),
                       ),
                     ],
@@ -453,9 +583,22 @@ class VariantBreakdownSummary extends StatelessWidget {
                       value: percentage.clamp(0.0, 1.0),
                       minHeight: 6,
                       backgroundColor: Colors.grey.shade200,
-                      valueColor: AlwaysStoppedAnimation<Color>(barColor),
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        percentage > 1.0 ? Colors.red.shade400 : barColor,
+                      ),
                     ),
                   ),
+                  if (percentage > 1.0) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      'Exceeds allocation',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: Colors.red.shade600,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             );
@@ -467,7 +610,8 @@ class VariantBreakdownSummary extends StatelessWidget {
 
   Widget _buildSummaryCard(String title, String value, IconData icon, MaterialColor color) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      width: 120, // Fixed width to prevent overflow
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [color.shade50, Colors.white],
@@ -480,7 +624,7 @@ class VariantBreakdownSummary extends StatelessWidget {
       child: Column(
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
               color: color.shade100,
               borderRadius: BorderRadius.circular(8),
@@ -488,27 +632,31 @@ class VariantBreakdownSummary extends StatelessWidget {
             child: Icon(
               icon,
               color: color.shade600,
-              size: 20,
+              size: 18,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
             value,
             style: TextStyle(
-              fontSize: 18,
+              fontSize: 16,
               fontWeight: FontWeight.bold,
               color: color.shade800,
             ),
+            overflow: TextOverflow.ellipsis,
+            maxLines: 1,
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 2),
           Text(
             title,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: 11,
               color: color.shade600,
               fontWeight: FontWeight.w500,
             ),
             textAlign: TextAlign.center,
+            overflow: TextOverflow.ellipsis,
+            maxLines: 2,
           ),
         ],
       ),
