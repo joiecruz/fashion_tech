@@ -12,11 +12,18 @@ class AddSupplierModal extends StatefulWidget {
 class _AddSupplierModalState extends State<AddSupplierModal>
     with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
+  final ScrollController _scrollController = ScrollController();
   final _supplierNameController = TextEditingController();
   final _contactNumController = TextEditingController();
   final _locationController = TextEditingController();
   final _emailController = TextEditingController();
   final _notesController = TextEditingController();
+  
+  final FocusNode _supplierNameFocus = FocusNode();
+  final FocusNode _contactNumFocus = FocusNode();
+  final FocusNode _locationFocus = FocusNode();
+  final FocusNode _emailFocus = FocusNode();
+  final FocusNode _notesFocus = FocusNode();
   
   bool _isSubmitting = false;
   late AnimationController _animationController;
@@ -46,6 +53,19 @@ class _AddSupplierModalState extends State<AddSupplierModal>
     ));
 
     _animationController.forward();
+    
+    // Add listeners for keyboard handling
+    _notesFocus.addListener(() {
+      if (_notesFocus.hasFocus) {
+        Future.delayed(const Duration(milliseconds: 300), () {
+          _scrollController.animateTo(
+            _scrollController.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+          );
+        });
+      }
+    });
   }
 
   @override
@@ -56,6 +76,12 @@ class _AddSupplierModalState extends State<AddSupplierModal>
     _locationController.dispose();
     _emailController.dispose();
     _notesController.dispose();
+    _scrollController.dispose();
+    _supplierNameFocus.dispose();
+    _contactNumFocus.dispose();
+    _locationFocus.dispose();
+    _emailFocus.dispose();
+    _notesFocus.dispose();
     super.dispose();
   }
 
@@ -207,7 +233,15 @@ class _AddSupplierModalState extends State<AddSupplierModal>
               // Form
               Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(24),
+                  controller: _scrollController,
+                  keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                  physics: const BouncingScrollPhysics(),
+                  padding: EdgeInsets.fromLTRB(
+                    24,
+                    24,
+                    24,
+                    MediaQuery.of(context).viewInsets.bottom + 100,
+                  ),
                   child: Form(
                     key: _formKey,
                     child: Column(
@@ -252,6 +286,9 @@ class _AddSupplierModalState extends State<AddSupplierModal>
                                 hint: 'Enter supplier company name',
                                 icon: Icons.business,
                                 isRequired: true,
+                                focusNode: _supplierNameFocus,
+                                textInputAction: TextInputAction.next,
+                                onFieldSubmitted: () => _contactNumFocus.requestFocus(),
                                 validator: (value) {
                                   if (value == null || value.trim().isEmpty) {
                                     return 'Supplier name is required';
@@ -269,6 +306,9 @@ class _AddSupplierModalState extends State<AddSupplierModal>
                                 icon: Icons.phone,
                                 keyboardType: TextInputType.phone,
                                 isRequired: true,
+                                focusNode: _contactNumFocus,
+                                textInputAction: TextInputAction.next,
+                                onFieldSubmitted: () => _locationFocus.requestFocus(),
                                 validator: (value) {
                                   if (value == null || value.trim().isEmpty) {
                                     return 'Contact number is required';
@@ -285,6 +325,9 @@ class _AddSupplierModalState extends State<AddSupplierModal>
                                 hint: 'Enter supplier location/address',
                                 icon: Icons.location_on,
                                 isRequired: false,
+                                focusNode: _locationFocus,
+                                textInputAction: TextInputAction.next,
+                                onFieldSubmitted: () => _emailFocus.requestFocus(),
                               ),
                               const SizedBox(height: 16),
                               
@@ -296,6 +339,9 @@ class _AddSupplierModalState extends State<AddSupplierModal>
                                 icon: Icons.email,
                                 keyboardType: TextInputType.emailAddress,
                                 isRequired: false,
+                                focusNode: _emailFocus,
+                                textInputAction: TextInputAction.next,
+                                onFieldSubmitted: () => _notesFocus.requestFocus(),
                                 validator: (value) {
                                   if (value != null && value.trim().isNotEmpty) {
                                     if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
@@ -345,6 +391,8 @@ class _AddSupplierModalState extends State<AddSupplierModal>
                               // Notes
                               TextFormField(
                                 controller: _notesController,
+                                focusNode: _notesFocus,
+                                textInputAction: TextInputAction.done,
                                 maxLines: 4,
                                 decoration: InputDecoration(
                                   labelText: 'Notes & Remarks',
@@ -469,6 +517,9 @@ class _AddSupplierModalState extends State<AddSupplierModal>
     bool isRequired = false,
     TextInputType? keyboardType,
     String? Function(String?)? validator,
+    FocusNode? focusNode,
+    TextInputAction? textInputAction,
+    VoidCallback? onFieldSubmitted,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -501,6 +552,9 @@ class _AddSupplierModalState extends State<AddSupplierModal>
         const SizedBox(height: 8),
         TextFormField(
           controller: controller,
+          focusNode: focusNode,
+          textInputAction: textInputAction,
+          onFieldSubmitted: onFieldSubmitted != null ? (_) => onFieldSubmitted() : null,
           keyboardType: keyboardType,
           validator: validator,
           decoration: InputDecoration(

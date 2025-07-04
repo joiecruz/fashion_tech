@@ -35,11 +35,19 @@ class AddProductModal extends StatefulWidget {
 class _AddProductModalState extends State<AddProductModal>
     with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
+  final ScrollController _scrollController = ScrollController();
   final _nameController = TextEditingController();
   final _priceController = TextEditingController();
   final _supplierController = TextEditingController();
   final _notesController = TextEditingController();
   final _stockController = TextEditingController();
+  
+  final FocusNode _nameFocus = FocusNode();
+  final FocusNode _priceFocus = FocusNode();
+  final FocusNode _supplierFocus = FocusNode();
+  final FocusNode _stockFocus = FocusNode();
+  final FocusNode _notesFocus = FocusNode();
+  
   String _selectedCategory = 'top';
   bool _isUpcycled = false;
   bool _isMade = false;
@@ -90,6 +98,19 @@ class _AddProductModalState extends State<AddProductModal>
     ));
 
     _animationController.forward();
+    
+    // Add listeners for keyboard handling
+    _notesFocus.addListener(() {
+      if (_notesFocus.hasFocus) {
+        Future.delayed(const Duration(milliseconds: 300), () {
+          _scrollController.animateTo(
+            _scrollController.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+          );
+        });
+      }
+    });
   }
 
   @override
@@ -100,6 +121,12 @@ class _AddProductModalState extends State<AddProductModal>
     _supplierController.dispose();
     _notesController.dispose();
     _stockController.dispose();
+    _scrollController.dispose();
+    _nameFocus.dispose();
+    _priceFocus.dispose();
+    _supplierFocus.dispose();
+    _stockFocus.dispose();
+    _notesFocus.dispose();
     super.dispose();
   }
 
@@ -789,7 +816,15 @@ Widget _buildImageGrid() {
               // Form
               Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(24),
+                  controller: _scrollController,
+                  keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                  physics: const BouncingScrollPhysics(),
+                  padding: EdgeInsets.fromLTRB(
+                    24,
+                    24,
+                    24,
+                    MediaQuery.of(context).viewInsets.bottom + 100,
+                  ),
                   child: Form(
                     key: _formKey,
                     child: Column(
@@ -923,6 +958,9 @@ Widget _buildImageGrid() {
                         const SizedBox(height: 8),
                         TextFormField(
                           controller: _nameController,
+                          focusNode: _nameFocus,
+                          textInputAction: TextInputAction.next,
+                          onFieldSubmitted: (_) => _priceFocus.requestFocus(),
                           decoration: InputDecoration(
                             hintText: 'Enter product name',
                             border: OutlineInputBorder(
@@ -980,6 +1018,9 @@ Widget _buildImageGrid() {
                                 Flexible(
                                   child: TextFormField(
                                     controller: _priceController,
+                                    focusNode: _priceFocus,
+                                    textInputAction: TextInputAction.next,
+                                    onFieldSubmitted: (_) => _supplierFocus.requestFocus(),
                                     keyboardType: TextInputType.numberWithOptions(decimal: true),
                                     decoration: InputDecoration(
                                       hintText: '0.00',
@@ -1104,6 +1145,9 @@ Widget _buildImageGrid() {
                         const SizedBox(height: 8),
                         TextFormField(
                           controller: _supplierController,
+                          focusNode: _supplierFocus,
+                          textInputAction: TextInputAction.next,
+                          onFieldSubmitted: (_) => _stockFocus.requestFocus(),
                           decoration: InputDecoration(
                             hintText: 'Enter supplier name or source',
                             border: OutlineInputBorder(
@@ -1222,6 +1266,8 @@ Widget _buildImageGrid() {
                         const SizedBox(height: 8),
                         TextFormField(
                           controller: _notesController,
+                          focusNode: _notesFocus,
+                          textInputAction: TextInputAction.done,
                           maxLines: 3,
                           decoration: InputDecoration(
                             hintText: 'Any additional notes, purchase details, condition, etc.',

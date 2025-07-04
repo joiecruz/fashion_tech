@@ -21,6 +21,7 @@ class EditFabricModal extends StatefulWidget {
 
 class _EditFabricModalState extends State<EditFabricModal> {
   final _formKey = GlobalKey<FormState>();
+  final ScrollController _scrollController = ScrollController();
   late TextEditingController _nameController;
   late String _selectedType;
   late String _selectedColor;
@@ -29,6 +30,13 @@ class _EditFabricModalState extends State<EditFabricModal> {
   late String _selectedQuality;
   late TextEditingController _minOrderController;
   late TextEditingController _notesController;
+  
+  final FocusNode _nameFocus = FocusNode();
+  final FocusNode _quantityFocus = FocusNode();
+  final FocusNode _expenseFocus = FocusNode();
+  final FocusNode _minOrderFocus = FocusNode();
+  final FocusNode _notesFocus = FocusNode();
+  
   bool _isUpcycled = false;
 
   // Supplier-related variables
@@ -79,6 +87,19 @@ class _EditFabricModalState extends State<EditFabricModal> {
     _swatchImageUrl = fabric['swatchImageURL'];
     _selectedSupplierId = fabric['supplierID'];
     _loadSuppliers();
+    
+    // Add listeners for keyboard handling
+    _notesFocus.addListener(() {
+      if (_notesFocus.hasFocus) {
+        Future.delayed(const Duration(milliseconds: 300), () {
+          _scrollController.animateTo(
+            _scrollController.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+          );
+        });
+      }
+    });
   }
 
   Future<void> _loadSuppliers() async {
@@ -329,6 +350,12 @@ void _submitForm() async {
     _expenseController.dispose();
     _minOrderController.dispose();
     _notesController.dispose();
+    _scrollController.dispose();
+    _nameFocus.dispose();
+    _quantityFocus.dispose();
+    _expenseFocus.dispose();
+    _minOrderFocus.dispose();
+    _notesFocus.dispose();
     super.dispose();
   }
 
@@ -428,9 +455,19 @@ void _submitForm() async {
         Expanded(
           child: Form(
             key: _formKey,
-            child: ListView(
-              padding: const EdgeInsets.all(20),
-              children: [
+            child: SingleChildScrollView(
+              controller: _scrollController,
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              physics: const BouncingScrollPhysics(),
+              padding: EdgeInsets.fromLTRB(
+                20,
+                20,
+                20,
+                MediaQuery.of(context).viewInsets.bottom + 100,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                 // --- Swatch Image Upload Section ---
                 GestureDetector(
                   onTap: _uploading ? null : _pickImage,
@@ -1400,7 +1437,8 @@ void _submitForm() async {
                 ),
 
                 const SizedBox(height: 20),
-              ],
+                ],
+              ),
             ),
           ),
         ),

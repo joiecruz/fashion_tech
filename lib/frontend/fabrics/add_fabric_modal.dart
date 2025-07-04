@@ -20,6 +20,7 @@ class AddFabricModal extends StatefulWidget {
 
 class _AddFabricModalState extends State<AddFabricModal> {
   final _formKey = GlobalKey<FormState>();
+  final ScrollController _scrollController = ScrollController();
   final TextEditingController _nameController = TextEditingController();
   String _selectedType = 'Cotton';
   String _selectedColor = ColorUtils.colorOptions.first;
@@ -28,6 +29,13 @@ class _AddFabricModalState extends State<AddFabricModal> {
   String _selectedQuality = 'Good';
   final TextEditingController _minOrderController = TextEditingController();
   final TextEditingController _reasonsController = TextEditingController();
+  
+  final FocusNode _nameFocus = FocusNode();
+  final FocusNode _quantityFocus = FocusNode();
+  final FocusNode _expenseFocus = FocusNode();
+  final FocusNode _minOrderFocus = FocusNode();
+  final FocusNode _reasonsFocus = FocusNode();
+  
   bool _isUpcycled = false;
 
   // Supplier-related variables
@@ -51,6 +59,19 @@ class _AddFabricModalState extends State<AddFabricModal> {
     _expenseController.addListener(() => setState(() {}));
     _minOrderController.addListener(() => setState(() {}));
     _reasonsController.addListener(() => setState(() {}));
+    
+    // Add listeners for keyboard handling
+    _reasonsFocus.addListener(() {
+      if (_reasonsFocus.hasFocus) {
+        Future.delayed(const Duration(milliseconds: 300), () {
+          _scrollController.animateTo(
+            _scrollController.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+          );
+        });
+      }
+    });
   }
 
   Future<void> _loadSuppliers() async {
@@ -437,6 +458,12 @@ void _submitForm() async {
     _expenseController.dispose();
     _minOrderController.dispose();
     _reasonsController.dispose();
+    _scrollController.dispose();
+    _nameFocus.dispose();
+    _quantityFocus.dispose();
+    _expenseFocus.dispose();
+    _minOrderFocus.dispose();
+    _reasonsFocus.dispose();
     super.dispose();
   }
 
@@ -666,9 +693,19 @@ void _submitForm() async {
         Expanded(
           child: Form(
             key: _formKey,
-            child: ListView(
-              padding: const EdgeInsets.all(20),
-              children: [
+            child: SingleChildScrollView(
+              controller: _scrollController,
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              physics: const BouncingScrollPhysics(),
+              padding: EdgeInsets.fromLTRB(
+                20,
+                20,
+                20,
+                MediaQuery.of(context).viewInsets.bottom + 100,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                 // --- Swatch Image Upload Section ---
                 GestureDetector(
                   onTap: _pickImage,
@@ -780,6 +817,9 @@ void _submitForm() async {
                         const SizedBox(height: 8),
                         TextFormField(
                           controller: _nameController,
+                          focusNode: _nameFocus,
+                          textInputAction: TextInputAction.next,
+                          onFieldSubmitted: (_) => _quantityFocus.requestFocus(),
                           decoration: InputDecoration(
                             hintText: 'Enter fabric name or leave empty for auto-generated code',
                             filled: true,
@@ -1060,6 +1100,9 @@ void _submitForm() async {
                                 Flexible(
                                   child: TextFormField(
                                     controller: _quantityController,
+                                    focusNode: _quantityFocus,
+                                    textInputAction: TextInputAction.next,
+                                    onFieldSubmitted: (_) => _expenseFocus.requestFocus(),
                                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
                                     decoration: InputDecoration(
                                       hintText: 'Enter quantity or leave empty for 0',
@@ -1150,6 +1193,9 @@ void _submitForm() async {
                                 Flexible(
                                   child: TextFormField(
                                     controller: _expenseController,
+                                    focusNode: _expenseFocus,
+                                    textInputAction: TextInputAction.next,
+                                    onFieldSubmitted: (_) => _minOrderFocus.requestFocus(),
                                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
                                     decoration: InputDecoration(
                                       hintText: 'Enter cost per yard (e.g., 150.50)',
@@ -1352,6 +1398,9 @@ void _submitForm() async {
                                 Flexible(
                                   child: TextFormField(
                                     controller: _minOrderController,
+                                    focusNode: _minOrderFocus,
+                                    textInputAction: TextInputAction.next,
+                                    onFieldSubmitted: (_) => _reasonsFocus.requestFocus(),
                                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
                                     decoration: InputDecoration(
                                       hintText: 'Enter minimum order or leave empty for 0',
@@ -1593,6 +1642,8 @@ void _submitForm() async {
                         const SizedBox(height: 8),
                         TextFormField(
                           controller: _reasonsController,
+                          focusNode: _reasonsFocus,
+                          textInputAction: TextInputAction.done,
                           decoration: InputDecoration(
                             hintText: 'Any additional notes about this fabric...',
                             filled: true,
@@ -1823,7 +1874,8 @@ void _submitForm() async {
                   ),
 
                 const SizedBox(height: 20),
-              ],
+                ],
+              ),
             ),
           ),
         ),

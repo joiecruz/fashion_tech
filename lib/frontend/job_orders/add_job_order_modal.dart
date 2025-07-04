@@ -59,6 +59,16 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
   final TextEditingController _quantityController = TextEditingController();
   final TextEditingController _priceController = TextEditingController();
   final TextEditingController _specialInstructionsController = TextEditingController();
+  
+  final FocusNode _jobOrderNameFocus = FocusNode();
+  final FocusNode _customerNameFocus = FocusNode();
+  final FocusNode _orderDateFocus = FocusNode();
+  final FocusNode _dueDateFocus = FocusNode();
+  final FocusNode _assignedToFocus = FocusNode();
+  final FocusNode _quantityFocus = FocusNode();
+  final FocusNode _priceFocus = FocusNode();
+  final FocusNode _specialInstructionsFocus = FocusNode();
+  
   bool _isUpcycled = false;
   String _jobStatus = 'In Progress';
   List<FormProductVariant> _variants = [];
@@ -125,6 +135,19 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
     _dueDateController.addListener(() => setState(() {}));
     _assignedToController.addListener(() => setState(() {}));
     _priceController.addListener(() => setState(() {}));
+
+    // Add listeners for keyboard handling
+    _specialInstructionsFocus.addListener(() {
+      if (_specialInstructionsFocus.hasFocus) {
+        Future.delayed(const Duration(milliseconds: 300), () {
+          _scrollController.animateTo(
+            _scrollController.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+          );
+        });
+      }
+    });
 
     // Start the animation
     _animationController.forward();
@@ -271,6 +294,14 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
     _quantityController.dispose();
     _priceController.dispose();
     _specialInstructionsController.dispose();
+    _jobOrderNameFocus.dispose();
+    _customerNameFocus.dispose();
+    _orderDateFocus.dispose();
+    _dueDateFocus.dispose();
+    _assignedToFocus.dispose();
+    _quantityFocus.dispose();
+    _priceFocus.dispose();
+    _specialInstructionsFocus.dispose();
     super.dispose();
   }
 
@@ -379,10 +410,18 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
                   
                   // Scrollable content area
                   Expanded(
-                    child: ListView(
+                    child: SingleChildScrollView(
                       controller: _scrollController,
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      children: [
+                      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                      physics: const BouncingScrollPhysics(),
+                      padding: EdgeInsets.fromLTRB(
+                        20,
+                        0,
+                        20,
+                        MediaQuery.of(context).viewInsets.bottom + 100,
+                      ),
+                      child: Column(
+                        children: [
                   
                   // Form
                   Form(
@@ -432,16 +471,18 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
                     margin: const EdgeInsets.only(bottom: 20),
                     child: _buildSaveButton(),
                   ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
-            ],
-          ),
-        );
-      },
+          );
+        },
+      ),
     ),
-  ),
-);
+  );
   }
 
   Widget _buildLoadingState() {
