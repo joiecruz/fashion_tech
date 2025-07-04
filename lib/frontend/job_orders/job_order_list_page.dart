@@ -895,7 +895,7 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                           children: [
                             Expanded(
                               child: Text(
-                                productNames[productID] ?? 'Unknown Product',
+                                productNames[productID] ?? 'Not linked to a product',
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: Colors.grey[600],
