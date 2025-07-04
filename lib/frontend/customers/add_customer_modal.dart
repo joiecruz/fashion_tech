@@ -288,7 +288,7 @@ class _AddCustomerModalState extends State<AddCustomerModal> {
                             controller: _contactController,
                             keyboardType: TextInputType.phone,
                             decoration: InputDecoration(
-                              hintText: 'Enter phone number (optional)',
+                              hintText: 'Enter phone number (e.g., +1234567890)',
                               filled: true,
                               fillColor: Colors.grey.shade50,
                               border: OutlineInputBorder(
@@ -303,11 +303,24 @@ class _AddCustomerModalState extends State<AddCustomerModal> {
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide(color: Colors.pink.shade400, width: 2),
                               ),
+                              errorBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(color: Colors.red.shade400, width: 2),
+                              ),
                             ),
                             validator: (value) {
                               if (value != null && value.trim().isNotEmpty) {
-                                if (value.trim().length < 10) {
-                                  return 'Phone number must be at least 10 digits';
+                                // Remove all non-digit characters for validation
+                                String cleanedValue = value.replaceAll(RegExp(r'[^0-9]'), '');
+                                
+                                // Check if it's a valid mobile number format
+                                if (cleanedValue.length < 10 || cleanedValue.length > 15) {
+                                  return 'Phone number must be between 10-15 digits';
+                                }
+                                
+                                // Check for valid mobile number patterns (starts with common mobile prefixes)
+                                if (!RegExp(r'^(\+?1)?[6-9]\d{9}$|^\+?[1-9]\d{7,14}$').hasMatch(cleanedValue)) {
+                                  return 'Please enter a valid mobile number';
                                 }
                               }
                               return null;
@@ -359,11 +372,36 @@ class _AddCustomerModalState extends State<AddCustomerModal> {
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide(color: Colors.pink.shade400, width: 2),
                               ),
+                              errorBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(color: Colors.red.shade400, width: 2),
+                              ),
                             ),
                             validator: (value) {
                               if (value != null && value.trim().isNotEmpty) {
-                                if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value.trim())) {
+                                // More comprehensive email validation
+                                String email = value.trim().toLowerCase();
+                                
+                                // Check basic email format
+                                if (!RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$').hasMatch(email)) {
                                   return 'Please enter a valid email address';
+                                }
+                                
+                                // Check for common invalid patterns
+                                if (email.startsWith('.') || email.endsWith('.') || 
+                                    email.contains('..') || email.contains('@.') || 
+                                    email.contains('.@')) {
+                                  return 'Please enter a valid email address';
+                                }
+                                
+                                // Check minimum length
+                                if (email.length < 5) {
+                                  return 'Email address is too short';
+                                }
+                                
+                                // Check maximum length
+                                if (email.length > 254) {
+                                  return 'Email address is too long';
                                 }
                               }
                               return null;
