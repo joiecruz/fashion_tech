@@ -9,6 +9,14 @@ class JobOrderService {
     return snapshot.docs.map((doc) => JobOrder.fromMap(doc.id, doc.data())).toList();
   }
 
+  Future<List<JobOrder>> getJobOrdersByCustomer(String customerId) async {
+    final snapshot = await _collection
+        .where('customerID', isEqualTo: customerId)
+        .orderBy('createdAt', descending: true)
+        .get();
+    return snapshot.docs.map((doc) => JobOrder.fromMap(doc.id, doc.data())).toList();
+  }
+
   Future<void> addJobOrder(JobOrder jobOrder) async {
     await _collection.doc(jobOrder.id).set(jobOrder.toMap());
   }

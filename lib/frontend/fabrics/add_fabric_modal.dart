@@ -629,7 +629,7 @@ void _submitForm() async {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Icon(
-                      Icons.texture_rounded,
+                      Icons.palette_rounded,
                       color: Colors.green[700],
                       size: 24,
                     ),

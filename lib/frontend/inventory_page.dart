@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'products/product_inventory_page.dart';
 import 'fabrics/fabric_logbook_page.dart';
 import 'suppliers/supplier_dashboard_page.dart';
+import 'customers/customer_dashboard_page.dart';
 
 class InventoryPage extends StatefulWidget {
   final Function(String)? onTabChanged;
@@ -24,6 +25,7 @@ class _InventoryPageState extends State<InventoryPage>
     const ProductInventoryPage(),
     const FabricLogbookPage(),
     const SupplierDashboardPage(),
+    const CustomerDashboardPage(),
   ];
 
   final List<Map<String, dynamic>> _tabs = [
@@ -41,6 +43,11 @@ class _InventoryPageState extends State<InventoryPage>
       'label': 'Suppliers',
       'icon': Icons.local_shipping_rounded,
       'color': Colors.purple,
+    },
+    {
+      'label': 'Customers',
+      'icon': Icons.people_rounded,
+      'color': Colors.pink,
     },
   ];
 
@@ -101,8 +108,8 @@ class _InventoryPageState extends State<InventoryPage>
           // Floating navigation bar
           Positioned(
             bottom: 30,
-            left: 80,
-            right: 80,
+            left: 60,
+            right: 60,
             child: AnimatedBuilder(
               animation: _animationController,
               builder: (context, child) {
@@ -123,7 +130,7 @@ class _InventoryPageState extends State<InventoryPage>
 
   Widget _buildFloatingNavBar() {
     return Container(
-      height: 70,
+      height: 75,
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.95),
         borderRadius: BorderRadius.circular(20),
@@ -212,7 +219,12 @@ class _InventoryPageState extends State<InventoryPage>
                               fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                               color: isSelected ? tab['color'] : Colors.grey[600],
                             ),
-                            child: Text(tab['label']),
+                            child: Text(
+                              tab['label'],
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                            ),
                           ),
                         ],
                       ),
