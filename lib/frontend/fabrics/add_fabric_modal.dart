@@ -9,6 +9,7 @@ import 'package:flutter/foundation.dart'; // For kIsWeb
 import '../../utils/utils.dart';
 import '../../backend/fetch_suppliers.dart';
 import '../../backend/add_supplier_fabric.dart';
+import '../../services/fabric_operations_service.dart';
 
 class AddFabricModal extends StatefulWidget {
   const AddFabricModal({super.key});
@@ -319,8 +320,6 @@ void _submitForm() async {
   }
 
   if (_formKey.currentState!.validate()) {
-    final currentUser = FirebaseAuth.instance.currentUser;
-    
     // Handle default values and auto-generation
     final fabricName = _nameController.text.trim().isEmpty 
         ? _generateFabricCode() 
@@ -353,8 +352,8 @@ void _submitForm() async {
     }
     
     try {
-      // Add the fabric document
-      final fabricDoc = await FirebaseFirestore.instance.collection('fabrics').add({
+      // Prepare fabric data
+      final fabricData = {
         'name': fabricName,
         'type': _selectedType,
         'colorID': _selectedColor, // ERDv9: Changed from 'color' to 'colorID'
@@ -367,16 +366,25 @@ void _submitForm() async {
         'swatchImageURL': _swatchImageUrl,
         'supplierID': _selectedSupplierId, // Add supplier ID for reference
         'notes': _reasonsController.text.trim().isEmpty ? null : _reasonsController.text.trim(),
-        'createdBy': currentUser?.uid ?? 'anonymous', // ERDv8 requirement
+        'createdBy': FirebaseAuth.instance.currentUser?.uid ?? 'anonymous', // ERDv8 requirement
         'createdAt': Timestamp.now(),
         'lastEdited': Timestamp.now(),
-      });
+      };
+      
+      // Add fabric using the operations service with logging
+      final fabricId = await FabricOperationsService.addFabric(
+        fabricData: fabricData,
+        createdBy: FirebaseAuth.instance.currentUser?.uid ?? 'anonymous',
+        remarks: _reasonsController.text.trim().isEmpty 
+            ? 'Initial fabric added to inventory' 
+            : _reasonsController.text.trim(),
+      );
 
       // If a supplier is selected, create the supplier-fabric relationship using backend service
       if (_selectedSupplierId != null) {
         await AddSupplierFabricBackend.addSupplierFabric(
           supplierID: _selectedSupplierId!,
-          fabricID: fabricDoc.id,
+          fabricID: fabricId,
           supplyPrice: double.tryParse(_expenseController.text) ?? 0.0,
           minOrder: minOrder.toInt(),
           daysToDeliver: null, // Can be updated later
@@ -593,18 +601,63 @@ void _submitForm() async {
     return Column(
       children: [
         // Header
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-          child: Row(
+        Container(
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+          child: Column(
             children: [
-              IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: () => Navigator.of(context).pop(),
+              // Handle bar
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-              const SizedBox(width: 8),
-              const Text(
-                'Add New Fabric',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+              const SizedBox(height: 20),
+              // Title
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.green[100]!, Colors.green[200]!],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      Icons.texture_rounded,
+                      color: Colors.green[700],
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Add New Fabric',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        Text(
+                          'Add fabric information to your inventory',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

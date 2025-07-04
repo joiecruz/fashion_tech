@@ -1,9 +1,13 @@
 import 'package:fashion_tech/frontend/fabrics/edit_fabric_modal.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'add_fabric_modal.dart';
 import 'dart:convert';
 import 'dart:async';
+import '../../services/fabric_operations_service.dart';
+import '../../services/fabric_log_service.dart';
+import '../../models/fabric_log.dart';
 
 class FabricLogbookPage extends StatefulWidget {
   const FabricLogbookPage({super.key});
@@ -117,7 +121,13 @@ class _FabricLogbookPageState extends State<FabricLogbookPage>
 
 Future<void> _deleteFabricById(String fabricId) async {
   try {
-    await FirebaseFirestore.instance.collection('fabrics').doc(fabricId).delete();
+    // Delete fabric using the operations service with logging
+    await FabricOperationsService.deleteFabric(
+      fabricId: fabricId,
+      deletedBy: FirebaseAuth.instance.currentUser?.uid ?? 'anonymous',
+      remarks: 'Fabric deleted from inventory',
+    );
+    
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Fabric deleted successfully!'), backgroundColor: Colors.red),
     );
@@ -772,7 +782,6 @@ Future<void> _deleteFabricById(String fabricId) async {
     final pricePerUnit = fabric['pricePerUnit'] ?? 0.0;
     final minOrder = fabric['minOrder'] ?? 0;
     final isUpcycled = fabric['isUpcycled'] ?? false;
-    final reasons = fabric['reasons'] ?? '';
     final supplierID = fabric['supplierID']; // Add supplier ID
     
     // Calculate total value and status
@@ -974,12 +983,16 @@ Future<void> _deleteFabricById(String fabricId) async {
                                           color: Colors.blue[600],
                                         ),
                                         const SizedBox(width: 4),
-                                        Text(
-                                          'Supplier: ${snapshot.data}',
-                                          style: TextStyle(
-                                            fontSize: 13,
-                                            color: Colors.blue[700],
-                                            fontWeight: FontWeight.w500,
+                                        Expanded(
+                                          child: Text(
+                                            'Supplier: ${snapshot.data}',
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              color: Colors.blue[700],
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
                                           ),
                                         ),
                                       ],
@@ -989,20 +1002,120 @@ Future<void> _deleteFabricById(String fabricId) async {
                                 },
                               ),
                             ],
-                            // Show notes/reasons if available
-                            if (reasons != null && reasons.toString().trim().isNotEmpty) ...[
-                              const SizedBox(height: 6),
-                              Text(
-                                reasons.toString().length > 60 
-                                    ? '${reasons.toString().substring(0, 60)}...'
-                                    : reasons.toString(),
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey[700],
-                                  fontStyle: FontStyle.italic,
-                                ),
-                              ),
-                            ],
+                            // Show most recent fabric log remarks if available - WITH DEBUG INFO
+                            FutureBuilder<List<FabricLog>>(
+                              future: FabricLogService.getRecentFabricLogs(fabric['id'], limit: 1),
+                              builder: (context, snapshot) {
+                                // Always show the container with debug info
+                                return Column(
+                                  children: [
+                                    const SizedBox(height: 8),
+                                    Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey[50],
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(color: Colors.grey[200]!),
+                                      ),
+                                      child: Row(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Icon(
+                                            snapshot.hasData && snapshot.data!.isNotEmpty
+                                                ? _getLogIcon(snapshot.data!.first.changeType)
+                                                : Icons.info_outline,
+                                            size: 14,
+                                            color: snapshot.hasData && snapshot.data!.isNotEmpty
+                                                ? _getLogIconColor(snapshot.data!.first.changeType)
+                                                : Colors.blue[600]!,
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                // Debug: Show connection status
+                                                if (snapshot.connectionState == ConnectionState.waiting)
+                                                  Text(
+                                                    'Loading logs...',
+                                                    style: TextStyle(
+                                                      fontSize: 11,
+                                                      color: Colors.orange[600],
+                                                      fontWeight: FontWeight.w500,
+                                                    ),
+                                                  )
+                                                else if (snapshot.hasError)
+                                                  Text(
+                                                    'Error loading logs: ${snapshot.error}',
+                                                    style: TextStyle(
+                                                      fontSize: 11,
+                                                      color: Colors.red[600],
+                                                      fontWeight: FontWeight.w500,
+                                                    ),
+                                                  )
+                                                else if (snapshot.hasData && snapshot.data!.isNotEmpty)
+                                                  Text(
+                                                    'Latest: ${_getChangeTypeText(snapshot.data!.first.changeType)} ${snapshot.data!.first.quantityChanged} units',
+                                                    style: TextStyle(
+                                                      fontSize: 11,
+                                                      color: _getLogIconColor(snapshot.data!.first.changeType),
+                                                      fontWeight: FontWeight.w500,
+                                                    ),
+                                                  )
+                                                else
+                                                  Text(
+                                                    'No logs found for this fabric',
+                                                    style: TextStyle(
+                                                      fontSize: 11,
+                                                      color: Colors.grey[600],
+                                                      fontWeight: FontWeight.w500,
+                                                    ),
+                                                  ),
+                                                const SizedBox(height: 4),
+                                                // Always show remarks section with default text
+                                                if (snapshot.hasData && snapshot.data!.isNotEmpty)
+                                                  () {
+                                                    final remarks = snapshot.data!.first.remarks;
+                                                    final displayText = remarks != null && remarks.trim().isNotEmpty
+                                                        ? 'DB Remarks: $remarks'
+                                                        : 'DB Remarks: (No remarks in database)';
+                                                    
+                                                    return Text(
+                                                      displayText.length > 80 
+                                                          ? '${displayText.substring(0, 80)}...'
+                                                          : displayText,
+                                                      style: TextStyle(
+                                                        fontSize: 12,
+                                                        color: Colors.grey[700],
+                                                        fontStyle: FontStyle.italic,
+                                                        height: 1.3,
+                                                      ),
+                                                      maxLines: 2,
+                                                      overflow: TextOverflow.ellipsis,
+                                                    );
+                                                  }()
+                                                else
+                                                  Text(
+                                                    'Default: Testing remarks display - Fabric ID: ${fabric['id']}',
+                                                    style: TextStyle(
+                                                      fontSize: 12,
+                                                      color: Colors.grey[700],
+                                                      fontStyle: FontStyle.italic,
+                                                      height: 1.3,
+                                                    ),
+                                                    maxLines: 2,
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              },
+                            ),
                           ],
                         ),
                       ),
@@ -1287,6 +1400,40 @@ Future<void> _deleteFabricById(String fabricId) async {
         return Colors.grey[700]!;
       default:
         return Colors.grey[600]!;
+    }
+  }
+
+  // Helper methods for fabric log display
+  IconData _getLogIcon(FabricChangeType changeType) {
+    switch (changeType) {
+      case FabricChangeType.add:
+        return Icons.add_circle_outline;
+      case FabricChangeType.deduct:
+        return Icons.remove_circle_outline;
+      case FabricChangeType.correction:
+        return Icons.edit_outlined;
+    }
+  }
+
+  Color _getLogIconColor(FabricChangeType changeType) {
+    switch (changeType) {
+      case FabricChangeType.add:
+        return Colors.green[600]!;
+      case FabricChangeType.deduct:
+        return Colors.red[600]!;
+      case FabricChangeType.correction:
+        return Colors.orange[600]!;
+    }
+  }
+
+  String _getChangeTypeText(FabricChangeType changeType) {
+    switch (changeType) {
+      case FabricChangeType.add:
+        return 'Added';
+      case FabricChangeType.deduct:
+        return 'Removed';
+      case FabricChangeType.correction:
+        return 'Corrected';
     }
   }
 

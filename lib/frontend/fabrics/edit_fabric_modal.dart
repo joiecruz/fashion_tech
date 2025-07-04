@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:io';
@@ -7,6 +8,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../utils/utils.dart';
 import '../../backend/fetch_suppliers.dart';
+import '../../services/fabric_operations_service.dart';
 
 class EditFabricModal extends StatefulWidget {
   final Map<String, dynamic> fabric;
@@ -275,7 +277,8 @@ void _submitForm() async {
     );
     if (confirm != true) return;
 
-    await FirebaseFirestore.instance.collection('fabrics').doc(widget.fabricId).update({
+    // Prepare updated fabric data
+    final updatedData = {
       'name': _nameController.text,
       'type': _selectedType,
       'color': _selectedColor,
@@ -290,7 +293,17 @@ void _submitForm() async {
       'supplierID': _selectedSupplierId, // Add supplier ID
       'notes': _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
       'lastEdited': Timestamp.now(),
-    });
+    };
+
+    // Update fabric using the operations service with logging
+    await FabricOperationsService.updateFabric(
+      fabricId: widget.fabricId,
+      updatedData: updatedData,
+      updatedBy: FirebaseAuth.instance.currentUser?.uid ?? 'anonymous',
+      remarks: _notesController.text.trim().isEmpty 
+          ? 'Fabric updated via edit' 
+          : _notesController.text.trim(),
+    );
 
     await showDialog(
       context: context,
