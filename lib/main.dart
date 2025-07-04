@@ -4,7 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'backend/firebase_options.dart';
 import 'frontend/main_scaffold.dart';
 import 'frontend/auth/login_page.dart';
-
+import 'frontend/admin/admin_home_page.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
@@ -69,7 +69,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
         
         // If user is logged in, show main app
         if (snapshot.hasData && snapshot.data != null) {
-          return const MainScaffold();
+          return const AdminHomePage();
         }
         
         // Default: show login page (when not logged in or no data)
