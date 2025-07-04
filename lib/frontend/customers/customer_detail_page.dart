@@ -194,11 +194,13 @@ class _CustomerDetailPageState extends State<CustomerDetailPage> {
                           const Spacer(),
                           ElevatedButton.icon(
                             onPressed: () => _showAddJobOrderModal(),
-                            icon: const Icon(Icons.add, size: 18),
-                            label: const Text('New Order'),
+                            icon: const Icon(Icons.add, size: 16),
+                            label: const Text('New', style: TextStyle(fontSize: 12)),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.pink[600],
                               foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              minimumSize: const Size(0, 32),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(8),
                               ),
@@ -296,22 +298,12 @@ class _CustomerDetailPageState extends State<CustomerDetailPage> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Create the first job order for this customer',
+            'Use the "New" button above to create the first job order',
             style: TextStyle(
               fontSize: 14,
               color: Colors.grey[500],
             ),
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: () => _showAddJobOrderModal(),
-            icon: const Icon(Icons.add),
-            label: const Text('Create Job Order'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.pink[600],
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-            ),
+            textAlign: TextAlign.center,
           ),
         ],
       ),
