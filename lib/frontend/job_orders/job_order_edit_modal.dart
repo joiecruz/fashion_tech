@@ -1,12 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../utils/color_utils.dart';
-import '../../utils/size_utils.dart';
 import 'models/form_models.dart';
 import 'widgets/variant_card.dart';
 import 'widgets/variant_breakdown_summary.dart';
 import 'widgets/fabric_suppliers_section.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 class JobOrderEditModal extends StatefulWidget {
   final String jobOrderId;
@@ -202,12 +200,13 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
           id: doc.id,
           productID: jobOrder['productID'] ?? '',
           size: data['size'] ?? '',
-          color: data['color'] ?? '',
+          colorID: data['color'] ?? '', // ERDv9: Use colorID, handle legacy data
           quantityInStock: 0,
           quantity: data['quantity'] ?? 0,
           fabrics: [
-            FormVariantFabric(
+            VariantFabric( // ERDv9: Use VariantFabric instead of FormVariantFabric
               fabricId: data['fabricID'] ?? '',
+              fabricName: '', // Will be populated from fabric data
               yardageUsed: (data['yardageUsed'] ?? 0).toDouble(),
             )
           ],
@@ -578,6 +577,7 @@ Widget _buildVariantsSection() {
                 userFabrics: _userFabrics,
                 fabricAllocated: _fabricAllocated,
                 quantityController: _quantityController,
+                sumVariants: _variants.fold(0, (sum, v) => sum + v.quantity), // ERDv9: Added sumVariants parameter
                 onRemove: () {
                   setState(() {
                     _variants.removeAt(idx);
@@ -602,7 +602,7 @@ Widget _buildVariantsSection() {
                 id: UniqueKey().toString(),
                 productID: '',
                 size: '',
-                color: '',
+                colorID: '', // ERDv9: Changed from color to colorID
                 quantityInStock: 0,
                 quantity: 1,
                 fabrics: [],
@@ -824,7 +824,7 @@ Widget _buildVariantsSection() {
         if (existingDetails.docs.any((d) => d.id == variant.id)) {
           await detailsRef.doc(variant.id).update({
             'size': variant.size,
-            'color': variant.color,
+            'color': variant.colorID, // ERDv9: Changed from color to colorID
             'quantity': variant.quantity,
             'fabricID': variant.fabrics.isNotEmpty ? variant.fabrics[0].fabricId : '',
             'yardageUsed': variant.fabrics.isNotEmpty ? variant.fabrics[0].yardageUsed : 0.0,
@@ -833,7 +833,7 @@ Widget _buildVariantsSection() {
           await detailsRef.add({
             'jobOrderID': widget.jobOrderId,
             'size': variant.size,
-            'color': variant.color,
+            'color': variant.colorID, // ERDv9: Changed from color to colorID
             'quantity': variant.quantity,
             'fabricID': variant.fabrics.isNotEmpty ? variant.fabrics[0].fabricId : '',
             'yardageUsed': variant.fabrics.isNotEmpty ? variant.fabrics[0].yardageUsed : 0.0,

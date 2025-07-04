@@ -87,7 +87,7 @@ class _ProductDetailPageState extends State<ProductDetailPage>
                   id: v['variantID'],
                   productID: _productData['productID'],
                   size: v['size'],
-                  color: v['color'],
+                  colorID: v['colorID'] ?? v['color'] ?? '', // ERDv9: Handle both new and legacy data
                   quantityInStock: v['quantityInStock'],
                 ))
             .toList();
@@ -454,7 +454,7 @@ class _ProductDetailPageState extends State<ProductDetailPage>
               ),
             ),
             title: Text(
-              '${variant.size} - ${variant.color}',
+              '${variant.size} - ${variant.colorID}', // ERDv9: Changed from color to colorID
               style: const TextStyle(fontWeight: FontWeight.w600),
             ),
             subtitle: Text(

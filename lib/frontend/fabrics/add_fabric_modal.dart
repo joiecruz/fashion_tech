@@ -281,7 +281,8 @@ void _submitForm() async {
         final fabricDoc = await FirebaseFirestore.instance.collection('fabrics').add({
           'name': _nameController.text,
           'type': _selectedType,
-          'color': _selectedColor,
+          'colorID': _selectedColor, // ERDv9: Changed from 'color' to 'colorID'
+          'categoryID': _selectedType, // ERDv9: Added categoryID field
           'quantity': int.tryParse(_quantityController.text) ?? 0,
           'pricePerUnit': double.tryParse(_expenseController.text) ?? 0.0,
           'qualityGrade': _selectedQuality,

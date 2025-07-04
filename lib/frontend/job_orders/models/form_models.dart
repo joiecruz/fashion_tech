@@ -34,7 +34,7 @@ class FormProductVariant extends ProductVariant {
     required String id,
     required String productID,
     required String size,
-    required String color,
+    required String colorID, // ERDv9: Changed from color to colorID
     required int quantityInStock,
     required this.quantity, // ERDv8: required for JobOrderDetails
     required this.fabrics,
@@ -42,7 +42,7 @@ class FormProductVariant extends ProductVariant {
     id: id,
     productID: productID,
     size: size,
-    color: color,
+    colorID: colorID, // ERDv9: Changed from color to colorID
     quantityInStock: quantityInStock,
   );
 }

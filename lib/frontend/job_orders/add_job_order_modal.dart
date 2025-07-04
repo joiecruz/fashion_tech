@@ -9,11 +9,13 @@
  * - JobOrderDetails: Records specific to this job order (size, fabric, quantity, etc.)
  * - ProductVariant: Master data representing available product variants (separate collection)
  * 
- * ERDv8 Compliance:
+ * ERDv9 Compliance:
  * - JobOrder.name is required
+ * - JobOrder.customerID is required (references Customer collection)
+ * - JobOrder.linkedProductID is required (references Product collection)
  * - JobOrderDetails.size is required 
  * - JobOrderDetails.quantity is required
- * - JobOrderDetails.color is auto-populated from selected fabrics
+ * - JobOrderDetails.colorID is auto-populated from selected fabrics
  * 
  * Business Logic - Fabric Inventory Management:
  * - When a job order is saved, fabric quantities are automatically reduced based on yardageUsed
@@ -497,7 +499,9 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
                     'name': 'Test Fabric',
                     'type': 'Cotton',
                     'quantity': 100,
-                    'color': '#FF0000',
+                    'colorID': 'red', // ERDv9: Use colorID instead of color
+                    'color': '#FF0000', // Legacy support
+                    'categoryID': 'cotton', // ERDv9: Add categoryID
                     'qualityGrade': 'Standard',
                     'pricePerUnit': 10.0,
                     'swatchImageURL': '',
@@ -800,13 +804,13 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
   /// creates JobOrderDetails records in Firestore, NOT ProductVariant records.
   /// 
   /// Each variant configured here will result in one or more JobOrderDetails documents
-  /// being saved to Firestore with the following ERDv8-compliant required fields:
+  /// being saved to Firestore with the following ERDv9-compliant required fields:
   /// - jobOrderID: Links to the parent JobOrder
   /// - fabricID: Primary fabric used for this variant
-  /// - yardageUsed: Total yards of fabric required (ERDv8 field name)
-  /// - size: Size of this variant (required in ERDv8)
-  /// - color: Auto-populated from selected fabrics
-  /// - quantity: Quantity of this specific variant (required in ERDv8)
+  /// - yardageUsed: Total yards of fabric required (ERDv9 field name)
+  /// - size: Size of this variant (required in ERDv9)
+  /// - colorID: Auto-populated from selected fabrics (ERDv9: colorID instead of color)
+  /// - quantity: Quantity of this specific variant (required in ERDv9)
   /// 
   /// NO ProductVariant collection documents are created in this modal.
   Widget _buildVariantsSection() {
@@ -828,7 +832,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
                   id: 'temp_${DateTime.now().millisecondsSinceEpoch}',
                   productID: 'temp_product',
                   size: SizeUtils.sizeOptions.first,
-                  color: 'Mixed', // Color will be determined by fabrics
+                  colorID: 'mixed', // ERDv9: Use colorID instead of color
                   quantityInStock: 0,
                   quantity: 0, // No prefilled quantity - user must enter
                   fabrics: [],
@@ -1532,10 +1536,11 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
   /// 3. Updates fabric inventory by reducing quantities based on yardageUsed
   /// 4. NO ProductVariant collection records are created
   /// 
-  /// ERDv8 Compliance:
+  /// ERDv9 Compliance:
   /// - JobOrder.name is required
+  /// - JobOrder.customerID and linkedProductID are required
   /// - JobOrderDetails.size and .quantity are required
-  /// - JobOrderDetails.color is auto-populated from fabrics
+  /// - JobOrderDetails.colorID is auto-populated from fabrics
   /// 
   /// Business Logic:
   /// - Fabric quantities are decremented based on total yardageUsed across all variants
@@ -1549,13 +1554,13 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
         return;
       }
 
-      // Save job order with ERDv8 compliant fields
+      // Save job order with ERDv9 compliant fields
       final jobOrderRef = FirebaseFirestore.instance.collection('jobOrders').doc();
       await jobOrderRef.set({
-        'name': _jobOrderNameController.text, // ERDv8: required name field
-        'productID': 'default_product_id', // TODO: Replace with actual product ID selection in production
+        'name': _jobOrderNameController.text, // ERDv9: required name field
+        'customerID': 'default_customer_id', // ERDv9: Use customerID instead of customerName
+        'linkedProductID': 'default_product_id', // ERDv9: Use linkedProductID instead of productID
         'quantity': int.tryParse(_quantityController.text) ?? 0, // required - use global quantity
-        'customerName': _customerNameController.text, // required
         'status': _jobStatus, // required
         'dueDate': (_dueDateController.text.isNotEmpty)
             ? Timestamp.fromDate(DateTime.tryParse(_dueDateController.text) ?? DateTime.now())
@@ -1566,6 +1571,8 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
         'orderDate': (_orderDateController.text.isNotEmpty)
             ? Timestamp.fromDate(DateTime.tryParse(_orderDateController.text) ?? DateTime.now())
             : FieldValue.serverTimestamp(), // optional
+        // Store customer name for display purposes (not part of ERDv9 schema)
+        '_customerName': _customerNameController.text, // For UI display only
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
@@ -1583,14 +1590,18 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
               (totalFabricUsage[fabric.fabricId] ?? 0) + fabric.yardageUsed;
         }
         
-        // Get unique fabric colors for this variant
+        // Get unique fabric colors for this variant (ERDv9: Handle both color and colorID)
         final fabricColors = variant.fabrics
-            .map((f) => _userFabrics.firstWhere((fabric) => fabric['fabricID'] == f.fabricId, orElse: () => {})['color'] ?? '#000000')
+            .map((f) {
+              final fabric = _userFabrics.firstWhere((fabric) => fabric['fabricID'] == f.fabricId, orElse: () => {});
+              // ERDv9: Try colorID first, fallback to color for legacy data
+              return fabric['colorID'] ?? fabric['color'] ?? '#000000';
+            })
             .toSet()
             .toList();
         
-        // Create comma-separated color string
-        final colorString = fabricColors.join(', ');
+        // Create comma-separated color ID string for ERDv9
+        final colorIDString = fabricColors.join(', ');
         
         // Create primary JobOrderDetails record for this variant
         final jobOrderDetailRef = FirebaseFirestore.instance.collection('jobOrderDetails').doc();
@@ -1598,9 +1609,9 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
           'jobOrderID': jobOrderRef.id, // required
           'fabricID': variant.fabrics.first.fabricId, // required - primary fabric
           'yardageUsed': variant.fabrics.fold(0.0, (sum, f) => sum + f.yardageUsed), // required - total yardage for this variant
-          'size': variant.size, // required (ERDv8 update)
-          'color': colorString, // auto-populated from fabrics
-          'quantity': variant.quantity, // required (ERDv8 update) - quantity of this specific variant
+          'size': variant.size, // required (ERDv9 update)
+          'colorID': colorIDString, // ERDv9: Use colorID instead of color
+          'quantity': variant.quantity, // required (ERDv9 update) - quantity of this specific variant
           'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
         });
@@ -1609,12 +1620,15 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
         for (int i = 1; i < variant.fabrics.length; i++) {
           final additionalFabric = variant.fabrics[i];
           final additionalJobOrderDetailRef = FirebaseFirestore.instance.collection('jobOrderDetails').doc();
+          final fabricData = _userFabrics.firstWhere((fabric) => fabric['fabricID'] == additionalFabric.fabricId, orElse: () => {});
+          final fabricColorID = fabricData['colorID'] ?? fabricData['color'] ?? '#000000'; // ERDv9: Handle both field names
+          
           await additionalJobOrderDetailRef.set({
             'jobOrderID': jobOrderRef.id,
             'fabricID': additionalFabric.fabricId,
             'yardageUsed': additionalFabric.yardageUsed,
             'size': variant.size,
-            'color': _userFabrics.firstWhere((fabric) => fabric['fabricID'] == additionalFabric.fabricId, orElse: () => {})['color'] ?? '#000000',
+            'colorID': fabricColorID, // ERDv9: Use colorID instead of color
             'quantity': 0, // Secondary fabrics don't add to quantity count
             'createdAt': FieldValue.serverTimestamp(),
             'updatedAt': FieldValue.serverTimestamp(),

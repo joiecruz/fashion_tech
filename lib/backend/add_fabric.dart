@@ -7,7 +7,8 @@ final _fabricService = FabricService();
 Future<void> addFabric({
   required String name,
   required String type,
-  required String color,
+  required String colorID, // ERDv9: Changed from color to colorID
+  required String categoryID, // ERDv9: Added categoryID parameter
   required String qualityGrade,
   required double quantity,
   required double expensePerYard,
@@ -23,7 +24,8 @@ Future<void> addFabric({
     id: fabricID,
     name: name,
     type: type,
-    color: color,
+    colorID: colorID, // ERDv9: Changed from color to colorID
+    categoryID: categoryID, // ERDv9: Added categoryID
     qualityGrade: qualityGrade,
     quantity: quantity,
     expensePerYard: expensePerYard,

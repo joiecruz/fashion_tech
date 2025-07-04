@@ -1,13 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
-import '../../models/product.dart';
-import '../../models/product_image.dart';
 import '../../utils/utils.dart';
 import '../../utils/size_utils.dart';
 import '../../utils/color_utils.dart';
@@ -49,8 +44,6 @@ class _EditProductModalState extends State<EditProductModal> {
   // Single image logic
   File? _productImage;
   String? _productImageUrl;
-  bool _uploadingImage = false;
-  bool _useFirebaseStorage = true;
 
   List<ProductVariantInput> _variants = [];
 
@@ -69,7 +62,7 @@ class _EditProductModalState extends State<EditProductModal> {
     _supplierController.text = widget.productData['supplier'] ?? '';
     _notesController.text = widget.productData['notes'] ?? '';
     _stockController.text = widget.productData['stock']?.toString() ?? '';
-    _selectedCategory = widget.productData['category'] ?? _categories.first;
+    _selectedCategory = widget.productData['categoryID'] ?? widget.productData['category'] ?? _categories.first; // ERDv9: Handle both new and legacy data
     _isUpcycled = widget.productData['isUpcycled'] ?? false;
     _isMade = widget.productData['isMade'] ?? false;
 
@@ -91,7 +84,7 @@ class _EditProductModalState extends State<EditProductModal> {
       _variants = (widget.productData['variants'] as List)
           .map((v) => ProductVariantInput(
                 size: v['size'],
-                color: v['color'],
+                color: v['colorID'] ?? v['color'] ?? '', // ERDv9: Handle both new and legacy data
                 quantityInStock: v['quantityInStock'],
               ))
           .toList();
@@ -106,49 +99,6 @@ class _EditProductModalState extends State<EditProductModal> {
     _notesController.dispose();
     _stockController.dispose();
     super.dispose();
-  }
-
-  Future<void> _uploadImageAsBase64() async {
-    if (_productImage == null) return;
-
-    try {
-      setState(() => _uploading = true);
-      final fileSize = await _productImage!.length();
-      if (fileSize > 2 * 1024 * 1024) {
-        throw Exception('File size exceeds 2MB limit. Please choose a smaller image or reduce quality.');
-      }
-
-      final bytes = await _productImage!.readAsBytes();
-      final base64String = base64Encode(bytes);
-      final mimeType = _productImage!.path.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
-
-      _productImageUrl = 'data:$mimeType;base64,$base64String';
-
-      setState(() => _uploading = false);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Image processed successfully!'),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
-    } catch (e) {
-      setState(() => _uploading = false);
-      _productImageUrl = null;
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to process image: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
-    }
   }
 
 Future<void> _pickImage() async {
@@ -181,87 +131,7 @@ Future<void> _pickImage() async {
     }
   }
 }
-  Future<void> _uploadImage() async {
-    if (_productImage == null) return;
-
-    try {
-      setState(() => _uploading = true);
-
-      final fileSize = await _productImage!.length();
-      if (fileSize > 5 * 1024 * 1024) {
-        throw Exception('File size exceeds 5MB limit. Please choose a smaller image.');
-      }
-
-      final fileName = 'products/${DateTime.now().millisecondsSinceEpoch}_${_productImage!.path.split('/').last}';
-      final ref = FirebaseStorage.instance.ref().child(fileName);
-
-      final uploadTask = ref.putFile(_productImage!);
-
-      await uploadTask;
-      _productImageUrl = await ref.getDownloadURL();
-
-      setState(() => _uploading = false);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Image uploaded successfully!'),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
-    } catch (e) {
-      setState(() => _uploading = false);
-      _productImageUrl = null;
-
-      String errorMessage;
-      if (e.toString().contains('File size exceeds')) {
-        errorMessage = e.toString().replaceAll('Exception: ', '');
-      } else if (e.toString().contains('network')) {
-        errorMessage = 'Network error. Trying alternative upload method...';
-      } else if (e.toString().contains('permission')) {
-        errorMessage = 'Permission denied. Trying alternative upload method...';
-      } else if (e.toString().contains('storage/unauthorized')) {
-        errorMessage = 'Unauthorized access. Trying alternative upload method...';
-      } else {
-        errorMessage = 'Upload failed. Trying alternative upload method...';
-      }
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(errorMessage),
-            backgroundColor: Colors.orange,
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
-
-      if (_useFirebaseStorage) {
-        _useFirebaseStorage = false;
-        await _uploadImageAsBase64();
-      } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('All upload methods failed: ${e.toString()}'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 4),
-            action: SnackBarAction(
-              label: 'Retry',
-              textColor: Colors.white,
-              onPressed: () {
-                _useFirebaseStorage = true;
-                _uploadImage();
-              },
-            ),
-          ),
-        );
-      }
-    }
-  }
-
-Widget _buildImagePreview() {
+  Widget _buildImagePreview() {
   if (_productImageUrl != null && _productImageUrl!.startsWith('data:image')) {
     final base64Data = _productImageUrl!.split(',').last;
     return Image.memory(
@@ -308,7 +178,7 @@ Widget _buildImagePreview() {
       final Map<String, dynamic> productData = {
         'name': _nameController.text.trim(),
         'price': double.tryParse(_priceController.text) ?? 0,
-        'category': _selectedCategory,
+        'categoryID': _selectedCategory, // ERDv9: Changed from 'category' to 'categoryID'
         'supplier': _supplierController.text.trim(),
         'notes': _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
         'isUpcycled': _isUpcycled,
@@ -316,7 +186,7 @@ Widget _buildImagePreview() {
         'imageURL': _productImageUrl,
         'variants': _variants.map((v) => {
           'size': v.size,
-          'color': v.color,
+          'colorID': v.color, // ERDv9: Changed from 'color' to 'colorID'
           'quantityInStock': v.quantityInStock,
         }).toList(),
         'acquisitionDate': _acquisitionDate,

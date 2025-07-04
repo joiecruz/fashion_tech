@@ -387,10 +387,9 @@ class _AddProductModalState extends State<AddProductModal>
       final product = Product(
         id: productRef.id,
         name: _nameController.text.trim(),
-        description: consolidatedDescription.isNotEmpty ? consolidatedDescription : null,
         notes: _notesController.text.trim().isNotEmpty ? _notesController.text.trim() : null,
         price: double.parse(_priceController.text),
-        category: _selectedCategory,
+        categoryID: _selectedCategory, // ERDv9: Uses categoryID instead of category
         isUpcycled: _isUpcycled,
         isMade: _isMade,
         createdBy: userId,
@@ -407,7 +406,7 @@ class _AddProductModalState extends State<AddProductModal>
             .add({
           'productID': productRef.id,
           'size': variant.size,
-          'color': variant.color,
+          'colorID': variant.color, // ERDv9: Uses colorID instead of color
           'quantityInStock': variant.quantityInStock,
         });
       }

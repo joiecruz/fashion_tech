@@ -324,7 +324,7 @@ class VariantCard extends StatelessWidget {
                     yardageUsed: 0,
                   ));
                   // Update variant color based on fabrics
-                  variant.color = _getVariantColorFromFabrics();
+                  variant.colorID = _getVariantColorFromFabrics(); // ERDv9: Changed from color to colorID
                   onVariantChanged(index);
                 },
                 icon: Icon(Icons.add_circle_outline, size: 14),
@@ -592,7 +592,7 @@ class VariantCard extends StatelessWidget {
                       fabric.fabricId = val!;
                       fabric.fabricName = selected['name'] as String;
                       // Update variant color when fabric changes
-                      variant.color = _getVariantColorFromFabrics();
+                      variant.colorID = _getVariantColorFromFabrics(); // ERDv9: Changed from color to colorID
                       onVariantChanged(index);
                       onFabricYardageChanged();
                     },
@@ -673,7 +673,7 @@ class VariantCard extends StatelessWidget {
                   onPressed: () {
                     variant.fabrics.removeAt(fabricIndex);
                     // Update variant color when fabric is removed
-                    variant.color = _getVariantColorFromFabrics();
+                    variant.colorID = _getVariantColorFromFabrics(); // ERDv9: Changed from color to colorID
                     onVariantChanged(index);
                     onFabricYardageChanged();
                   },
