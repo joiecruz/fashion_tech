@@ -182,51 +182,57 @@ class _InventoryPageState extends State<InventoryPage>
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 250),
                       curve: Curves.easeInOut,
-                      margin: const EdgeInsets.all(6),
+                      margin: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
                         color: isSelected ? tab['color'].withOpacity(0.1) : Colors.transparent,
                         borderRadius: BorderRadius.circular(16),
                       ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          AnimatedContainer(
-                            duration: const Duration(milliseconds: 250),
-                            curve: Curves.easeInOut,
-                            padding: EdgeInsets.all(isSelected ? 8 : 6),
-                            decoration: BoxDecoration(
-                              color: isSelected ? tab['color'] : Colors.transparent,
-                              borderRadius: BorderRadius.circular(10),
-                              boxShadow: isSelected ? [
-                                BoxShadow(
-                                  color: tab['color'].withOpacity(0.25),
-                                  blurRadius: 6,
-                                  offset: const Offset(0, 3),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 250),
+                              curve: Curves.easeInOut,
+                              padding: EdgeInsets.all(isSelected ? 8 : 6),
+                              decoration: BoxDecoration(
+                                color: isSelected ? tab['color'] : Colors.transparent,
+                                borderRadius: BorderRadius.circular(10),
+                                boxShadow: isSelected ? [
+                                  BoxShadow(
+                                    color: tab['color'].withOpacity(0.25),
+                                    blurRadius: 6,
+                                    offset: const Offset(0, 3),
+                                  ),
+                                ] : null,
+                              ),
+                              child: Icon(
+                                tab['icon'],
+                                color: isSelected ? Colors.white : Colors.grey[600],
+                                size: isSelected ? 18 : 16,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Flexible(
+                              child: AnimatedDefaultTextStyle(
+                                duration: const Duration(milliseconds: 250),
+                                style: TextStyle(
+                                  fontSize: isSelected ? 10 : 9,
+                                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                                  color: isSelected ? tab['color'] : Colors.grey[600],
                                 ),
-                              ] : null,
+                                child: Text(
+                                  tab['label'],
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
                             ),
-                            child: Icon(
-                              tab['icon'],
-                              color: isSelected ? Colors.white : Colors.grey[600],
-                              size: isSelected ? 18 : 16,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          AnimatedDefaultTextStyle(
-                            duration: const Duration(milliseconds: 250),
-                            style: TextStyle(
-                              fontSize: isSelected ? 10 : 9,
-                              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                              color: isSelected ? tab['color'] : Colors.grey[600],
-                            ),
-                            child: Text(
-                              tab['label'],
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
