@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../backend/fetch_profit.dart';
@@ -25,6 +26,12 @@ class _ProfitReportPageState extends State<ProfitReportPage> {
   double? _totalSales;
   double? _totalExpenses;
 
+  // Fabric breakdown
+  List<Map<String, dynamic>> _fabrics = [];
+
+  // Product details
+  List<Map<String, dynamic>> _products = [];
+
   // --- UI constants ---
   final _cardRadius = BorderRadius.circular(20);
   final _shadowColor = Colors.black.withOpacity(0.08);
@@ -34,6 +41,7 @@ class _ProfitReportPageState extends State<ProfitReportPage> {
   void initState() {
     super.initState();
     userId = user?.uid;
+    _fetchFabrics();
     _loadProfit();
   }
 
@@ -50,15 +58,51 @@ class _ProfitReportPageState extends State<ProfitReportPage> {
   }
 
   Future<double> _fetchTotalExpenses() async {
-    final expenseSnap = await FirebaseFirestore.instance
-        .collection('transactions')
-        .where('type', isEqualTo: 'expense')
+    double totalExpense = 0.0;
+    final snapshot = await FirebaseFirestore.instance
+        .collection('fabrics')
+        .where('createdBy', isEqualTo: userId)
         .get();
-    double total = 0;
-    for (final doc in expenseSnap.docs) {
-      total += (doc.data()['amount'] as num?)?.toDouble() ?? 0.0;
+    for (final doc in snapshot.docs) {
+      final data = doc.data();
+      final quantity = (data['quantity'] ?? 0) as num;
+      final pricePerUnit = (data['pricePerUnit'] ?? 0) as num;
+      totalExpense += quantity * pricePerUnit;
     }
-    return total;
+    return totalExpense;
+  }
+
+  Future<void> _fetchFabrics() async {
+    final snapshot = await FirebaseFirestore.instance
+        .collection('fabrics')
+        .where('createdBy', isEqualTo: userId)
+        .get();
+    setState(() {
+      _fabrics = snapshot.docs.map((doc) {
+        final data = doc.data();
+        return {
+          'name': data['name'] ?? 'Unnamed Fabric',
+          'quantity': (data['quantity'] ?? 0) as num,
+          'pricePerUnit': (data['pricePerUnit'] ?? 0) as num,
+          'image': data['swatchImageURL'] ?? data['imageURL'] ?? data['imageBase64'] ?? '',
+        };
+      }).toList();
+    });
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchProducts() async {
+    final snapshot = await FirebaseFirestore.instance
+        .collection('products')
+        .where('createdBy', isEqualTo: userId)
+        .get();
+    return snapshot.docs.map((doc) {
+      final data = doc.data();
+      return {
+        'name': data['name'] ?? '',
+        'image': data['image'] ?? data['imageURL'] ?? data['imageBase64'] ?? '',
+        // add other fields if needed
+      };
+    }).toList();
   }
 
   Future<void> _loadProfit() async {
@@ -66,19 +110,44 @@ class _ProfitReportPageState extends State<ProfitReportPage> {
     final productProfits = await fetchUserProductProfits();
     final totalSales = await _fetchTotalSales();
     final totalExpenses = await _fetchTotalExpenses();
+    final products = await _fetchProducts();
 
-    // Calculate statistics
+    // Calculate statistics and patch image if missing
     int totalProducts = productProfits.length;
     int totalSold = 0;
     int totalJobOrders = 0;
     for (final p in productProfits) {
       totalSold += (p['totalQtySold'] ?? 0) as int;
       totalJobOrders += (p['jobOrderCount'] ?? 0) as int;
+
+      // Try to get image from product details
+      String image = p['image'] ?? p['imageURL'] ?? p['imageUrl'] ?? p['imageBase64'] ?? '';
+      if (image.isEmpty && p['name'] != null) {
+        final product = products.firstWhere(
+          (prod) => (prod['name'] ?? '').toString().toLowerCase() == p['name'].toString().toLowerCase(),
+          orElse: () => {},
+        );
+        if (product.isNotEmpty) {
+          image = product['image'] ?? '';
+        }
+      }
+      // Fallback to fabric image if still empty
+      if (image.isEmpty && p['fabricName'] != null) {
+        final fabric = _fabrics.firstWhere(
+          (f) => (f['name'] ?? '').toString().toLowerCase() == p['fabricName'].toString().toLowerCase(),
+          orElse: () => {},
+        );
+        if (fabric.isNotEmpty) {
+          image = fabric['image'] ?? '';
+        }
+      }
+      p['image'] = image;
     }
 
     setState(() {
       _profit = profit;
       _productProfits = productProfits;
+      _products = products;
       _totalProducts = totalProducts;
       _totalSold = totalSold;
       _totalJobOrders = totalJobOrders;
@@ -91,6 +160,9 @@ class _ProfitReportPageState extends State<ProfitReportPage> {
   @override
   Widget build(BuildContext context) {
     final netProfit = ((_totalSales ?? 0) - (_totalExpenses ?? 0));
+    final screenWidth = MediaQuery.of(context).size.width;
+    final horizontalPadding = screenWidth < 400 ? 10.0 : 20.0;
+
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
@@ -108,7 +180,10 @@ class _ProfitReportPageState extends State<ProfitReportPage> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+              padding: EdgeInsets.symmetric(
+                horizontal: horizontalPadding,
+                vertical: 18,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -116,7 +191,10 @@ class _ProfitReportPageState extends State<ProfitReportPage> {
                   Container(
                     width: double.infinity,
                     margin: const EdgeInsets.only(bottom: 22),
-                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 36),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: screenWidth < 400 ? 16 : 24,
+                      vertical: screenWidth < 400 ? 16 : 28,
+                    ),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: [Colors.green[100]!, Colors.white],
@@ -138,48 +216,56 @@ class _ProfitReportPageState extends State<ProfitReportPage> {
                         const Text(
                           'Total Profit',
                           style: TextStyle(
-                            fontSize: 28,
+                            fontSize: 28, // Reduced from 28
                             fontWeight: FontWeight.w700,
                             color: Colors.green,
                           ),
                         ),
-                        const SizedBox(height: 18),
+                        const SizedBox(height: 14),
                         Text(
-                          '₱${_productProfits
-                              .map((p) => (p['totalRevenue'] as num?)?.toDouble() ?? 0.0)
-                              .fold<double>(0, (prev, e) => prev + e)
-                              .toStringAsFixed(2)}',
+                          '₱${netProfit.toStringAsFixed(2)}',
                           style: const TextStyle(
-                            fontSize: 54,
+                            fontSize: 36, // Reduced from 54
                             fontWeight: FontWeight.bold,
                             color: Colors.green,
                             letterSpacing: 2,
                           ),
                         ),
-                        const SizedBox(height: 16),
-                        Row(
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 18,
+                          runSpacing: 8,
                           children: [
-                            Icon(Icons.trending_up, color: Colors.green[700], size: 28),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Sales: ₱${_totalSales?.toStringAsFixed(2) ?? '0.00'}',
-                              style: const TextStyle(fontSize: 20, color: Colors.black87),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.trending_up, color: Colors.green[700], size: 24),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Sales: ₱${_totalSales?.toStringAsFixed(2) ?? '0.00'}',
+                                  style: const TextStyle(fontSize: 16, color: Colors.black87),
+                                ),
+                              ],
                             ),
-                            const SizedBox(width: 18),
-                            Icon(Icons.trending_down, color: Colors.red[700], size: 28),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Expenses: ₱${_totalExpenses?.toStringAsFixed(2) ?? '0.00'}',
-                              style: const TextStyle(fontSize: 20, color: Colors.black87),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.trending_down, color: Colors.red[700], size: 24),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Expenses: ₱${_totalExpenses?.toStringAsFixed(2) ?? '0.00'}',
+                                  style: const TextStyle(fontSize: 16, color: Colors.black87),
+                                ),
+                              ],
                             ),
                           ],
                         ),
-                        const SizedBox(height: 10),
+                        const SizedBox(height: 8),
                         Align(
                           alignment: Alignment.centerRight,
                           child: Text(
                             'Total Profit = Sales - Expenses',
-                            style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                            style: TextStyle(fontSize: 13, color: Colors.grey[600]),
                           ),
                         ),
                       ],
@@ -188,43 +274,39 @@ class _ProfitReportPageState extends State<ProfitReportPage> {
 
                   // --- Stats Row (Lighter gradients) ---
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 0),
                     child: Column(
                       children: [
                         // First Stats Row
-                        Container(
-                          margin: const EdgeInsets.only(bottom: 16),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                            children: [
-                              _buildBigStatCard(
-                                icon: Icons.trending_up,
-                                label: 'Sales',
-                                value: '₱${_totalSales?.toStringAsFixed(2) ?? '0.00'}',
-                                color: Colors.green,
-                                gradientColors: [
-                                  Colors.green.withOpacity(0.10),
-                                  Colors.white,
-                                ],
-                                subtitle: 'Total Revenue',
-                              ),
-                              _buildBigStatCard(
-                                icon: Icons.trending_down,
-                                label: 'Expenses',
-                                value: '₱${_totalExpenses?.toStringAsFixed(2) ?? '0.00'}',
-                                color: Colors.red,
-                                gradientColors: [
-                                  Colors.red.withOpacity(0.10),
-                                  Colors.white,
-                                ],
-                                subtitle: 'Total Costs',
-                              ),
-                            ],
-                          ),
+                        Row(
+                          children: [
+                            _buildBigStatCard(
+                              icon: Icons.trending_up,
+                              label: 'Sales',
+                              value: '₱${_totalSales?.toStringAsFixed(2) ?? '0.00'}',
+                              color: Colors.green,
+                              gradientColors: [
+                                Colors.green.withOpacity(0.10),
+                                Colors.white,
+                              ],
+                              subtitle: 'Total Revenue',
+                            ),
+                            _buildBigStatCard(
+                              icon: Icons.trending_down,
+                              label: 'Expenses',
+                              value: '₱${_totalExpenses?.toStringAsFixed(2) ?? '0.00'}',
+                              color: Colors.red,
+                              gradientColors: [
+                                Colors.red.withOpacity(0.10),
+                                Colors.white,
+                              ],
+                              subtitle: 'Total Costs',
+                            ),
+                          ],
                         ),
+                        const SizedBox(height: 8),
                         // Second Stats Row
                         Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                           children: [
                             _buildBigStatCard(
                               icon: Icons.checkroom,
@@ -276,7 +358,7 @@ class _ProfitReportPageState extends State<ProfitReportPage> {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  if (_productProfits.isEmpty)
+                  if (_productProfits.where((p) => (p['totalQtySold'] ?? 0) > 0 && (p['totalRevenue'] ?? 0) != 0).isEmpty)
                     Card(
                       elevation: 1,
                       shape: RoundedRectangleBorder(
@@ -289,7 +371,7 @@ class _ProfitReportPageState extends State<ProfitReportPage> {
                             Icon(Icons.info_outline, color: Colors.grey[400], size: 48),
                             const SizedBox(height: 12),
                             const Text(
-                              'No products found.',
+                              'No products with sales or profit found.',
                               style: TextStyle(fontSize: 16, color: Colors.black54),
                             ),
                           ],
@@ -298,8 +380,50 @@ class _ProfitReportPageState extends State<ProfitReportPage> {
                     )
                   else
                     ..._productProfits
-                        .where((p) => (p['totalRevenue'] ?? 0) != 0)
-                        .map((p) => _buildProductBreakdownCard(p)),
+                        .where((p) => (p['totalQtySold'] ?? 0) > 0 && (p['totalRevenue'] ?? 0) != 0)
+                        .map((p) => Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 10), // More vertical space
+                              child: _buildProductBreakdownCard(p),
+                            )),
+
+                  // --- Fabric Breakdown Section ---
+                  const SizedBox(height: 22),
+                  const Text(
+                    'Fabric Breakdown',
+                    style: TextStyle(
+                      fontSize: 19,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  if (_fabrics.where((f) => ((f['quantity'] ?? 0) as num) * ((f['pricePerUnit'] ?? 0) as num) > 0).isEmpty)
+                    Card(
+                      elevation: 1,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          children: [
+                            Icon(Icons.info_outline, color: Colors.grey[400], size: 48),
+                            const SizedBox(height: 12),
+                            const Text(
+                              'No fabrics with expenses found.',
+                              style: TextStyle(fontSize: 16, color: Colors.black54),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  else
+                    ..._fabrics
+                        .where((f) => ((f['quantity'] ?? 0) as num) * ((f['pricePerUnit'] ?? 0) as num) > 0)
+                        .map((f) => Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 10), // More vertical space
+                              child: _buildFabricBreakdownCard(f),
+                            )),
                 ],
               ),
             ),
@@ -316,8 +440,8 @@ class _ProfitReportPageState extends State<ProfitReportPage> {
   }) {
     return Expanded(
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 6),
-        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
+        margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 8),
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: gradientColors,
@@ -354,6 +478,7 @@ class _ProfitReportPageState extends State<ProfitReportPage> {
                 fontSize: 22,
                 letterSpacing: 0.5,
               ),
+              textAlign: TextAlign.center,
             ),
             const SizedBox(height: 4),
             Text(
@@ -363,6 +488,7 @@ class _ProfitReportPageState extends State<ProfitReportPage> {
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
               ),
+              textAlign: TextAlign.center,
             ),
             if (subtitle != null) ...[
               const SizedBox(height: 2),
@@ -372,6 +498,7 @@ class _ProfitReportPageState extends State<ProfitReportPage> {
                   color: Colors.grey[600],
                   fontSize: 11,
                 ),
+                textAlign: TextAlign.center,
               ),
             ],
           ],
@@ -380,104 +507,225 @@ class _ProfitReportPageState extends State<ProfitReportPage> {
     );
   }
 
-  // --- Bigger, White Product Breakdown Card ---
-  Widget _buildProductBreakdownCard(Map<String, dynamic> p) {
-    final bool isProfit = (p['profit'] ?? 0) >= 0;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
+  // Helper for product/fabric images (base64, network, fallback)
+  Widget _buildImage(String? imageUrl, {double size = 48, IconData fallbackIcon = Icons.image}) {
+    if (imageUrl == null || imageUrl.isEmpty) {
+      return Icon(fallbackIcon, size: size * 0.5, color: Colors.grey[400]);
+    }
+    if (imageUrl.startsWith('data:image')) {
+      final base64Data = imageUrl.split(',').last;
+      try {
+        final decoded = base64Decode(base64Data);
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(size / 4),
+          child: Image.memory(
+            decoded,
+            fit: BoxFit.cover,
+            width: size,
+            height: size,
           ),
-        ],
-        border: Border.all(
-          color: isProfit
-              ? Colors.green.withOpacity(0.08)
-              : Colors.red.withOpacity(0.08),
-          width: 1,
+        );
+      } catch (e) {
+        return Icon(Icons.broken_image, size: size * 0.5, color: Colors.red[300]);
+      }
+    } else if (Uri.tryParse(imageUrl)?.isAbsolute == true) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(size / 4),
+        child: Image.network(
+          imageUrl,
+          fit: BoxFit.cover,
+          width: size,
+          height: size,
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) {
+              return child;
+            }
+            return Center(child: CircularProgressIndicator());
+          },
+          errorBuilder: (context, error, stackTrace) {
+            return Icon(fallbackIcon, color: Colors.grey[400], size: size * 0.5);
+          },
         ),
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            backgroundColor: Colors.blue[50],
-            radius: 24,
-            child: Icon(Icons.checkroom, color: Colors.blue[700], size: 26),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      );
+    } else {
+      return Icon(fallbackIcon, size: size * 0.5, color: Colors.grey[400]);
+    }
+  }
+
+  // --- Product Breakdown Card ---
+  Widget _buildProductBreakdownCard(Map<String, dynamic> p) {
+    final bool isProfit = (p['totalRevenue'] ?? 0) >= 0;
+    final double unitCost = (p['unitCost'] ?? 0).toDouble();
+    final image = p['image'] ?? p['imageURL'] ?? p['imageUrl'] ?? p['imageBase64'] ?? '';
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20), // More space
+        child: Row(
+          children: [
+            _buildImage(
+              image,
+              size: 48,
+              fallbackIcon: Icons.checkroom,
+            ),
+            const SizedBox(width: 20), // More space
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    p['name'] ?? 'Unnamed Product',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 16,
+                    runSpacing: 4,
+                    children: [
+                      _buildStatItem(
+                        Icons.shopping_cart_outlined,
+                        Colors.orange[700]!,
+                        'Sold: ${(p['totalQtySold'] ?? 0)}',
+                      ),
+                      _buildStatItem(
+                        Icons.attach_money,
+                        Colors.green[700]!,
+                        '₱${unitCost.toStringAsFixed(2)}/unit',
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(
-                  p['name'] ?? 'Unnamed Product',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: isProfit ? Colors.green[50] : Colors.red[50],
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    isProfit ? 'Sales' : 'Loss',
+                    style: TextStyle(
+                      color: isProfit ? Colors.green[700] : Colors.red[700],
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
                   ),
                 ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    _buildStatItem(
-                      Icons.shopping_cart_outlined,
-                      Colors.orange[700]!,
-                      'Sold: ${(p['totalQtySold'] ?? 0)}',
-                    ),
-                    const SizedBox(width: 16),
-                    _buildStatItem(
-                      Icons.attach_money,
-                      Colors.green[700]!,
-                      '₱${(p['totalRevenue'] ?? 0).toStringAsFixed(2)}',
-                    ),
-                  ],
+                const SizedBox(height: 10),
+                Text(
+                  '₱${(p['totalRevenue'] ?? 0).toStringAsFixed(2)}',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: isProfit ? Colors.green[800] : Colors.red[800],
+                  ),
                 ),
               ],
             ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: isProfit ? Colors.green[50] : Colors.red[50],
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  isProfit ? 'Profit' : 'Loss',
-                  style: TextStyle(
-                    color: isProfit ? Colors.green[700] : Colors.red[700],
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                '₱${(p['profit'] ?? 0).toStringAsFixed(2)}',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: isProfit ? Colors.green[800] : Colors.red[800],
-                ),
-              ),
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildStatItem(IconData icon, Color color, String text) {
+  // --- Fabric Breakdown Card ---
+  Widget _buildFabricBreakdownCard(Map<String, dynamic> fabric) {
+    final totalExpense = (fabric['quantity'] as num) * (fabric['pricePerUnit'] as num);
+    final pricePerUnit = (fabric['pricePerUnit'] as num).toDouble();
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20), // More space
+        child: Row(
+          children: [
+            _buildImage(
+              fabric['image'],
+              size: 48,
+              fallbackIcon: Icons.texture,
+            ),
+            const SizedBox(width: 20), // More space
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    fabric['name'] ?? 'Unnamed Fabric',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 16,
+                    runSpacing: 4,
+                    children: [
+                      _buildStatItem(
+                        Icons.inventory_2,
+                        Colors.orange[700]!,
+                        'Qty: ${fabric['quantity']}',
+                      ),
+                      _buildStatItem(
+                        Icons.attach_money,
+                        Colors.green[700]!,
+                        '₱${pricePerUnit.toStringAsFixed(2)}/unit',
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.red[50],
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Text(
+                    'Expense',
+                    style: TextStyle(
+                      color: Colors.red,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  '₱${totalExpense.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.red,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatItem(IconData icon, Color color, String text, {Color? valueColor}) {
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Icon(icon, size: 18, color: color),
         const SizedBox(width: 4),
@@ -485,7 +733,7 @@ class _ProfitReportPageState extends State<ProfitReportPage> {
           text,
           style: TextStyle(
             fontSize: 14,
-            color: Colors.grey[800],
+            color: valueColor ?? Colors.grey[800],
             fontWeight: FontWeight.w500,
           ),
         ),
