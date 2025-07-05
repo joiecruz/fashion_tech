@@ -319,7 +319,6 @@ class _UsersTab extends StatelessWidget {
     );
   }
 }
-
 // --- TRANSACTIONS TAB ---
 class _TransactionsTab extends StatelessWidget {
   const _TransactionsTab();
@@ -337,48 +336,204 @@ class _TransactionsTab extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _sectionTitle('Transaction Control', Icons.swap_horiz),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _sectionTitle('Transaction Control', Icons.swap_horiz),
+                TextButton.icon(
+                  icon: const Icon(Icons.filter_list),
+                  label: const Text('Filter'),
+                  onPressed: () {/* Show filter dialog */},
+                ),
+              ],
+            ),
             const SizedBox(height: 12),
             Expanded(
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: SingleChildScrollView(
                   child: StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance.collection('transactions').snapshots(),
+                    stream: FirebaseFirestore.instance
+                        .collection('salesLog')
+                        .orderBy('dateSold', descending: true)
+                        .snapshots(),
                     builder: (context, snapshot) {
-                      if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-                      final txs = snapshot.data!.docs;
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      if (snapshot.hasError) {
+                        return Center(child: Text('Error: ${snapshot.error}'));
+                      }
+                      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                        return const Center(child: Text('No transactions found'));
+                      }
+                      final transactions = snapshot.data!.docs;
                       return DataTable(
-                        columnSpacing: 20,
+                        columnSpacing: 15,
+                        horizontalMargin: 10,
                         columns: const [
                           DataColumn(label: Text('Date')),
-                          DataColumn(label: Text('User')),
+                          DataColumn(label: Text('Product')),
                           DataColumn(label: Text('Type')),
                           DataColumn(label: Text('Amount')),
+                          DataColumn(label: Text('Status')),
                           DataColumn(label: Text('Actions')),
                         ],
-                        rows: txs.map((doc) {
+                        rows: transactions.map((doc) {
                           final data = doc.data() as Map<String, dynamic>;
                           return DataRow(cells: [
-                            DataCell(Text((data['date'] as Timestamp?)?.toDate().toString().split(' ').first ?? '')),
-                            DataCell(Text(data['user'] ?? '')),
-                            DataCell(Text(data['type'] ?? '')),
-                            DataCell(Text('₱${(data['amount'] ?? 0).toString()}')),
+                            DataCell(Text(
+                              (data['dateSold'] as Timestamp?)?.toDate().toString().split(' ').first ?? '',
+                              overflow: TextOverflow.ellipsis,
+                            )),
+                            DataCell(
+                              data['name'] != null
+                                  ? Text(data['name'], overflow: TextOverflow.ellipsis)
+                                  : data['productId'] != null
+                                      ? FutureBuilder<DocumentSnapshot>(
+                                          future: FirebaseFirestore.instance
+                                              .collection('products')
+                                              .doc(data['productId'])
+                                              .get(),
+                                          builder: (context, productSnapshot) {
+                                            if (productSnapshot.connectionState == ConnectionState.waiting) {
+                                              return const Text('Loading...');
+                                            }
+                                            if (productSnapshot.hasError ||
+                                                !productSnapshot.hasData ||
+                                                !productSnapshot.data!.exists) {
+                                              return const Text('Unknown');
+                                            }
+                                            final productData = productSnapshot.data!.data() as Map<String, dynamic>;
+                                            return Text(productData['name'] ?? 'Unknown', overflow: TextOverflow.ellipsis);
+                                          },
+                                        )
+                                      : Text(data['productName'] ?? 'Unknown', overflow: TextOverflow.ellipsis),
+                            ),
+                            DataCell(
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.green[100],
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  'Sale',
+                                  style: TextStyle(
+                                    color: Colors.green[800],
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            DataCell(
+                              Text(
+                                '₱${(data['totalRevenue'] ?? 0).toString()}',
+                                style: TextStyle(
+                                  color: Colors.green[800],
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            DataCell(Text('Completed')),
                             DataCell(Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 IconButton(
                                   iconSize: 20,
-                                  icon: const Icon(Icons.edit), 
-                                  onPressed: () {/* Edit logic */}
+                                  icon: const Icon(Icons.visibility),
+                                  onPressed: () {/* View details */},
                                 ),
                                 IconButton(
                                   iconSize: 20,
-                                  icon: const Icon(Icons.delete), 
-                                  onPressed: () {/* Delete logic */}
+                                  icon: const Icon(Icons.edit),
+                                  onPressed: () {/* Edit transaction */},
                                 ),
                               ],
                             )),
+                          ]);
+                        }).toList(),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
+            // Fabric expenses section
+            const SizedBox(height: 16),
+            _sectionTitle('Fabric Expenses', Icons.inventory),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 200,
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: SingleChildScrollView(
+                  child: StreamBuilder<QuerySnapshot>(
+                    stream: FirebaseFirestore.instance
+                        .collection('fabrics')
+                        .orderBy('createdAt', descending: true)
+                        .snapshots(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      if (snapshot.hasError) {
+                        return Center(child: Text('Error: ${snapshot.error}'));
+                      }
+                      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                        return const Center(child: Text('No fabric expenses found'));
+                      }
+                      final fabrics = snapshot.data!.docs;
+                      return DataTable(
+                        columnSpacing: 15,
+                        horizontalMargin: 10,
+                        columns: const [
+                          DataColumn(label: Text('Date')),
+                          DataColumn(label: Text('Fabric')),
+                          DataColumn(label: Text('Type')),
+                          DataColumn(label: Text('Quantity')),
+                          DataColumn(label: Text('Price')),
+                          DataColumn(label: Text('Total')),
+                        ],
+                        rows: fabrics.map((doc) {
+                          final data = doc.data() as Map<String, dynamic>;
+                          final qty = (data['quantity'] ?? 0) as num;
+                          final price = (data['pricePerUnit'] ?? 0) as num;
+                          final total = qty * price;
+                          return DataRow(cells: [
+                            DataCell(Text(
+                              (data['createdAt'] as Timestamp?)?.toDate().toString().split(' ').first ?? '',
+                              overflow: TextOverflow.ellipsis,
+                            )),
+                            DataCell(Text(data['name'] ?? 'Unknown', overflow: TextOverflow.ellipsis)),
+                            DataCell(
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.red[100],
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  'Expense',
+                                  style: TextStyle(
+                                    color: Colors.red[800],
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            DataCell(Text(qty.toString())),
+                            DataCell(Text('₱${price.toString()}')),
+                            DataCell(
+                              Text(
+                                '₱${total.toString()}',
+                                style: TextStyle(
+                                  color: Colors.red[800],
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
                           ]);
                         }).toList(),
                       );
@@ -411,51 +566,71 @@ class _JobOrdersTab extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _sectionTitle('Job Order Oversight', Icons.assignment),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _sectionTitle('Job Order Oversight', Icons.assignment),
+                TextButton.icon(
+                  icon: const Icon(Icons.add),
+                  label: const Text('New Job Order'),
+                  onPressed: () {/* Add new job order */},
+                ),
+              ],
+            ),
             const SizedBox(height: 12),
             Expanded(
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: SingleChildScrollView(
                   child: StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance.collection('joborders').snapshots(),
+                    // Try different collection names based on your database structure
+                    stream: FirebaseFirestore.instance
+                        .collection('jobOrders')
+                        .orderBy('createdAt', descending: true)
+                        .limit(50)
+                        .snapshots(),
                     builder: (context, snapshot) {
-                      if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      
+                      if (snapshot.hasError) {
+                        try {
+                          // Try alternate collection name if first one fails
+                          return StreamBuilder<QuerySnapshot>(
+                            stream: FirebaseFirestore.instance
+                                .collection('joborders') // lowercase alternative
+                                .orderBy('createdAt', descending: true)
+                                .limit(50)
+                                .snapshots(),
+                            builder: (context, snapshotAlt) {
+                              if (snapshotAlt.connectionState == ConnectionState.waiting) {
+                                return const Center(child: CircularProgressIndicator());
+                              }
+                              
+                              if (snapshotAlt.hasError) {
+                                return Center(child: Text('Error loading job orders: ${snapshotAlt.error}'));
+                              }
+                              
+                              if (!snapshotAlt.hasData || snapshotAlt.data!.docs.isEmpty) {
+                                return const Center(child: Text('No job orders found'));
+                              }
+                              
+                              final jobs = snapshotAlt.data!.docs;
+                              return _buildJobOrdersTable(jobs);
+                            },
+                          );
+                        } catch (e) {
+                          return Center(child: Text('Error: $e'));
+                        }
+                      }
+                      
+                      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                        return const Center(child: Text('No job orders found'));
+                      }
+                      
                       final jobs = snapshot.data!.docs;
-                      return DataTable(
-                        columnSpacing: 20,
-                        columns: const [
-                          DataColumn(label: Text('Order #')),
-                          DataColumn(label: Text('Customer')),
-                          DataColumn(label: Text('Status')),
-                          DataColumn(label: Text('Due')),
-                          DataColumn(label: Text('Actions')),
-                        ],
-                        rows: jobs.map((doc) {
-                          final data = doc.data() as Map<String, dynamic>;
-                          return DataRow(cells: [
-                            DataCell(Text(doc.id)),
-                            DataCell(Text(data['customer'] ?? '')),
-                            DataCell(Text(data['status'] ?? '')),
-                            DataCell(Text((data['dueDate'] as Timestamp?)?.toDate().toString().split(' ').first ?? '')),
-                            DataCell(Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                IconButton(
-                                  iconSize: 20,
-                                  icon: const Icon(Icons.edit), 
-                                  onPressed: () {/* Edit logic */}
-                                ),
-                                IconButton(
-                                  iconSize: 20,
-                                  icon: const Icon(Icons.delete), 
-                                  onPressed: () {/* Delete logic */}
-                                ),
-                              ],
-                            )),
-                          ]);
-                        }).toList(),
-                      );
+                      return _buildJobOrdersTable(jobs);
                     },
                   ),
                 ),
@@ -465,6 +640,77 @@ class _JobOrdersTab extends StatelessWidget {
         ),
       ),
     );
+  }
+  
+  Widget _buildJobOrdersTable(List<QueryDocumentSnapshot> jobs) {
+    return DataTable(
+      columnSpacing: 20,
+      columns: const [
+        DataColumn(label: Text('Order #')),
+        DataColumn(label: Text('Customer')),
+        DataColumn(label: Text('Status')),
+        DataColumn(label: Text('Due Date')),
+        DataColumn(label: Text('Amount')),
+        DataColumn(label: Text('Actions')),
+      ],
+      rows: jobs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        return DataRow(cells: [
+          DataCell(Text(doc.id)),
+          DataCell(Text(data['customer'] ?? data['customerName'] ?? '')),
+          DataCell(
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: _getStatusColor(data['status'] ?? 'Pending'),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                data['status'] ?? 'Pending',
+                style: const TextStyle(color: Colors.white, fontSize: 12),
+              ),
+            ),
+          ),
+          DataCell(Text((data['dueDate'] as Timestamp?)?.toDate().toString().split(' ').first ?? 'N/A')),
+          DataCell(Text('₱${(data['totalAmount'] ?? 0).toString()}')),
+          DataCell(Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                iconSize: 20,
+                icon: const Icon(Icons.visibility),
+                onPressed: () {/* View details */}
+              ),
+              IconButton(
+                iconSize: 20,
+                icon: const Icon(Icons.edit), 
+                onPressed: () {/* Edit logic */}
+              ),
+              IconButton(
+                iconSize: 20,
+                icon: const Icon(Icons.delete), 
+                onPressed: () {/* Delete logic */}
+              ),
+            ],
+          )),
+        ]);
+      }).toList(),
+    );
+  }
+  
+  Color _getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'pending':
+        return Colors.orange;
+      case 'completed':
+        return Colors.green;
+      case 'in progress':
+        return Colors.blue;
+      case 'cancelled':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
   }
 }
 
@@ -485,31 +731,218 @@ class _InventoryTab extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _sectionTitle('Inventory Management', Icons.inventory),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _sectionTitle('Inventory Management', Icons.inventory),
+                TextButton.icon(
+                  icon: const Icon(Icons.add_circle_outline),
+                  label: const Text('Add Item'),
+                  onPressed: () {/* Add item logic */},
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            // Inventory filter/search
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: TextField(
+                decoration: InputDecoration(
+                  hintText: 'Search products...',
+                  prefixIcon: const Icon(Icons.search),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey[300]!),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                ),
+                onChanged: (value) {
+                  // Implement search functionality
+                },
+              ),
+            ),
+            
+            // Products section
+            _sectionTitle('Products', Icons.shopping_bag),
             const SizedBox(height: 12),
             Expanded(
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: SingleChildScrollView(
                   child: StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance.collection('products').snapshots(),
+                    stream: FirebaseFirestore.instance
+                        .collection('products')
+                        .orderBy('name')
+                        .snapshots(),
                     builder: (context, snapshot) {
-                      if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      
+                      if (snapshot.hasError) {
+                        return Center(child: Text('Error: ${snapshot.error}'));
+                      }
+                      
+                      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                        return const Center(child: Text('No products found'));
+                      }
+                      
                       final products = snapshot.data!.docs;
                       return DataTable(
                         columnSpacing: 20,
                         columns: const [
+                          DataColumn(label: Text('Image')),
                           DataColumn(label: Text('Name')),
                           DataColumn(label: Text('Type')),
                           DataColumn(label: Text('Quantity')),
+                          DataColumn(label: Text('Price')),
                           DataColumn(label: Text('Actions')),
                         ],
                         rows: products.map((doc) {
                           final data = doc.data() as Map<String, dynamic>;
                           return DataRow(cells: [
+                            DataCell(
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(4),
+                                child: data['imageURL'] != null
+                                    ? Image.network(
+                                        data['imageURL'],
+                                        width: 40,
+                                        height: 40,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) => Container(
+                                          width: 40,
+                                          height: 40,
+                                          color: Colors.grey[200],
+                                          child: const Icon(Icons.image_not_supported, size: 20),
+                                        ),
+                                      )
+                                    : Container(
+                                        width: 40,
+                                        height: 40,
+                                        color: Colors.grey[200],
+                                        child: const Icon(Icons.image, size: 20),
+                                      ),
+                              ),
+                            ),
                             DataCell(Text(data['name'] ?? '')),
                             DataCell(Text(data['type'] ?? 'Product')),
-                            DataCell(Text('${data['quantity'] ?? 0}')),
+                            DataCell(
+                              Text(
+                                '${data['quantity'] ?? 0}',
+                                style: TextStyle(
+                                  color: (data['quantity'] ?? 0) < 10 ? Colors.red : Colors.black,
+                                  fontWeight: (data['quantity'] ?? 0) < 10 ? FontWeight.bold : FontWeight.normal,
+                                ),
+                              ),
+                            ),
+                            DataCell(Text('₱${(data['price'] ?? 0).toString()}')),
+                            DataCell(Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  iconSize: 20,
+                                  icon: const Icon(Icons.edit), 
+                                  onPressed: () {/* Edit logic */}
+                                ),
+                                IconButton(
+                                  iconSize: 20,
+                                  icon: const Icon(Icons.add), 
+                                  onPressed: () {/* Add stock */}
+                                ),
+                                IconButton(
+                                  iconSize: 20,
+                                  icon: const Icon(Icons.remove), 
+                                  onPressed: () {/* Remove stock */}
+                                ),
+                              ],
+                            )),
+                          ]);
+                        }).toList(),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
+            
+            // Fabrics section
+            const SizedBox(height: 20),
+            _sectionTitle('Fabrics', Icons.texture),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 250,
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: SingleChildScrollView(
+                  child: StreamBuilder<QuerySnapshot>(
+                    stream: FirebaseFirestore.instance
+                        .collection('fabrics')
+                        .orderBy('name')
+                        .snapshots(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      
+                      if (snapshot.hasError) {
+                        return Center(child: Text('Error: ${snapshot.error}'));
+                      }
+                      
+                      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                        return const Center(child: Text('No fabrics found'));
+                      }
+                      
+                      final fabrics = snapshot.data!.docs;
+                      return DataTable(
+                        columnSpacing: 20,
+                        columns: const [
+                          DataColumn(label: Text('Image')),
+                          DataColumn(label: Text('Name')),
+                          DataColumn(label: Text('Type')),
+                          DataColumn(label: Text('Quantity')),
+                          DataColumn(label: Text('Price/Unit')),
+                          DataColumn(label: Text('Actions')),
+                        ],
+                        rows: fabrics.map((doc) {
+                          final data = doc.data() as Map<String, dynamic>;
+                          return DataRow(cells: [
+                            DataCell(
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(4),
+                                child: data['imageURL'] != null
+                                    ? Image.network(
+                                        data['imageURL'],
+                                        width: 40,
+                                        height: 40,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) => Container(
+                                          width: 40,
+                                          height: 40,
+                                          color: Colors.grey[200],
+                                          child: const Icon(Icons.image_not_supported, size: 20),
+                                        ),
+                                      )
+                                    : Container(
+                                        width: 40,
+                                        height: 40,
+                                        color: Colors.grey[200],
+                                        child: const Icon(Icons.texture, size: 20),
+                                      ),
+                              ),
+                            ),
+                            DataCell(Text(data['name'] ?? '')),
+                            DataCell(Text(data['fabricType'] ?? 'Fabric')),
+                            DataCell(
+                              Text(
+                                '${data['quantity'] ?? 0}',
+                                style: TextStyle(
+                                  color: (data['quantity'] ?? 0) < 10 ? Colors.red : Colors.black,
+                                  fontWeight: (data['quantity'] ?? 0) < 10 ? FontWeight.bold : FontWeight.normal,
+                                ),
+                              ),
+                            ),
+                            DataCell(Text('₱${(data['pricePerUnit'] ?? 0).toString()}')),
                             DataCell(Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
