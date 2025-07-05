@@ -67,10 +67,10 @@ class _AuthWrapperState extends State<AuthWrapper> {
           return const LoginPage(); // Show login page instead of loading spinner
         }
         
-        // // If user is logged in, show main app
-        // if (snapshot.hasData && snapshot.data != null) {
-        //   return const AdminHomePage();
-        // }
+        // If user is logged in, show main app
+        if (snapshot.hasData && snapshot.data != null) {
+          return const AdminHomePage();
+        }
         
         // Default: show login page (when not logged in or no data)
         return const LoginPage();
