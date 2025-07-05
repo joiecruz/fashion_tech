@@ -28,6 +28,19 @@ class _HomeDashboardState extends State<HomeDashboard> {
       return '';
     }
   }
+  // Add this method inside _HomeDashboardState:
+  Future<int> _getTotalStock() async {
+    final snapshot = await FirebaseFirestore.instance.collection('products').get();
+    int totalStock = 0;
+    for (var doc in snapshot.docs) {
+      final data = doc.data() as Map<String, dynamic>;
+      final qty = data['stock'];
+      if (qty != null) {
+        totalStock += (qty as num).toInt();
+      }
+    }
+    return totalStock;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -158,69 +171,92 @@ class _HomeDashboardState extends State<HomeDashboard> {
               ),
               const SizedBox(height: 18),
 
-              // Profit Checker
+              // Replace your Profit Checker card section with this:
               _modernCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _sectionTitle('Profit Checker', Icons.attach_money),
                     const SizedBox(height: 8),
-                    ValueListenableBuilder<double>(
-                      valueListenable: ProductInventoryPage.potentialValueNotifier,
-                      builder: (context, projectedIncome, _) {
-                        return Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Projected Income',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 15,
-                                      color: Colors.grey[800],
-                                    ),
+                    FutureBuilder<int>(
+                      future: _getTotalStock(),
+                      builder: (context, stockSnapshot) {
+                        return ValueListenableBuilder<double>(
+                          valueListenable: ProductInventoryPage.potentialValueNotifier,
+                          builder: (context, projectedIncome, _) {
+                            return Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Projected Income',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 15,
+                                          color: Colors.grey[800],
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        '₱${projectedIncome.toStringAsFixed(2)}',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 22,
+                                          color: Colors.green[700],
+                                        ),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      Text(
+                                        'All Stocks',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 15,
+                                          color: Colors.grey[800],
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        stockSnapshot.connectionState == ConnectionState.waiting
+                                            ? '...'
+                                            : '${stockSnapshot.data ?? 0} items',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 22,
+                                          color: Colors.blue[700],
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    '₱${projectedIncome.toStringAsFixed(2)}',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 22,
-                                      color: Colors.green[700],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            ElevatedButton(
-                              onPressed: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(builder: (context) => const ProfitReportPage()),
-                                );
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.blue[600],
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
                                 ),
-                                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-                                elevation: 0,
-                              ),
-                              child: const Text('View'),
-                            ),
-                          ],
+                                ElevatedButton(
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(builder: (context) => const ProfitReportPage()),
+                                    );
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.blue[600],
+                                    foregroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                                    elevation: 0,
+                                  ),
+                                  child: const Text('View'),
+                                ),
+                              ],
+                            );
+                          },
                         );
                       },
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 18),
-
               // Fabric Insights
               _modernCard(
                 child: Column(
