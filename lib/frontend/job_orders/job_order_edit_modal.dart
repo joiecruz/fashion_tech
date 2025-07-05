@@ -248,38 +248,31 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
           .where('jobOrderID', isEqualTo: widget.jobOrderId)
           .get();
 
-      // Group details by (size, color, quantity) to support multiple fabrics per variant
-      final Map<String, FormProductVariant> variantMap = {};
+      // Create individual variants for each jobOrderDetail document
+      // This ensures proper editing of individual records
+      final List<FormProductVariant> variants = [];
       for (final doc in detailsSnapshot.docs) {
         final data = doc.data();
-        final size = data['size'] ?? '';
-        final color = data['color'] ?? '';
-        final quantity = data['quantity'] ?? 0;
-        final key = '$size|$color|$quantity';
-
         final fabric = VariantFabric(
           fabricId: data['fabricID'] ?? '',
           fabricName: data['fabricName'] ?? '',
           yardageUsed: (data['yardageUsed'] ?? 0).toDouble(),
         );
 
-        if (!variantMap.containsKey(key)) {
-          variantMap[key] = FormProductVariant(
-            id: doc.id,
-            productID: jobOrder['productID'] ?? '',
-            size: size,
-            colorID: color, // ERDv9: Use colorID, handle legacy data
-            quantityInStock: 0,
-            quantity: quantity,
-            fabrics: [fabric],
-          );
-        } else {
-          variantMap[key]!.fabrics.add(fabric);
-        }
+        // Create a separate variant for each jobOrderDetail document
+        variants.add(FormProductVariant(
+          id: doc.id, // Use the actual document ID
+          productID: jobOrder['productID'] ?? '',
+          size: data['size'] ?? '',
+          colorID: data['color'] ?? '', // ERDv9: Use colorID, handle legacy data
+          quantityInStock: 0,
+          quantity: data['quantity'] ?? 0,
+          fabrics: [fabric], // Each variant has its own fabric
+        ));
       }
 
       setState(() {
-        _variants = variantMap.values.toList();
+        _variants = variants;
         _loadingJobOrder = false;
       });
     } catch (e) {
@@ -1087,6 +1080,7 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
 
   Future<void> _updateJobOrder() async {
     print('[DEBUG] _updateJobOrder called');
+    print('[DEBUG] jobOrderId: ${widget.jobOrderId}');
     print('[DEBUG] jobOrderName: "${_jobOrderNameController.text}"');
     print('[DEBUG] customerName: "${_customerNameController.text}"');
     print('[DEBUG] orderDate: "${_orderDateController.text}"');
@@ -1098,15 +1092,18 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
     print('[DEBUG] isUpcycled: $_isUpcycled');
     print('[DEBUG] jobStatus: $_jobStatus');
     print('[DEBUG] _variants.length: ${_variants.length}');
-    for (final v in _variants) {
-      print('[DEBUG] Variant id: ${v.id}, size: ${v.size}, color: ${v.color}, quantity: ${v.quantity}, fabrics: ${v.fabrics.length}');
-      for (final f in v.fabrics) {
-        print('[DEBUG]   Fabric: id=${f.fabricId}, name=${f.fabricName}, yardage=${f.yardageUsed}');
+    
+    for (int i = 0; i < _variants.length; i++) {
+      final v = _variants[i];
+      print('[DEBUG] Variant $i: id=${v.id}, size=${v.size}, color=${v.color}, quantity=${v.quantity}, fabrics=${v.fabrics.length}');
+      for (int j = 0; j < v.fabrics.length; j++) {
+        final f = v.fabrics[j];
+        print('[DEBUG]   Fabric $j: id=${f.fabricId}, name=${f.fabricName}, yardage=${f.yardageUsed}');
       }
     }
 
     if (!_formKey.currentState!.validate()) {
-      print('[DEBUG] Form not valid');
+      print('[DEBUG] Form validation failed');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Row(
@@ -1149,164 +1146,207 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
       ),
     );
 
-    if (confirm != true) return;
+    if (confirm != true) {
+      print('[DEBUG] User cancelled update');
+      return;
+    }
 
     setState(() => _saving = true);
 
-try {
-  print('[DEBUG] Updating job order document...');
-  await FirebaseFirestore.instance
-      .collection('jobOrders')
-      .doc(widget.jobOrderId)
-      .update({
-    'name': _jobOrderNameController.text.trim(),
-    'customerName': _customerNameController.text.trim(),
-    'orderDate': _orderDateController.text.isNotEmpty
-        ? Timestamp.fromDate(DateTime.tryParse(_orderDateController.text) ?? DateTime.now())
-        : null,
-    'dueDate': _dueDateController.text.isNotEmpty
-        ? Timestamp.fromDate(DateTime.tryParse(_dueDateController.text) ?? DateTime.now())
-        : null,
-    'assignedTo': _assignedToController.text.trim(),
-    'quantity': int.tryParse(_quantityController.text) ?? 0,
-    'price': double.tryParse(_priceController.text) ?? 0.0,
-    'specialInstructions': _specialInstructionsController.text.trim(),
-    'isUpcycled': _isUpcycled,
-    'status': _jobStatus,
-    'updatedAt': FieldValue.serverTimestamp(),
-  });
-  print('[DEBUG] Job order document updated.');
-
-  // Update job order details (variants)
-  final detailsRef = FirebaseFirestore.instance.collection('jobOrderDetails');
-  final existingDetails = await detailsRef
-      .where('jobOrderID', isEqualTo: widget.jobOrderId)
-      .get();
-  print('[DEBUG] Fetched ${existingDetails.docs.length} existing jobOrderDetails.');
-
-  // Delete removed variants
-  for (final doc in existingDetails.docs) {
-    if (!_variants.any((v) => v.id == doc.id)) {
-      print('[DEBUG] Deleting removed variant: ${doc.id}');
-      await detailsRef.doc(doc.id).delete();
-    }
-  }
-  
-  // Process variants
-  for (final variant in _variants) {
     try {
-      print('[DEBUG] Processing variant: ${variant.id}');
-      print('[DEBUG]   size: ${variant.size}, color: ${variant.color}, quantity: ${variant.quantity}');
+      print('[DEBUG] Starting database update transaction...');
       
-      if (variant.fabrics.isEmpty) {
-        print('[WARNING] Variant has no fabrics, skipping...');
-        continue;
+      // Parse dates properly with validation
+      DateTime? orderDate;
+      DateTime? dueDate;
+      
+      if (_orderDateController.text.isNotEmpty) {
+        orderDate = DateTime.tryParse(_orderDateController.text);
+        if (orderDate == null) {
+          print('[WARNING] Invalid order date format: ${_orderDateController.text}');
+        }
       }
       
-      final fabric = variant.fabrics.firstWhere(
-        (f) => f.fabricId.isNotEmpty && f.fabricName.isNotEmpty,
-        orElse: () => VariantFabric(fabricId: '', fabricName: '', yardageUsed: 0.0),
-      );
-      
-      if (fabric.fabricId.isEmpty) {
-        print('[WARNING] Skipping variant: no valid fabric');
-        continue;
+      if (_dueDateController.text.isNotEmpty) {
+        dueDate = DateTime.tryParse(_dueDateController.text);
+        if (dueDate == null) {
+          print('[WARNING] Invalid due date format: ${_dueDateController.text}');
+        }
       }
-      
-      print('[DEBUG] About to update/add variant with:');
-      print('  size: ${variant.size}');
-      print('  color: ${variant.color}');
-      print('  quantity: ${variant.quantity}');
-      print('  fabricID: ${fabric.fabricId}');
-      print('  fabricName: ${fabric.fabricName}');
-      print('  yardageUsed: ${fabric.yardageUsed}');
 
-      final existingDoc = existingDetails.docs.where((d) => d.id == variant.id).firstOrNull;
-      if (existingDoc != null) {
-        print('[DEBUG] Updating existing variant: ${variant.id}');
-        await detailsRef.doc(variant.id).update({
-          'size': variant.size,
-          'color': variant.color,
-          'quantity': variant.quantity,
-          'fabricID': fabric.fabricId,
-          'yardageUsed': fabric.yardageUsed,
-          'fabricName': fabric.fabricName,
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-      } else {
-        print('[DEBUG] Adding new variant...');
-        final docRef = await detailsRef.add({
-          'jobOrderID': widget.jobOrderId,
-          'size': variant.size,
-          'color': variant.color,
-          'quantity': variant.quantity,
-          'fabricID': fabric.fabricId,
-          'yardageUsed': fabric.yardageUsed,
-          'fabricName': fabric.fabricName,
-          'createdAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-        print('[DEBUG] New variant added with id: ${docRef.id}');
+      // Parse numeric values with validation
+      final quantity = int.tryParse(_quantityController.text.trim()) ?? 0;
+      final price = double.tryParse(_priceController.text.trim()) ?? 0.0;
+      
+      print('[DEBUG] Parsed values - quantity: $quantity, price: $price');
+      print('[DEBUG] Parsed dates - order: $orderDate, due: $dueDate');
+
+      // First, update the main job order document
+      print('[DEBUG] Updating main job order document...');
+      await FirebaseFirestore.instance
+          .collection('jobOrders')
+          .doc(widget.jobOrderId)
+          .update({
+        'name': _jobOrderNameController.text.trim(),
+        'customerName': _customerNameController.text.trim(),
+        'orderDate': orderDate != null ? Timestamp.fromDate(orderDate) : null,
+        'dueDate': dueDate != null ? Timestamp.fromDate(dueDate) : null,
+        'assignedTo': _assignedToController.text.trim(),
+        'quantity': quantity,
+        'price': price,
+        'specialInstructions': _specialInstructionsController.text.trim(),
+        'isUpcycled': _isUpcycled,
+        'status': _jobStatus,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      print('[DEBUG] Main job order document updated successfully.');
+
+      // Handle variants update - CRITICAL FIXES HERE
+      final detailsRef = FirebaseFirestore.instance.collection('jobOrderDetails');
+      
+      // Get all existing job order details
+      final existingDetails = await detailsRef
+          .where('jobOrderID', isEqualTo: widget.jobOrderId)
+          .get();
+      print('[DEBUG] Found ${existingDetails.docs.length} existing jobOrderDetails.');
+
+      // Track which existing documents we're updating
+      final Set<String> processedDocIds = {};
+
+      // Process each variant - handle both existing and new variants
+      for (int i = 0; i < _variants.length; i++) {
+        final variant = _variants[i];
+        print('[DEBUG] Processing variant $i: ${variant.id}');
+        
+        // Skip variants without proper data
+        if (variant.fabrics.isEmpty) {
+          print('[WARNING] Variant ${variant.id} has no fabrics, skipping...');
+          continue;
+        }
+
+        // Process each fabric in the variant (supports multiple fabrics per variant)
+        for (int j = 0; j < variant.fabrics.length; j++) {
+          final fabric = variant.fabrics[j];
+          print('[DEBUG] Processing fabric $j for variant ${variant.id}');
+          
+          if (fabric.fabricId.isEmpty) {
+            print('[WARNING] Fabric $j has empty fabricId, skipping...');
+            continue;
+          }
+
+          // Check if this is an existing jobOrderDetail that should be updated
+          DocumentSnapshot? existingDoc;
+          try {
+            existingDoc = existingDetails.docs.firstWhere(
+              (doc) => doc.id == variant.id,
+            );
+          } catch (e) {
+            existingDoc = null;
+          }
+
+          final variantData = {
+            'jobOrderID': widget.jobOrderId,
+            'size': variant.size,
+            'color': variant.color, // Using variant.color directly
+            'quantity': variant.quantity,
+            'fabricID': fabric.fabricId,
+            'fabricName': fabric.fabricName,
+            'yardageUsed': fabric.yardageUsed,
+            'updatedAt': FieldValue.serverTimestamp(),
+          };
+
+          if (existingDoc != null && !processedDocIds.contains(variant.id)) {
+            // Update existing document
+            print('[DEBUG] Updating existing variant document: ${variant.id}');
+            await detailsRef.doc(variant.id).update(variantData);
+            processedDocIds.add(variant.id);
+          } else if (existingDoc == null) {
+            // Create new document for new variants
+            print('[DEBUG] Creating new variant document...');
+            variantData['createdAt'] = FieldValue.serverTimestamp();
+            final newDocRef = await detailsRef.add(variantData);
+            print('[DEBUG] New variant created with ID: ${newDocRef.id}');
+            
+            // Create a new variant object with the correct ID and replace it in the list
+            _variants[i] = FormProductVariant(
+              id: newDocRef.id,
+              productID: variant.productID,
+              size: variant.size,
+              colorID: variant.colorID,
+              quantityInStock: variant.quantityInStock,
+              quantity: variant.quantity,
+              fabrics: variant.fabrics,
+            );
+            processedDocIds.add(newDocRef.id);
+          }
+        }
       }
+
+      // Delete variants that were removed from the UI
+      for (final doc in existingDetails.docs) {
+        if (!processedDocIds.contains(doc.id)) {
+          print('[DEBUG] Deleting removed variant: ${doc.id}');
+          await detailsRef.doc(doc.id).delete();
+        }
+      }
+
+      print('[DEBUG] All database updates completed successfully.');
+
+      // Show success message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white, size: 20),
+                SizedBox(width: 8),
+                Text('Job order updated successfully!'),
+              ],
+            ),
+            backgroundColor: Colors.green[600],
+            duration: const Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+        );
+      }
+
+      // Close the modal after successful update
+      if (mounted) {
+        Navigator.of(context).pop(true); // Return true to indicate success
+      }
+
     } catch (e, stack) {
-      print('[ERROR] Exception while processing variant: $e');
-      print(stack);
+      print('[ERROR] Exception in _updateJobOrder: $e');
+      print('[ERROR] Stack trace: $stack');
+      
+      // Show detailed error message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('Failed to update job order: ${e.toString()}'),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.red[600],
+            duration: const Duration(seconds: 5),
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _saving = false);
+      }
     }
-  }
-
-  // Show success message
-  if (mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Row(
-          children: [
-            Icon(Icons.check_circle, color: Colors.white, size: 20),
-            SizedBox(width: 8),
-            Text('Job order updated successfully!'),
-          ],
-        ),
-        backgroundColor: Colors.green[600],
-        duration: const Duration(seconds: 3),
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.all(16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-    );
-  }
-
-  // Close the modal after successful update
-  if (mounted) {
-    Navigator.of(context).pop(true); // Return true to indicate success
-  }
-
-} catch (e, stack) {
-  print('[ERROR] Exception in _updateJobOrder: $e');
-  print(stack);
-  
-  // Show error message
-  if (mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(Icons.error_outline, color: Colors.white, size: 20),
-            const SizedBox(width: 8),
-            Expanded(child: Text('Failed to update job order: ${e.toString()}')),
-          ],
-        ),
-        backgroundColor: Colors.red[600],
-        duration: const Duration(seconds: 5),
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.all(16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-    );
-  }
-} finally {
-  if (mounted) {
-    setState(() => _saving = false);
-  }
-}
   }
 
   Widget _buildLoadingState() {
