@@ -35,6 +35,8 @@ import 'widgets/variant_card.dart';
 import 'widgets/variant_breakdown_summary.dart';
 import 'widgets/fabric_suppliers_section.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../models/customer.dart';
+import '../../services/customer_service.dart';
 
 class AddJobOrderModal extends StatefulWidget {
   const AddJobOrderModal({Key? key}) : super(key: key);
@@ -53,7 +55,6 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
   final GlobalKey _assignmentSectionKey = GlobalKey();
   final GlobalKey _additionalDetailsSectionKey = GlobalKey();
   final TextEditingController _jobOrderNameController = TextEditingController();
-  final TextEditingController _customerNameController = TextEditingController();
   final TextEditingController _orderDateController = TextEditingController();
   final TextEditingController _dueDateController = TextEditingController();
   final TextEditingController _assignedToController = TextEditingController();
@@ -62,13 +63,18 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
   final TextEditingController _specialInstructionsController = TextEditingController();
   
   final FocusNode _jobOrderNameFocus = FocusNode();
-  final FocusNode _customerNameFocus = FocusNode();
   final FocusNode _orderDateFocus = FocusNode();
   final FocusNode _dueDateFocus = FocusNode();
   final FocusNode _assignedToFocus = FocusNode();
   final FocusNode _quantityFocus = FocusNode();
   final FocusNode _priceFocus = FocusNode();
   final FocusNode _specialInstructionsFocus = FocusNode();
+  
+  // Customer-related variables
+  List<Customer> _customers = [];
+  Customer? _selectedCustomer;
+  bool _loadingCustomers = true;
+  final CustomerService _customerService = CustomerService();
   
   bool _isUpcycled = false;
   String _jobStatus = 'In Progress';
@@ -125,13 +131,13 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
 
     _fetchUserFabrics();
     _fetchFabricSuppliers();
+    _fetchCustomers();
     _quantityController.addListener(() {
       setState(() {});
     });
     
     // Add listeners to key controllers to update completion status dynamically
     _jobOrderNameController.addListener(() => setState(() {}));
-    _customerNameController.addListener(() => setState(() {}));
     _orderDateController.addListener(() => setState(() {}));
     _dueDateController.addListener(() => setState(() {}));
     _assignedToController.addListener(() => setState(() {}));
@@ -152,6 +158,26 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
 
     // Start the animation
     _animationController.forward();
+  }
+
+  Future<void> _fetchCustomers() async {
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('customers')
+          .orderBy('fullName')
+          .get()
+          .timeout(Duration(seconds: 10));
+      
+      setState(() {
+        _customers = snapshot.docs.map((doc) => Customer.fromMap(doc.id, doc.data())).toList();
+        _loadingCustomers = false;
+      });
+    } catch (e) {
+      print('Error fetching customers: $e');
+      setState(() {
+        _loadingCustomers = false;
+      });
+    }
   }
 
   Future<void> _fetchUserFabrics() async {
@@ -288,7 +314,6 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
     _animationController.dispose();
     _scrollController.dispose();
     _jobOrderNameController.dispose();
-    _customerNameController.dispose();
     _orderDateController.dispose();
     _dueDateController.dispose();
     _assignedToController.dispose();
@@ -296,7 +321,6 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
     _priceController.dispose();
     _specialInstructionsController.dispose();
     _jobOrderNameFocus.dispose();
-    _customerNameFocus.dispose();
     _orderDateFocus.dispose();
     _dueDateFocus.dispose();
     _assignedToFocus.dispose();
@@ -320,7 +344,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
 
   @override
   Widget build(BuildContext context) {
-    if (_loadingFabrics || _loadingFabricSuppliers) {
+    if (_loadingFabrics || _loadingFabricSuppliers || _loadingCustomers) {
       return _buildLoadingState();
     }
 
@@ -492,7 +516,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
         children: [
           CircularProgressIndicator(),
           SizedBox(height: 16),
-          Text('Loading fabrics and suppliers...'),
+          Text('Loading data...'),
           SizedBox(height: 8),
           Text(
             _loadingFabrics ? 'Fetching fabrics...' : 'Fabrics loaded ✓',
@@ -505,6 +529,13 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
             _loadingFabricSuppliers ? 'Fetching fabric suppliers...' : 'Fabric suppliers loaded ✓',
             style: TextStyle(
               color: _loadingFabricSuppliers ? Colors.grey : Colors.green,
+              fontSize: 12,
+            ),
+          ),
+          Text(
+            _loadingCustomers ? 'Fetching customers...' : 'Customers loaded ✓',
+            style: TextStyle(
+              color: _loadingCustomers ? Colors.grey : Colors.green,
               fontSize: 12,
             ),
           ),
@@ -620,7 +651,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
           icon: Icons.assignment,
           focusNode: _jobOrderNameFocus,
           textInputAction: TextInputAction.next,
-          onFieldSubmitted: () => _customerNameFocus.requestFocus(),
+          onFieldSubmitted: () => _orderDateFocus.requestFocus(),
           validator: (val) {
             if (val?.isEmpty ?? true) return 'Job order name is required';
             final trimmed = val!.trim();
@@ -630,26 +661,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
           },
         ),
         const SizedBox(height: 16),
-        _buildTextField(
-          controller: _customerNameController,
-          label: 'Customer Name',
-          hint: 'E.g., John Doe',
-          icon: Icons.person,
-          focusNode: _customerNameFocus,
-          textInputAction: TextInputAction.next,
-          onFieldSubmitted: () => _orderDateFocus.requestFocus(),
-          validator: (val) {
-            if (val?.isEmpty ?? true) return 'Customer name is required';
-            final trimmed = val!.trim();
-            if (trimmed.isEmpty) return 'Customer name cannot be empty';
-            if (trimmed.length > 50) return 'Customer name is too long (max: 50 characters)';
-            // Check for valid name format (letters, spaces, hyphens, apostrophes)
-            if (!RegExp(r"^[a-zA-Z\s\-'\.]+$").hasMatch(trimmed)) {
-              return 'Please enter a valid name (letters, spaces, hyphens only)';
-            }
-            return null;
-          },
-        ),
+        _buildCustomerDropdown(),
       ],
       ),
     );
@@ -1378,6 +1390,271 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
     }
   }
 
+  Widget _buildCustomerDropdown() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        DropdownButtonFormField<Customer>(
+          value: _selectedCustomer,
+          isExpanded: true, // Fix overflow by expanding dropdown
+          decoration: InputDecoration(
+            labelText: 'Customer',
+            hintText: 'Select a customer',
+            prefixIcon: Icon(Icons.person, size: 20),
+            filled: true,
+            fillColor: Colors.grey.shade50,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.grey.shade200),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.blue.shade400, width: 2),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.red.shade400, width: 2),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.red.shade400, width: 2),
+            ),
+          ),
+          items: _customers.map<DropdownMenuItem<Customer>>((Customer customer) {
+            return DropdownMenuItem<Customer>(
+              value: customer,
+              child: Container(
+                width: double.infinity,
+                child: Text(
+                  customer.fullName,
+                  style: TextStyle(fontSize: 14),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+              ),
+            );
+          }).toList(),
+          selectedItemBuilder: (BuildContext context) {
+            return _customers.map<Widget>((Customer customer) {
+              return Container(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  customer.fullName,
+                  style: TextStyle(fontSize: 14),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+              );
+            }).toList();
+          },
+          onChanged: (Customer? newValue) {
+            setState(() {
+              _selectedCustomer = newValue;
+            });
+          },
+          validator: (Customer? value) {
+            if (value == null) return 'Please select a customer';
+            return null;
+          },
+          autovalidateMode: AutovalidateMode.onUserInteraction,
+        ),
+        const SizedBox(height: 8),
+        // Add customer button
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: () async {
+              final result = await _showAddCustomerDialog();
+              if (result != null) {
+                // Refresh customers list
+                await _fetchCustomers();
+                // Select the newly created customer
+                setState(() {
+                  _selectedCustomer = _customers.firstWhere(
+                    (customer) => customer.id == result,
+                    orElse: () => _customers.first,
+                  );
+                });
+              }
+            },
+            icon: Icon(Icons.add, size: 16),
+            label: Text('Add New Customer', style: TextStyle(fontSize: 12)),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.blue.shade600,
+              side: BorderSide(color: Colors.blue.shade300, width: 1),
+              backgroundColor: Colors.blue.shade50,
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<String?> _showAddCustomerDialog() async {
+    final TextEditingController fullNameController = TextEditingController();
+    final TextEditingController contactController = TextEditingController();
+    final TextEditingController addressController = TextEditingController();
+    final TextEditingController emailController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    return showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.person_add, color: Colors.blue.shade600),
+            const SizedBox(width: 8),
+            const Text('Add New Customer'),
+          ],
+        ),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: fullNameController,
+                decoration: InputDecoration(
+                  labelText: 'Full Name',
+                  hintText: 'E.g., John Doe',
+                  prefixIcon: Icon(Icons.person, size: 20),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                validator: (value) {
+                  if (value?.trim().isEmpty ?? true) {
+                    return 'Full name is required';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: contactController,
+                decoration: InputDecoration(
+                  labelText: 'Contact Number',
+                  hintText: 'E.g., +63 912 345 6789',
+                  prefixIcon: Icon(Icons.phone, size: 20),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                validator: (value) {
+                  if (value?.trim().isEmpty ?? true) {
+                    return 'Contact number is required';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: addressController,
+                decoration: InputDecoration(
+                  labelText: 'Address (Optional)',
+                  hintText: 'E.g., 123 Main St, City',
+                  prefixIcon: Icon(Icons.location_on, size: 20),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                maxLines: 2,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: emailController,
+                decoration: InputDecoration(
+                  labelText: 'Email (Optional)',
+                  hintText: 'E.g., john@example.com',
+                  prefixIcon: Icon(Icons.email, size: 20),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                keyboardType: TextInputType.emailAddress,
+                validator: (value) {
+                  if (value?.trim().isNotEmpty ?? false) {
+                    if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value!)) {
+                      return 'Please enter a valid email';
+                    }
+                  }
+                  return null;
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              fullNameController.dispose();
+              contactController.dispose();
+              addressController.dispose();
+              emailController.dispose();
+              Navigator.pop(context);
+            },
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (formKey.currentState?.validate() ?? false) {
+                try {
+                  // Create customer
+                  final customer = Customer(
+                    id: '', // Will be set by Firestore
+                    fullName: fullNameController.text.trim(),
+                    contactNum: contactController.text.trim(),
+                    address: addressController.text.trim().isNotEmpty ? addressController.text.trim() : null,
+                    email: emailController.text.trim().isNotEmpty ? emailController.text.trim() : null,
+                    notes: null,
+                    createdBy: FirebaseAuth.instance.currentUser?.uid ?? 'anonymous',
+                    createdAt: DateTime.now(),
+                  );
+
+                  final customerId = await _customerService.addCustomer(customer);
+                  
+                  fullNameController.dispose();
+                  contactController.dispose();
+                  addressController.dispose();
+                  emailController.dispose();
+                  
+                  if (customerId != null) {
+                    Navigator.pop(context, customerId);
+                  } else {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Failed to add customer'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error adding customer: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text('Add Customer'),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// Validate the entire form and return a list of validation errors
   /// 
   /// DEVELOPER NOTE: The "Product Variants" section validation is for UI elements that
@@ -1395,9 +1672,9 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
       ));
     }
     
-    if (_customerNameController.text.trim().isEmpty) {
+    if (_selectedCustomer == null) {
       errors.add(ValidationError(
-        message: 'Customer Name is required',
+        message: 'Customer is required',
         sectionKey: _basicInfoSectionKey,
         sectionName: 'Basic Information',
       ));
@@ -1624,8 +1901,8 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
       final jobOrderRef = FirebaseFirestore.instance.collection('jobOrders').doc();
       await jobOrderRef.set({
         'name': _jobOrderNameController.text, // ERDv9: required name field
-        'customerID': 'default_customer_id', // ERDv9: required FK to CUSTOMER
-        'customerName': _customerNameController.text, // ERDv9: required field (not just for display)
+        'customerID': _selectedCustomer?.id ?? 'default_customer_id', // ERDv9: required FK to CUSTOMER
+        'customerName': _selectedCustomer?.fullName ?? 'Unknown Customer', // ERDv9: required field (not just for display)
         'productID': 'default_product_id', // ERDv9: required FK to PRODUCT
         'linkedProductID': null, // ERDv9: optional nullable field
         'quantity': int.tryParse(_quantityController.text) ?? 0, // required
@@ -1734,6 +2011,17 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
         }
       }
 
+      // Update customer with job order history
+      if (_selectedCustomer != null) {
+        await FirebaseFirestore.instance
+            .collection('customers')
+            .doc(_selectedCustomer!.id)
+            .update({
+          'jobOrderHistory': FieldValue.arrayUnion([jobOrderRef.id]),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
@@ -1812,7 +2100,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
     switch (sectionTitle) {
       case 'Basic Information':
         return _jobOrderNameController.text.trim().isNotEmpty &&
-               _customerNameController.text.trim().isNotEmpty;
+               _selectedCustomer != null;
       case 'Timeline':
         return _orderDateController.text.trim().isNotEmpty &&
                _dueDateController.text.trim().isNotEmpty;
