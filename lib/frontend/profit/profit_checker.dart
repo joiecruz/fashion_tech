@@ -10,7 +10,6 @@ class ProfitReportPage extends StatefulWidget {
 }
 
 class _ProfitReportPageState extends State<ProfitReportPage> {
-  double? _profit;
   List<Map<String, dynamic>> _productProfits = [];
   bool _loading = true;
 
@@ -75,7 +74,6 @@ class _ProfitReportPageState extends State<ProfitReportPage> {
   }
 
   Future<void> _loadProfit() async {
-    final profit = await fetchUserTotalProfit();
     final productProfits = await fetchUserProductProfits();
 
     // Calculate statistics
@@ -88,7 +86,6 @@ class _ProfitReportPageState extends State<ProfitReportPage> {
     }
 
     setState(() {
-      _profit = profit;
       _productProfits = productProfits;
       _totalProducts = totalProducts;
       _totalSold = totalSold;
@@ -389,40 +386,6 @@ class _ProfitReportPageState extends State<ProfitReportPage> {
                 ],
               ),
             ),
-    );
-  }
-
-  Widget _buildStatChip({
-    required IconData icon,
-    required String label,
-    required String value,
-    required Color color,
-  }) {
-    return Chip(
-      backgroundColor: color.withOpacity(0.13),
-      avatar: Icon(icon, color: color, size: 22),
-      label: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            value,
-            style: TextStyle(
-              color: color,
-              fontWeight: FontWeight.bold,
-              fontSize: 18,
-            ),
-          ),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.black87,
-              fontSize: 13,
-            ),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
     );
   }
 

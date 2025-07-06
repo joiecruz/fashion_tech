@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'login_page.dart';
 import '../../backend/signup_be.dart'; // Import your backend signup logic
 import '../main_scaffold.dart';
@@ -66,7 +65,7 @@ class _SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateM
 
     try {
       // Use the backend class for signup
-      final userCredential = await SignupBackend.registerUser(
+      await SignupBackend.registerUser(
         username: _usernameController.text,
         email: _emailController.text,
         password: _passwordController.text,
