@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../common/color_selector.dart';
 
 class JobOrderCard extends StatelessWidget {
   final QueryDocumentSnapshot doc;
@@ -318,9 +319,20 @@ class JobOrderCard extends StatelessWidget {
                           color: Colors.blue[50],
                           borderRadius: BorderRadius.circular(4),
                         ),
-                        child: Text(
-                          'Color: $variantColor',
-                          style: TextStyle(fontSize: 10, color: Colors.blue[700], fontWeight: FontWeight.w600),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            ColorDisplay(
+                              colorId: variantColor, // This might be a colorID or legacy color name
+                              colorName: variantColor,
+                              size: 12,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              variantColor,
+                              style: TextStyle(fontSize: 10, color: Colors.blue[700], fontWeight: FontWeight.w600),
+                            ),
+                          ],
                         ),
                       ),
                       const SizedBox(width: 6),

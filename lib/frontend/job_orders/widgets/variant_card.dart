@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/form_models.dart';
 import '../../../utils/color_utils.dart';
 import '../../../utils/size_utils.dart';
+import '../../common/color_selector.dart';
 
 // ===============================================================================
 // VARIANT CARD CUSTOMIZATION GUIDE
@@ -222,6 +223,18 @@ class VariantCard extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 16),
+          
+          // Color selector for variant
+          ColorSelector(
+            selectedColorId: variant.colorID,
+            onColorSelected: (colorId) {
+              variant.colorID = colorId ?? '';
+              onVariantChanged(index);
+            },
+            isRequired: true,
+            label: 'Variant Color',
           ),
           const SizedBox(height: 16),
           

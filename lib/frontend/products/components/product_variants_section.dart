@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../utils/size_utils.dart';
 import '../../../utils/color_utils.dart';
+import '../../common/color_selector.dart';
 
 class ProductVariantInput {
   String size;
@@ -131,21 +132,15 @@ class ProductVariantsSection extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          // Color Dropdown
+                          // Color Selector
                           Expanded(
-                            child: DropdownButtonFormField<String>(
-                              value: variant.color,
-                              decoration: const InputDecoration(
-                                labelText: 'Color',
-                                border: OutlineInputBorder(),
-                              ),
-                              selectedItemBuilder: (context) {
-                                return ColorUtils.buildColorSelectedItems(context, size: 16);
+                            child: ColorSelector(
+                              selectedColorId: variant.color,
+                              onColorSelected: (colorId) {
+                                onUpdateVariant(index, variant.size, colorId ?? '', variant.quantityInStock);
                               },
-                              items: ColorUtils.buildColorDropdownItems(),
-                              onChanged: (value) {
-                                onUpdateVariant(index, variant.size, value!, variant.quantityInStock);
-                              },
+                              isRequired: true,
+                              label: 'Color',
                             ),
                           ),
                         ],

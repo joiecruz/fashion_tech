@@ -6,11 +6,19 @@ import 'frontend/main_scaffold.dart';
 import 'frontend/auth/login_page.dart';
 import 'frontend/admin/admin_home_page.dart';
 import 'services/user_service.dart';
+import 'services/color_service.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  
+  // Initialize default colors in the background (optional - can be done manually)
+  ColorService.initializeDefaultColors().catchError((error) {
+    print('[INFO] Colors may need manual initialization: $error');
+  });
+  
   runApp(const MyApp());
 }
 
