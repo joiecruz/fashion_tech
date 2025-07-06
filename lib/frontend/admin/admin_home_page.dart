@@ -1,10 +1,38 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../../services/user_service.dart';
+import '../auth/unauthorized_page.dart';
+import '../auth/login_page.dart';
 
 class AdminHomePage extends StatelessWidget {
   const AdminHomePage({Key? key}) : super(key: key);
 
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<bool>(
+      future: UserService.isCurrentUserAdmin(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+        
+        if (snapshot.data != true) {
+          return const UnauthorizedPage();
+        }
+        
+        return _AdminDashboard();
+      },
+    );
+  }
+}
+
+class _AdminDashboard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
@@ -16,6 +44,48 @@ class AdminHomePage extends StatelessWidget {
           backgroundColor: Colors.white,
           foregroundColor: Colors.deepPurple,
           elevation: 0,
+          actions: [
+            PopupMenuButton<String>(
+              onSelected: (value) async {
+                if (value == 'logout') {
+                  await FirebaseAuth.instance.signOut();
+                  if (context.mounted) {
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(builder: (context) => const LoginPage()),
+                      (route) => false,
+                    );
+                  }
+                }
+              },
+              itemBuilder: (BuildContext context) => [
+                const PopupMenuItem<String>(
+                  value: 'logout',
+                  child: Row(
+                    children: [
+                      Icon(Icons.logout, size: 18),
+                      SizedBox(width: 8),
+                      Text('Logout'),
+                    ],
+                  ),
+                ),
+              ],
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.admin_panel_settings),
+                    const SizedBox(width: 4),
+                    Text(
+                      FirebaseAuth.instance.currentUser?.email?.split('@')[0] ?? 'Admin',
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                    const Icon(Icons.arrow_drop_down),
+                  ],
+                ),
+              ),
+            ),
+          ],
           bottom: const TabBar(
             isScrollable: true,
             tabs: [

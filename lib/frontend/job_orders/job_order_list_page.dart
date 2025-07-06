@@ -1300,15 +1300,21 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                   // Mark as Done / Completed indicator
                   if (status != 'Done')
                     Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () => _markJobOrderAsDone(jobOrderID, jobOrderName, data),
-                        icon: const Icon(Icons.check, size: 14),
-                        label: const Text('Done', style: TextStyle(fontSize: 12)),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green[600],
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 6),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                      child: GestureDetector(
+                        onLongPress: () => _markJobOrderAsDoneSimple(jobOrderID, jobOrderName),
+                        child: Tooltip(
+                          message: 'Tap to mark done with full process, or long-press for quick completion',
+                          child: ElevatedButton.icon(
+                            onPressed: () => _markJobOrderAsDone(jobOrderID, jobOrderName, data),
+                            icon: const Icon(Icons.check, size: 14),
+                            label: const Text('Done', style: TextStyle(fontSize: 12)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green[600],
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 6),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                            ),
+                          ),
                         ),
                       ),
                     )
@@ -1426,29 +1432,74 @@ class _JobOrderListPageState extends State<JobOrderListPage>
   Future<void> _markJobOrderAsDone(String jobOrderID, String jobOrderName, Map<String, dynamic> jobOrderData) async {
     print('[DEBUG] Starting mark as done process for job order: $jobOrderID');
     
-    // Step 1: Confirm marking as done
-    final confirm = await showDialog<bool>(
+    // Step 1: Choose completion method
+    final completionMethod = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Mark as Done'),
-        content: Text('Mark "$jobOrderName" as completed?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Mark "$jobOrderName" as completed?'),
+            const SizedBox(height: 16),
+            const Text('Choose completion method:', style: TextStyle(fontWeight: FontWeight.w500)),
+            const SizedBox(height: 8),
+            const Text('• Full Process: Updates status and handles product inventory'),
+            const Text('• Quick Complete: Just updates status to Done'),
+          ],
+        ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.pop(context, null),
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Mark as Done'),
+            onPressed: () => Navigator.pop(context, 'quick'),
+            child: const Text('Quick Complete'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'full'),
+            child: const Text('Full Process'),
           ),
         ],
       ),
     );
 
-    if (confirm != true) return;
+    if (completionMethod == null) return;
+
+    // If user chose quick complete, use simple method
+    if (completionMethod == 'quick') {
+      await _markJobOrderAsDoneSimple(jobOrderID, jobOrderName);
+      return;
+    }
 
     try {
-      // Step 2: Fetch jobOrderDetails
+      // Step 2: First, mark job order as done immediately
+      print('[DEBUG] Updating job order status to Done...');
+      await FirebaseFirestore.instance
+          .collection('jobOrders')
+          .doc(jobOrderID)
+          .update({
+            'status': 'Done',
+            'updatedAt': Timestamp.now(),
+            'completedAt': Timestamp.now(),
+          });
+      print('[DEBUG] Job order status updated successfully');
+
+      // Step 2.5: Verify the status was updated
+      final updatedDoc = await FirebaseFirestore.instance
+          .collection('jobOrders')
+          .doc(jobOrderID)
+          .get();
+      final updatedStatus = updatedDoc.data()?['status'];
+      print('[DEBUG] Verification: Current status is now "$updatedStatus"');
+      
+      if (updatedStatus != 'Done') {
+        throw Exception('Status update failed - current status is "$updatedStatus"');
+      }
+
+      // Step 3: Fetch jobOrderDetails
       final jobOrderDetailsSnap = await FirebaseFirestore.instance
           .collection('jobOrderDetails')
           .where('jobOrderID', isEqualTo: jobOrderID)
@@ -1456,36 +1507,56 @@ class _JobOrderListPageState extends State<JobOrderListPage>
 
       print('[DEBUG] Found ${jobOrderDetailsSnap.docs.length} jobOrderDetails for job order $jobOrderID');
 
-      // Step 3: Show product handling dialog
+      // Step 4: Show product handling dialog
       final productAction = await _showProductHandlingDialog(jobOrderData, jobOrderDetailsSnap.docs);
       
-      if (productAction == null) return; // User canceled
+      if (productAction == null) {
+        // Even if user cancels product handling, the job order is still marked as done
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.white, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text('Job order "$jobOrderName" marked as done (product handling skipped)')),
+                ],
+              ),
+              backgroundColor: Colors.green[600],
+              duration: const Duration(seconds: 3),
+              behavior: SnackBarBehavior.floating,
+              margin: const EdgeInsets.all(16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+          );
+        }
+        return;
+      }
 
-      // Step 4: Mark job order as done
-      await FirebaseFirestore.instance
-          .collection('jobOrders')
-          .doc(jobOrderID)
-          .update({
-            'status': 'Done',
-            'updatedAt': Timestamp.now(),
-          });
-
-      // Step 5: Create transaction (expense)
-      final productInfo = productData[jobOrderData['productID']] ?? {};
-      final transactionRef = await FirebaseFirestore.instance.collection('transactions').add({
-        'jobOrderID': jobOrderID,
-        'amount': productInfo['price'] ?? 0.0,
-        'type': 'expense',
-        'date': Timestamp.now(),
-        'description': 'Expense for job order "$jobOrderName"',
-        'createdAt': Timestamp.now(),
-        'createdBy': jobOrderData['assignedTo'] ?? jobOrderData['createdBy'],
-      });
-
-      print('[DEBUG] Transaction created: ${transactionRef.id}');
+      // Step 5: Create transaction (expense) - this is separate from status update
+      try {
+        final productInfo = productData[jobOrderData['productID']] ?? {};
+        final transactionRef = await FirebaseFirestore.instance.collection('transactions').add({
+          'jobOrderID': jobOrderID,
+          'amount': productInfo['price'] ?? 0.0,
+          'type': 'expense',
+          'date': Timestamp.now(),
+          'description': 'Expense for job order "$jobOrderName"',
+          'createdAt': Timestamp.now(),
+          'createdBy': jobOrderData['assignedTo'] ?? jobOrderData['createdBy'],
+        });
+        print('[DEBUG] Transaction created: ${transactionRef.id}');
+      } catch (e) {
+        print('[WARNING] Failed to create transaction, but job order is still marked as done: $e');
+      }
 
       // Step 6: Handle product creation/update based on user choice
-      await _handleProductAction(productAction, jobOrderID, jobOrderName, jobOrderData, jobOrderDetailsSnap.docs);
+      try {
+        await _handleProductAction(productAction, jobOrderID, jobOrderName, jobOrderData, jobOrderDetailsSnap.docs);
+        print('[DEBUG] Product action handled successfully');
+      } catch (e) {
+        print('[WARNING] Failed to handle product action, but job order is still marked as done: $e');
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1509,17 +1580,110 @@ class _JobOrderListPageState extends State<JobOrderListPage>
     } catch (e) {
       print('[ERROR] Failed to mark job order as done: $e');
       if (mounted) {
+        // Show error with option to retry with simple method
+        final retrySimple = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Error'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Failed to complete job order with full process:'),
+                const SizedBox(height: 8),
+                Text(e.toString(), style: TextStyle(fontSize: 12, color: Colors.red[600])),
+                const SizedBox(height: 16),
+                const Text('Would you like to try Quick Complete instead?'),
+                const Text('(This will just update the status to Done)', style: TextStyle(fontSize: 12)),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Quick Complete'),
+              ),
+            ],
+          ),
+        );
+
+        if (retrySimple == true) {
+          // Try simple method as fallback
+          await _markJobOrderAsDoneSimple(jobOrderID, jobOrderName);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.error_outline, color: Colors.white, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text('Failed to mark job order as done: ${e.toString()}')),
+                ],
+              ),
+              backgroundColor: Colors.red[600],
+              duration: const Duration(seconds: 4),
+              behavior: SnackBarBehavior.floating,
+              margin: const EdgeInsets.all(16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  // Simple method to just mark job order as done without complex product handling
+  Future<void> _markJobOrderAsDoneSimple(String jobOrderID, String jobOrderName) async {
+    print('[DEBUG] Simple mark as done for job order: $jobOrderID');
+    
+    try {
+      // Direct status update
+      await FirebaseFirestore.instance
+          .collection('jobOrders')
+          .doc(jobOrderID)
+          .update({
+            'status': 'Done',
+            'updatedAt': Timestamp.now(),
+            'completedAt': Timestamp.now(),
+          });
+      
+      print('[DEBUG] Job order $jobOrderID status updated to Done successfully');
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white, size: 16),
+                const SizedBox(width: 8),
+                Expanded(child: Text('Job order "$jobOrderName" marked as done')),
+              ],
+            ),
+            backgroundColor: Colors.green[600],
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+        );
+      }
+    } catch (e) {
+      print('[ERROR] Failed to mark job order as done: $e');
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
               children: [
                 const Icon(Icons.error_outline, color: Colors.white, size: 16),
                 const SizedBox(width: 8),
-                Expanded(child: Text('Failed to mark job order as done: ${e.toString()}')),
+                Expanded(child: Text('Failed to mark as done: ${e.toString()}')),
               ],
             ),
             backgroundColor: Colors.red[600],
-            duration: const Duration(seconds: 4),
+            duration: const Duration(seconds: 3),
             behavior: SnackBarBehavior.floating,
             margin: const EdgeInsets.all(16),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),

@@ -33,7 +33,7 @@ class User {
       fullName: data['fullName'] ?? '',
       username: data['username'] ?? '',
       password: data['password'] ?? '',
-      role: _roleFromString(data['role'] ?? 'worker'),
+      role: roleFromString(data['role'] ?? 'worker'),
       canAccessInventory: data['canAccessInventory'] ?? false,
       email: data['email'] ?? '',
       profileImageURL: data['profileImageURL'],
@@ -49,7 +49,7 @@ class User {
       'fullName': fullName,
       'username': username,
       'password': password,
-      'role': _roleToString(role),
+      'role': roleToString(role),
       'canAccessInventory': canAccessInventory,
       'email': email,
       'profileImageURL': profileImageURL,
@@ -58,7 +58,7 @@ class User {
     };
   }
 
-  static UserRole _roleFromString(String role) {
+  static UserRole roleFromString(String role) {
     switch (role.toLowerCase()) {
       case 'admin':
         return UserRole.admin;
@@ -71,7 +71,7 @@ class User {
     }
   }
 
-  static String _roleToString(UserRole role) {
+  static String roleToString(UserRole role) {
     switch (role) {
       case UserRole.admin:
         return 'admin';

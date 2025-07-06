@@ -5,6 +5,7 @@ import 'backend/firebase_options.dart';
 import 'frontend/main_scaffold.dart';
 import 'frontend/auth/login_page.dart';
 import 'frontend/admin/admin_home_page.dart';
+import 'services/user_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
@@ -67,9 +68,27 @@ class _AuthWrapperState extends State<AuthWrapper> {
           return const LoginPage(); // Show login page instead of loading spinner
         }
         
-        // If user is logged in, show main app
+        // If user is logged in, check their role
         if (snapshot.hasData && snapshot.data != null) {
-          return const AdminHomePage();
+          return FutureBuilder<bool>(
+            future: UserService.isCurrentUserAdmin(),
+            builder: (context, roleSnapshot) {
+              if (roleSnapshot.connectionState == ConnectionState.waiting) {
+                return const Scaffold(
+                  body: Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                );
+              }
+              
+              // Show admin page if user is admin, otherwise show main scaffold
+              if (roleSnapshot.data == true) {
+                return const AdminHomePage();
+              } else {
+                return const MainScaffold();
+              }
+            },
+          );
         }
         
         // Default: show login page (when not logged in or no data)
