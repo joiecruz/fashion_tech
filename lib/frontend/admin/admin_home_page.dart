@@ -5,7 +5,355 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../services/user_service.dart';
 import '../auth/unauthorized_page.dart';
 import '../auth/login_page.dart';
+import '../logs/productLogs.dart';
+import '../logs/jobOrderLogs.dart';
+import 'package:intl/intl.dart';
 
+// --- PRODUCT LOGS TAB ---
+class ProductLogsTab extends StatefulWidget {
+  final bool isAdmin;
+  const ProductLogsTab({Key? key, required this.isAdmin}) : super(key: key);
+
+  @override
+  State<ProductLogsTab> createState() => _ProductLogsTabState();
+}
+
+class _ProductLogsTabState extends State<ProductLogsTab> {
+  bool _loading = true;
+  List<Map<String, dynamic>> _logs = [];
+  final userId = FirebaseAuth.instance.currentUser?.uid;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchLogs();
+  }
+
+  Future<void> addMockProductLog() async {
+    await FirebaseFirestore.instance.collection('inventoryLogs').add({
+      'productID': 'P1001',
+      'supplierID': 'S2001',
+      'changeType': 'add',
+      'quantityChanged': 50,
+      'remarks': 'Initial stock',
+      'createdAt': DateTime.now(),
+      'createdBy': FirebaseAuth.instance.currentUser?.uid ?? 'mockUser',
+    });
+    _fetchLogs();
+  }
+
+  Future<void> addMockJobOrderLog() async {
+    await FirebaseFirestore.instance.collection('jobOrderLogs').add({
+      'jobOrderID': 'JO3001',
+      'changeType': 'statusUpdate',
+      'previousValue': 'Pending',
+      'newValue': 'In Progress',
+      'notes': 'Started production',
+      'timestamp': DateTime.now(),
+      'createdBy': FirebaseAuth.instance.currentUser?.uid ?? 'mockUser',
+    });
+  }
+
+  Future<void> _fetchLogs() async {
+    setState(() => _loading = true);
+    Query query = FirebaseFirestore.instance.collection('inventoryLogs').orderBy('createdAt', descending: true);
+    if (!widget.isAdmin && userId != null) {
+      query = query.where('createdBy', isEqualTo: userId);
+    }
+    final snapshot = await query.get();
+    setState(() {
+      _logs = snapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        return {
+          'id': doc.id,
+          'productID': data['productID'] ?? '',
+          'supplierID': data['supplierID'] ?? '',
+          'changeType': data['changeType'] ?? '',
+          'quantityChanged': data['quantityChanged'] ?? 0,
+          'remarks': data['remarks'] ?? '',
+          'createdAt': (data['createdAt'] as Timestamp?)?.toDate(),
+        };
+      }).toList();
+      _loading = false;
+    });
+  }
+
+  Future<void> _deleteLog(String id) async {
+    final docRef = FirebaseFirestore.instance.collection('inventoryLogs').doc(id);
+    final docSnap = await docRef.get();
+    final deletedData = docSnap.data();
+
+    await docRef.delete();
+    _fetchLogs();
+
+    if (mounted && deletedData != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Product log deleted.'),
+          backgroundColor: Colors.red,
+          action: SnackBarAction(
+            label: 'UNDO',
+            textColor: Colors.white,
+            onPressed: () async {
+              await docRef.set(deletedData);
+              _fetchLogs();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Delete undone!'), backgroundColor: Colors.green),
+              );
+            },
+          ),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              ElevatedButton(
+                onPressed: addMockProductLog,
+                child: const Text('Add Mock Product Log'),
+              ),
+              const SizedBox(width: 12),
+              ElevatedButton(
+                onPressed: addMockJobOrderLog,
+                child: const Text('Add Mock Job Order Log'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _logs.isEmpty
+                      ? const Center(child: Text('No product logs found.'))
+                      : SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: DataTable(
+                            columns: [
+                              const DataColumn(label: Text('Product ID')),
+                              const DataColumn(label: Text('Supplier ID')),
+                              const DataColumn(label: Text('Change Type')),
+                              const DataColumn(label: Text('Qty')),
+                              const DataColumn(label: Text('Remarks')),
+                              const DataColumn(label: Text('Date')),
+                              const DataColumn(label: Text('Edit')),
+                              if (widget.isAdmin) const DataColumn(label: Text('Delete')),
+                            ],
+                            rows: _logs.map((log) {
+                              return DataRow(
+                                cells: [
+                                  DataCell(Text(log['productID'].toString())),
+                                  DataCell(Text(log['supplierID'].toString())),
+                                  DataCell(Text(log['changeType'].toString())),
+                                  DataCell(Text(log['quantityChanged'].toString())),
+                                  DataCell(Text(log['remarks'].toString())),
+                                  DataCell(Text(
+                                    log['createdAt'] != null
+                                        ? DateFormat('yyyy-MM-dd HH:mm').format(log['createdAt'])
+                                        : '',
+                                  )),
+                                  DataCell(
+                                    IconButton(
+                                      icon: const Icon(Icons.edit, color: Colors.blue),
+                                      onPressed: () async {
+                                        await Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) => EditProductLogPage(
+                                              logId: log['id'],
+                                              logData: log,
+                                            ),
+                                          ),
+                                        );
+                                        _fetchLogs();
+                                      },
+                                    ),
+                                  ),
+                                  if (widget.isAdmin)
+                                    DataCell(
+                                      IconButton(
+                                        icon: const Icon(Icons.delete, color: Colors.red),
+                                        onPressed: () async {
+                                          await _deleteLog(log['id']);
+                                        },
+                                      ),
+                                    ),
+                                ],
+                              );
+                            }).toList(),
+                          ),
+                        ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// --- JOB ORDER LOGS TAB ---
+class JobOrderLogsTab extends StatefulWidget {
+  final bool isAdmin;
+  const JobOrderLogsTab({Key? key, required this.isAdmin}) : super(key: key);
+
+  @override
+  State<JobOrderLogsTab> createState() => _JobOrderLogsTabState();
+}
+
+class _JobOrderLogsTabState extends State<JobOrderLogsTab> {
+  bool _loading = true;
+  List<Map<String, dynamic>> _logs = [];
+  final userId = FirebaseAuth.instance.currentUser?.uid;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchLogs();
+  }
+
+  Future<void> _fetchLogs() async {
+    setState(() => _loading = true);
+    Query query = FirebaseFirestore.instance.collection('jobOrderLogs').orderBy('timestamp', descending: true);
+    if (!widget.isAdmin && userId != null) {
+      query = query.where('createdBy', isEqualTo: userId);
+    }
+    final snapshot = await query.get();
+    setState(() {
+      _logs = snapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        return {
+          'id': doc.id,
+          'jobOrderID': data['jobOrderID'] ?? '',
+          'changeType': data['changeType'] ?? '',
+          'previousValue': data['previousValue'] ?? '',
+          'newValue': data['newValue'] ?? '',
+          'notes': data['notes'] ?? '',
+          'timestamp': (data['timestamp'] as Timestamp?)?.toDate(),
+        };
+      }).toList();
+      _loading = false;
+    });
+  }
+
+  Future<void> _deleteLog(String id) async {
+    final docRef = FirebaseFirestore.instance.collection('jobOrderLogs').doc(id);
+    final docSnap = await docRef.get();
+    final deletedData = docSnap.data();
+
+    await docRef.delete();
+    _fetchLogs();
+
+    if (mounted && deletedData != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Job order log deleted.'),
+          backgroundColor: Colors.red,
+          action: SnackBarAction(
+            label: 'UNDO',
+            textColor: Colors.white,
+            onPressed: () async {
+              await docRef.set(deletedData);
+              _fetchLogs();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Delete undone!'), backgroundColor: Colors.green),
+              );
+            },
+          ),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(8),
+      child: Card(
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _logs.isEmpty
+                ? const Center(child: Text('No job order logs found.'))
+                : SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: DataTable(
+                      columns: [
+                        const DataColumn(label: Text('Job Order ID')),
+                        const DataColumn(label: Text('Change Type')),
+                        const DataColumn(label: Text('Previous')),
+                        const DataColumn(label: Text('New Value')),
+                        const DataColumn(label: Text('Notes')),
+                        const DataColumn(label: Text('Date')),
+                        const DataColumn(label: Text('Edit')),
+                        if (widget.isAdmin) const DataColumn(label: Text('Delete')),
+                      ],
+                      rows: _logs.map((log) {
+                        return DataRow(
+                          cells: [
+                            DataCell(Text(log['jobOrderID'].toString())),
+                            DataCell(Text(log['changeType'].toString())),
+                            DataCell(Text(log['previousValue'].toString())),
+                            DataCell(Text(log['newValue'].toString())),
+                            DataCell(Text(log['notes'].toString())),
+                            DataCell(Text(
+                              log['timestamp'] != null
+                                  ? DateFormat('yyyy-MM-dd HH:mm').format(log['timestamp'])
+                                  : '',
+                            )),
+                            DataCell(
+                              IconButton(
+                                icon: const Icon(Icons.edit, color: Colors.blue),
+                                onPressed: () async {
+                                  await Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => EditJobOrderLogPage(
+                                        logId: log['id'],
+                                        logData: log,
+                                      ),
+                                    ),
+                                  );
+                                  _fetchLogs();
+                                },
+                              ),
+                            ),
+                            if (widget.isAdmin)
+                              DataCell(
+                                IconButton(
+                                  icon: const Icon(Icons.delete, color: Colors.red),
+                                  onPressed: () async {
+                                    await _deleteLog(log['id']);
+                                  },
+                                ),
+                              ),
+                          ],
+                        );
+                      }).toList(),
+                    ),
+                  ),
+      ),
+    );
+  }
+}
+
+// --- The rest of your dashboard code (Overview, Users, Transactions, Job Orders, Inventory, etc.) ---
+// ...Keep your existing _OverviewTab, _UsersTab, _TransactionsTab, _JobOrdersTab, _InventoryTab, etc...
+// ...No changes needed to
+
+// --- ADMIN HOME PAGE & DASHBOARD ---
+// ...rest of your dashboard code (unchanged)...
+// --- ADMIN HOME PAGE & DASHBOARD ---
 class AdminHomePage extends StatelessWidget {
   const AdminHomePage({Key? key}) : super(key: key);
 
@@ -21,22 +369,23 @@ class AdminHomePage extends StatelessWidget {
             ),
           );
         }
-        
         if (snapshot.data != true) {
           return const UnauthorizedPage();
         }
-        
-        return _AdminDashboard();
+        return _AdminDashboard(isAdmin: true);
       },
     );
   }
 }
 
 class _AdminDashboard extends StatelessWidget {
+  final bool isAdmin;
+  const _AdminDashboard({Key? key, required this.isAdmin}) : super(key: key);
+
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 5,
+      length: 7,
       child: Scaffold(
         backgroundColor: const Color(0xFFF6F7FB),
         appBar: AppBar(
@@ -94,16 +443,20 @@ class _AdminDashboard extends StatelessWidget {
               Tab(text: 'Transactions', icon: Icon(Icons.swap_horiz)),
               Tab(text: 'Job Orders', icon: Icon(Icons.assignment)),
               Tab(text: 'Inventory', icon: Icon(Icons.inventory)),
+              Tab(text: 'Product Logs', icon: Icon(Icons.list_alt)),
+              Tab(text: 'Job Order Logs', icon: Icon(Icons.receipt_long)),
             ],
           ),
         ),
-        body: const TabBarView(
+        body: TabBarView(
           children: [
-            _OverviewTab(),
-            _UsersTab(),
-            _TransactionsTab(),
-            _JobOrdersTab(),
-            _InventoryTab(),
+            const _OverviewTab(),
+            const _UsersTab(),
+            const _TransactionsTab(),
+            const _JobOrdersTab(),
+            const _InventoryTab(),
+            ProductLogsTab(isAdmin: isAdmin),
+            JobOrderLogsTab(isAdmin: isAdmin),
           ],
         ),
       ),
@@ -618,7 +971,6 @@ class _TransactionsTab extends StatelessWidget {
     );
   }
 }
-
 // --- JOB ORDERS TAB ---
 class _JobOrdersTab extends StatelessWidget {
   const _JobOrdersTab();
@@ -1402,7 +1754,6 @@ Widget _sectionTitle(String title, IconData icon) {
   );
 }
 
-// --- Static streams for stat cards ---
 class _AdminDashboardState {
   static Stream<double> get totalSalesStream => FirebaseFirestore.instance
       .collection('salesLog')
@@ -1410,7 +1761,6 @@ class _AdminDashboardState {
       .map((snap) => snap.docs.fold<double>(
           0, (sum, doc) => sum + (((doc.data() as Map)['totalRevenue'] as num?)?.toDouble() ?? 0.0)));
 
-  // EXPENSES: Sum of (quantity * pricePerUnit) for all fabrics
   static Stream<double> get totalExpensesStream => FirebaseFirestore.instance
       .collection('fabrics')
       .snapshots()
