@@ -13,7 +13,7 @@ class FetchVariantsBackend {
         return {
           'variantID': doc.id,
           'size': data['size'] ?? '',
-          'color': data['color'] ?? '',
+          'color': data['colorID'] ?? data['color'] ?? '', // ERDv9: Use colorID, fallback to legacy color
           'quantityInStock': data['quantityInStock'] ?? 0,
         };
       }).toList();

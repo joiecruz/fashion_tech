@@ -8,6 +8,9 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import '../../models/product.dart';
 import '../../models/product_image.dart';
+import '../../utils/utils.dart';
+import '../../utils/size_utils.dart';
+import '../../utils/color_utils.dart';
 import '../../backend/fetch_suppliers.dart';
 
 // Import modular components

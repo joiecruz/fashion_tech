@@ -219,6 +219,7 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
   }
 
   Future<void> _fetchJobOrderData() async {
+    print('[DEBUG] _fetchJobOrderData called for jobOrderId: ${widget.jobOrderId}');
     try {
       final jobOrderDoc = await FirebaseFirestore.instance
           .collection('jobOrders')
@@ -226,11 +227,13 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
           .get();
       final jobOrder = jobOrderDoc.data();
       if (jobOrder == null) {
+        print('[WARNING] Job order document not found or has no data for ID: ${widget.jobOrderId}');
         setState(() {
           _loadingJobOrder = false;
         });
         return;
       }
+      print('[DEBUG] Job order data loaded successfully. Name: ${jobOrder['name']}');
       _jobOrderNameController.text = jobOrder['name'] ?? '';
       _customerNameController.text = jobOrder['customerName'] ?? '';
       _orderDateController.text = _timestampToDateString(jobOrder['orderDate']);
@@ -241,6 +244,7 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
       _specialInstructionsController.text = jobOrder['specialInstructions'] ?? '';
       _isUpcycled = jobOrder['isUpcycled'] ?? false;
       _jobStatus = jobOrder['status'] ?? 'In Progress';
+      print('[DEBUG] Loaded job status from database: "${_jobStatus}"');
 
       // Fetch all jobOrderDetails for this job order
       final detailsSnapshot = await FirebaseFirestore.instance
@@ -275,7 +279,9 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
         _variants = variants;
         _loadingJobOrder = false;
       });
+      print('[DEBUG] _fetchJobOrderData completed successfully. Found ${variants.length} variants');
     } catch (e) {
+      print('[ERROR] Failed to fetch job order data: $e');
       setState(() {
         _loadingJobOrder = false;
       });
@@ -671,7 +677,7 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
           value: _jobStatus,
           label: 'Job Status',
           icon: Icons.flag,
-          items: ['In Progress', 'Completed', 'Cancelled'],
+          items: ['Open', 'In Progress', 'Done', 'Cancelled'],
           onChanged: (val) => setState(() => _jobStatus = val ?? 'In Progress'),
         ),
       ],
@@ -1030,6 +1036,11 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
     required Function(String?) onChanged,
     String? Function(String?)? validator,
   }) {
+    // Debug: Check if value is in items
+    if (!items.contains(value)) {
+      print('[DEBUG] Dropdown value "$value" not found in items: $items. Using first item: ${items.isNotEmpty ? items.first : 'null'}');
+    }
+    
     return DropdownButtonFormField<String>(
       value: items.contains(value) ? value : (items.isNotEmpty ? items.first : null),
       items: items

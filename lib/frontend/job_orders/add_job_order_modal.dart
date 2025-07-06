@@ -36,7 +36,7 @@ import 'widgets/variant_breakdown_summary.dart';
 import 'widgets/fabric_suppliers_section.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../models/customer.dart';
-import '../../services/customer_service.dart';
+import '../customers/add_customer_modal.dart';
 
 class AddJobOrderModal extends StatefulWidget {
   const AddJobOrderModal({Key? key}) : super(key: key);
@@ -74,7 +74,6 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
   List<Customer> _customers = [];
   Customer? _selectedCustomer;
   bool _loadingCustomers = true;
-  final CustomerService _customerService = CustomerService();
   
   bool _isUpcycled = false;
   String _jobStatus = 'In Progress';
@@ -1467,20 +1466,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
         SizedBox(
           width: double.infinity,
           child: OutlinedButton.icon(
-            onPressed: () async {
-              final result = await _showAddCustomerDialog();
-              if (result != null) {
-                // Refresh customers list
-                await _fetchCustomers();
-                // Select the newly created customer
-                setState(() {
-                  _selectedCustomer = _customers.firstWhere(
-                    (customer) => customer.id == result,
-                    orElse: () => _customers.first,
-                  );
-                });
-              }
-            },
+            onPressed: () => _showAddCustomerModal(),
             icon: Icon(Icons.add, size: 16),
             label: Text('Add New Customer', style: TextStyle(fontSize: 12)),
             style: OutlinedButton.styleFrom(
@@ -1498,159 +1484,45 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
     );
   }
 
-  Future<String?> _showAddCustomerDialog() async {
-    final TextEditingController fullNameController = TextEditingController();
-    final TextEditingController contactController = TextEditingController();
-    final TextEditingController addressController = TextEditingController();
-    final TextEditingController emailController = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-
-    return showDialog<String>(
+  void _showAddCustomerModal() {
+    showModalBottomSheet(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.person_add, color: Colors.blue.shade600),
-            const SizedBox(width: 8),
-            const Text('Add New Customer'),
-          ],
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        margin: const EdgeInsets.only(top: 100),
+        height: MediaQuery.of(context).size.height - 100,
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
-        content: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                controller: fullNameController,
-                decoration: InputDecoration(
-                  labelText: 'Full Name',
-                  hintText: 'E.g., John Doe',
-                  prefixIcon: Icon(Icons.person, size: 20),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                validator: (value) {
-                  if (value?.trim().isEmpty ?? true) {
-                    return 'Full name is required';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: contactController,
-                decoration: InputDecoration(
-                  labelText: 'Contact Number',
-                  hintText: 'E.g., +63 912 345 6789',
-                  prefixIcon: Icon(Icons.phone, size: 20),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                validator: (value) {
-                  if (value?.trim().isEmpty ?? true) {
-                    return 'Contact number is required';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: addressController,
-                decoration: InputDecoration(
-                  labelText: 'Address (Optional)',
-                  hintText: 'E.g., 123 Main St, City',
-                  prefixIcon: Icon(Icons.location_on, size: 20),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                maxLines: 2,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: emailController,
-                decoration: InputDecoration(
-                  labelText: 'Email (Optional)',
-                  hintText: 'E.g., john@example.com',
-                  prefixIcon: Icon(Icons.email, size: 20),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                keyboardType: TextInputType.emailAddress,
-                validator: (value) {
-                  if (value?.trim().isNotEmpty ?? false) {
-                    if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value!)) {
-                      return 'Please enter a valid email';
-                    }
-                  }
-                  return null;
-                },
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              fullNameController.dispose();
-              contactController.dispose();
-              addressController.dispose();
-              emailController.dispose();
-              Navigator.pop(context);
-            },
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (formKey.currentState?.validate() ?? false) {
-                try {
-                  // Create customer
-                  final customer = Customer(
-                    id: '', // Will be set by Firestore
-                    fullName: fullNameController.text.trim(),
-                    contactNum: contactController.text.trim(),
-                    address: addressController.text.trim().isNotEmpty ? addressController.text.trim() : null,
-                    email: emailController.text.trim().isNotEmpty ? emailController.text.trim() : null,
-                    notes: null,
-                    createdBy: FirebaseAuth.instance.currentUser?.uid ?? 'anonymous',
-                    createdAt: DateTime.now(),
-                  );
-
-                  final customerId = await _customerService.addCustomer(customer);
-                  
-                  fullNameController.dispose();
-                  contactController.dispose();
-                  addressController.dispose();
-                  emailController.dispose();
-                  
-                  if (customerId != null) {
-                    Navigator.pop(context, customerId);
-                  } else {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Failed to add customer'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                  }
-                } catch (e) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Error adding customer: $e'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
+        child: AddCustomerModal(
+          onCustomerAdded: () async {
+            // Refresh customers list
+            final oldCustomerCount = _customers.length;
+            await _fetchCustomers();
+            
+            // If a new customer was added, select it
+            if (_customers.length > oldCustomerCount) {
+              // Find the most recently created customer
+              Customer? newestCustomer;
+              DateTime? latestDate;
+              
+              for (final customer in _customers) {
+                if (latestDate == null || customer.createdAt.isAfter(latestDate)) {
+                  latestDate = customer.createdAt;
+                  newestCustomer = customer;
                 }
               }
-            },
-            child: const Text('Add Customer'),
-          ),
-        ],
+              
+              if (newestCustomer != null) {
+                setState(() {
+                  _selectedCustomer = newestCustomer;
+                });
+              }
+            }
+          },
+        ),
       ),
     );
   }

@@ -33,7 +33,7 @@ class FetchProductsBackend {
           variants.add({
             'variantID': variantDoc.id,
             'size': variantData['size'] ?? '',
-            'color': variantData['color'] ?? '',
+            'color': variantData['colorID'] ?? variantData['color'] ?? '', // ERDv9: Use colorID, fallback to legacy color
             'quantityInStock': variantData['quantityInStock'] ?? 0,
           });
         }

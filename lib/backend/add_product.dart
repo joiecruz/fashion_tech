@@ -18,7 +18,7 @@ class AddProductBackend {
     await FirebaseFirestore.instance.collection('productVariants').add({
       'productID': productID,
       'size': size,
-      'color': color,
+      'colorID': color, // ERDv9: Use colorID instead of color
       'quantityInStock': quantityInStock,
     });
   }

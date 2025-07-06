@@ -87,7 +87,7 @@ class _ProductDetailPageState extends State<ProductDetailPage>
                   id: v['variantID'],
                   productID: _productData['productID'],
                   size: v['size'],
-                  colorID: v['colorID'] ?? v['color'] ?? '', // ERDv9: Handle both new and legacy data
+                  colorID: v['color'] ?? '', // ERDv9: FetchVariantsBackend returns color field (but reads from colorID)
                   quantityInStock: v['quantityInStock'],
                 ))
             .toList();

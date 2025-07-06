@@ -9,6 +9,16 @@ enum ProductHandlingAction {
   selectExistingProduct,
 }
 
+class ProductHandlingResult {
+  final ProductHandlingAction action;
+  final double paymentAmount;
+  
+  ProductHandlingResult({
+    required this.action,
+    required this.paymentAmount,
+  });
+}
+
 class JobOrderListPage extends StatefulWidget {
   const JobOrderListPage({super.key});
   @override
@@ -85,16 +95,42 @@ class _JobOrderListPageState extends State<JobOrderListPage>
         doc.id: (doc.data()['name'] ?? '') as String
     };
 
-    productData = {
-      for (var doc in productsSnap.docs)
-        doc.id: {
-          'name': doc.data()['name'] ?? '',
-          'category': doc.data()['category'] ?? '',
-          'price': doc.data()['price'] ?? 0.0,
-          'imageURL': doc.data()['imageURL'] ?? '',
-          'isUpcycled': doc.data()['isUpcycled'] ?? false,
-        }
-    };
+    // Fetch products with variants and fabrics for complete data
+    productData = {};
+    for (var doc in productsSnap.docs) {
+      final productDocData = doc.data();
+      
+      // Fetch variants for this product
+      final variantsSnapshot = await FirebaseFirestore.instance
+          .collection('productVariants')
+          .where('productID', isEqualTo: doc.id)
+          .get();
+      
+      List<Map<String, dynamic>> variants = [];
+      for (var variantDoc in variantsSnapshot.docs) {
+        final variantData = variantDoc.data();
+        variants.add({
+          'variantID': variantDoc.id,
+          'size': variantData['size'] ?? '',
+          'color': variantData['colorID'] ?? variantData['color'] ?? '', // ERDv9: Use colorID, fallback to legacy color
+          'quantityInStock': variantData['quantityInStock'] ?? 0,
+        });
+      }
+      
+      // Note: Fabrics are not directly linked to products in ERDv9, they're linked via job orders
+      // For now, we'll keep an empty fabrics array for compatibility
+      List<Map<String, dynamic>> fabrics = [];
+      
+      productData[doc.id] = {
+        'name': productDocData['name'] ?? '',
+        'category': productDocData['category'] ?? '',
+        'price': productDocData['price'] ?? 0.0,
+        'imageURL': productDocData['imageURL'] ?? '',
+        'isUpcycled': productDocData['isUpcycled'] ?? false,
+        'variants': variants,
+        'fabrics': fabrics,
+      };
+    }
 
     print('DEBUG: Data preloaded successfully');
     setState(() {
@@ -1300,21 +1336,15 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                   // Mark as Done / Completed indicator
                   if (status != 'Done')
                     Expanded(
-                      child: GestureDetector(
-                        onLongPress: () => _markJobOrderAsDoneSimple(jobOrderID, jobOrderName),
-                        child: Tooltip(
-                          message: 'Tap to mark done with full process, or long-press for quick completion',
-                          child: ElevatedButton.icon(
-                            onPressed: () => _markJobOrderAsDone(jobOrderID, jobOrderName, data),
-                            icon: const Icon(Icons.check, size: 14),
-                            label: const Text('Done', style: TextStyle(fontSize: 12)),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.green[600],
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 6),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                            ),
-                          ),
+                      child: ElevatedButton.icon(
+                        onPressed: () => _markJobOrderAsDone(jobOrderID, jobOrderName, data),
+                        icon: const Icon(Icons.check, size: 14),
+                        label: const Text('Mark as Done', style: TextStyle(fontSize: 12)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green[600],
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 6),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                         ),
                       ),
                     )
@@ -1428,54 +1458,91 @@ class _JobOrderListPageState extends State<JobOrderListPage>
     }
   }
 
-  // Mark job order as done with comprehensive product handling
+  // Mark job order as done with product handling
   Future<void> _markJobOrderAsDone(String jobOrderID, String jobOrderName, Map<String, dynamic> jobOrderData) async {
     print('[DEBUG] Starting mark as done process for job order: $jobOrderID');
     
-    // Step 1: Choose completion method
-    final completionMethod = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Mark as Done'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Mark "$jobOrderName" as completed?'),
-            const SizedBox(height: 16),
-            const Text('Choose completion method:', style: TextStyle(fontWeight: FontWeight.w500)),
-            const SizedBox(height: 8),
-            const Text('• Full Process: Updates status and handles product inventory'),
-            const Text('• Quick Complete: Just updates status to Done'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, null),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, 'quick'),
-            child: const Text('Quick Complete'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, 'full'),
-            child: const Text('Full Process'),
-          ),
-        ],
-      ),
-    );
-
-    if (completionMethod == null) return;
-
-    // If user chose quick complete, use simple method
-    if (completionMethod == 'quick') {
-      await _markJobOrderAsDoneSimple(jobOrderID, jobOrderName);
-      return;
-    }
-
     try {
-      // Step 2: First, mark job order as done immediately
+      // Step 1: Fetch jobOrderDetails first
+      print('[DEBUG] Fetching job order details...');
+      final jobOrderDetailsSnap = await FirebaseFirestore.instance
+          .collection('jobOrderDetails')
+          .where('jobOrderID', isEqualTo: jobOrderID)
+          .get();
+
+      print('[DEBUG] Found ${jobOrderDetailsSnap.docs.length} jobOrderDetails for job order $jobOrderID');
+
+      // Debug: Print each job order detail
+      for (int i = 0; i < jobOrderDetailsSnap.docs.length; i++) {
+        final detail = jobOrderDetailsSnap.docs[i];
+        final data = detail.data();
+        print('[DEBUG] JobOrderDetail $i: ID=${detail.id}, Data=$data');
+      }
+
+      if (jobOrderDetailsSnap.docs.isEmpty) {
+        print('[WARNING] No job order details found - cannot create product without variants');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.warning, color: Colors.white, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text('No product variants found for this job order. Cannot create product.')),
+                ],
+              ),
+              backgroundColor: Colors.orange[600],
+              duration: const Duration(seconds: 4),
+              behavior: SnackBarBehavior.floating,
+              margin: const EdgeInsets.all(16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+          );
+        }
+        return;
+      }
+
+      // Step 2: Show product handling dialog BEFORE marking as done
+      print('[DEBUG] Showing product handling dialog...');
+      final productResult = await _showProductHandlingDialog(jobOrderData, jobOrderDetailsSnap.docs);
+      
+      if (productResult == null) {
+        // User cancelled - don't mark as done
+        print('[DEBUG] User cancelled product handling dialog - job order remains in current status');
+        return;
+      }
+
+      print('[DEBUG] User selected product action: ${productResult.action}');
+      print('[DEBUG] Payment amount: ${productResult.paymentAmount}');
+
+      // Step 3: Handle product creation/update based on user choice
+      try {
+        await _handleProductAction(productResult.action, jobOrderID, jobOrderName, jobOrderData, jobOrderDetailsSnap.docs);
+        print('[DEBUG] Product action handled successfully');
+      } catch (e) {
+        print('[ERROR] Failed to handle product action: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.error_outline, color: Colors.white, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text('Failed to handle product action: ${e.toString()}')),
+                ],
+              ),
+              backgroundColor: Colors.red[600],
+              duration: const Duration(seconds: 5),
+              behavior: SnackBarBehavior.floating,
+              margin: const EdgeInsets.all(16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+          );
+        }
+        return; // Don't mark as done if product action failed
+      }
+
+      // Step 4: Only NOW mark job order as done in database (after successful product handling)
       print('[DEBUG] Updating job order status to Done...');
       await FirebaseFirestore.instance
           .collection('jobOrders')
@@ -1487,76 +1554,29 @@ class _JobOrderListPageState extends State<JobOrderListPage>
           });
       print('[DEBUG] Job order status updated successfully');
 
-      // Step 2.5: Verify the status was updated
-      final updatedDoc = await FirebaseFirestore.instance
-          .collection('jobOrders')
-          .doc(jobOrderID)
-          .get();
-      final updatedStatus = updatedDoc.data()?['status'];
-      print('[DEBUG] Verification: Current status is now "$updatedStatus"');
-      
-      if (updatedStatus != 'Done') {
-        throw Exception('Status update failed - current status is "$updatedStatus"');
-      }
-
-      // Step 3: Fetch jobOrderDetails
-      final jobOrderDetailsSnap = await FirebaseFirestore.instance
-          .collection('jobOrderDetails')
-          .where('jobOrderID', isEqualTo: jobOrderID)
-          .get();
-
-      print('[DEBUG] Found ${jobOrderDetailsSnap.docs.length} jobOrderDetails for job order $jobOrderID');
-
-      // Step 4: Show product handling dialog
-      final productAction = await _showProductHandlingDialog(jobOrderData, jobOrderDetailsSnap.docs);
-      
-      if (productAction == null) {
-        // Even if user cancels product handling, the job order is still marked as done
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  const Icon(Icons.check_circle, color: Colors.white, size: 16),
-                  const SizedBox(width: 8),
-                  Expanded(child: Text('Job order "$jobOrderName" marked as done (product handling skipped)')),
-                ],
-              ),
-              backgroundColor: Colors.green[600],
-              duration: const Duration(seconds: 3),
-              behavior: SnackBarBehavior.floating,
-              margin: const EdgeInsets.all(16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-          );
+      // Step 5: Create transaction if payment was specified
+      if (productResult.paymentAmount > 0) {
+        try {
+          print('[DEBUG] Creating transaction for payment: ${productResult.paymentAmount}');
+          final transactionRef = await FirebaseFirestore.instance.collection('transactions').add({
+            'jobOrderID': jobOrderID,
+            'amount': productResult.paymentAmount,
+            'type': 'expense',
+            'date': Timestamp.now(),
+            'description': 'Payment to worker for job order "$jobOrderName"',
+            'createdAt': Timestamp.now(),
+            'createdBy': jobOrderData['assignedTo'] ?? jobOrderData['createdBy'],
+          });
+          print('[DEBUG] Transaction created successfully: ${transactionRef.id}');
+        } catch (e) {
+          print('[WARNING] Failed to create transaction: $e');
+          // Don't fail the whole operation if transaction creation fails
         }
-        return;
+      } else {
+        print('[DEBUG] No payment amount specified - skipping transaction creation');
       }
 
-      // Step 5: Create transaction (expense) - this is separate from status update
-      try {
-        final productInfo = productData[jobOrderData['productID']] ?? {};
-        final transactionRef = await FirebaseFirestore.instance.collection('transactions').add({
-          'jobOrderID': jobOrderID,
-          'amount': productInfo['price'] ?? 0.0,
-          'type': 'expense',
-          'date': Timestamp.now(),
-          'description': 'Expense for job order "$jobOrderName"',
-          'createdAt': Timestamp.now(),
-          'createdBy': jobOrderData['assignedTo'] ?? jobOrderData['createdBy'],
-        });
-        print('[DEBUG] Transaction created: ${transactionRef.id}');
-      } catch (e) {
-        print('[WARNING] Failed to create transaction, but job order is still marked as done: $e');
-      }
-
-      // Step 6: Handle product creation/update based on user choice
-      try {
-        await _handleProductAction(productAction, jobOrderID, jobOrderName, jobOrderData, jobOrderDetailsSnap.docs);
-        print('[DEBUG] Product action handled successfully');
-      } catch (e) {
-        print('[WARNING] Failed to handle product action, but job order is still marked as done: $e');
-      }
+      // Note: Transaction creation is now handled separately when payment is specified
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1565,7 +1585,7 @@ class _JobOrderListPageState extends State<JobOrderListPage>
               children: [
                 const Icon(Icons.check_circle, color: Colors.white, size: 16),
                 const SizedBox(width: 8),
-                Expanded(child: Text('Job order "$jobOrderName" marked as done successfully')),
+                Expanded(child: Text('Job order "$jobOrderName" completed successfully')),
               ],
             ),
             backgroundColor: Colors.green[600],
@@ -1577,99 +1597,6 @@ class _JobOrderListPageState extends State<JobOrderListPage>
         );
       }
 
-    } catch (e) {
-      print('[ERROR] Failed to mark job order as done: $e');
-      if (mounted) {
-        // Show error with option to retry with simple method
-        final retrySimple = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Error'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Failed to complete job order with full process:'),
-                const SizedBox(height: 8),
-                Text(e.toString(), style: TextStyle(fontSize: 12, color: Colors.red[600])),
-                const SizedBox(height: 16),
-                const Text('Would you like to try Quick Complete instead?'),
-                const Text('(This will just update the status to Done)', style: TextStyle(fontSize: 12)),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Quick Complete'),
-              ),
-            ],
-          ),
-        );
-
-        if (retrySimple == true) {
-          // Try simple method as fallback
-          await _markJobOrderAsDoneSimple(jobOrderID, jobOrderName);
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  const Icon(Icons.error_outline, color: Colors.white, size: 16),
-                  const SizedBox(width: 8),
-                  Expanded(child: Text('Failed to mark job order as done: ${e.toString()}')),
-                ],
-              ),
-              backgroundColor: Colors.red[600],
-              duration: const Duration(seconds: 4),
-              behavior: SnackBarBehavior.floating,
-              margin: const EdgeInsets.all(16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-          );
-        }
-      }
-    }
-  }
-
-  // Simple method to just mark job order as done without complex product handling
-  Future<void> _markJobOrderAsDoneSimple(String jobOrderID, String jobOrderName) async {
-    print('[DEBUG] Simple mark as done for job order: $jobOrderID');
-    
-    try {
-      // Direct status update
-      await FirebaseFirestore.instance
-          .collection('jobOrders')
-          .doc(jobOrderID)
-          .update({
-            'status': 'Done',
-            'updatedAt': Timestamp.now(),
-            'completedAt': Timestamp.now(),
-          });
-      
-      print('[DEBUG] Job order $jobOrderID status updated to Done successfully');
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.check_circle, color: Colors.white, size: 16),
-                const SizedBox(width: 8),
-                Expanded(child: Text('Job order "$jobOrderName" marked as done')),
-              ],
-            ),
-            backgroundColor: Colors.green[600],
-            duration: const Duration(seconds: 2),
-            behavior: SnackBarBehavior.floating,
-            margin: const EdgeInsets.all(16),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          ),
-        );
-      }
     } catch (e) {
       print('[ERROR] Failed to mark job order as done: $e');
       if (mounted) {
@@ -1679,11 +1606,11 @@ class _JobOrderListPageState extends State<JobOrderListPage>
               children: [
                 const Icon(Icons.error_outline, color: Colors.white, size: 16),
                 const SizedBox(width: 8),
-                Expanded(child: Text('Failed to mark as done: ${e.toString()}')),
+                Expanded(child: Text('Failed to mark job order as done: ${e.toString()}')),
               ],
             ),
             backgroundColor: Colors.red[600],
-            duration: const Duration(seconds: 3),
+            duration: const Duration(seconds: 4),
             behavior: SnackBarBehavior.floating,
             margin: const EdgeInsets.all(16),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -1693,61 +1620,185 @@ class _JobOrderListPageState extends State<JobOrderListPage>
     }
   }
 
-  // Show dialog to handle product creation/update options
-  Future<ProductHandlingAction?> _showProductHandlingDialog(Map<String, dynamic> jobOrderData, List<QueryDocumentSnapshot> jobOrderDetails) async {
+  // Show dialog to handle product creation/update options with payment
+  Future<ProductHandlingResult?> _showProductHandlingDialog(Map<String, dynamic> jobOrderData, List<QueryDocumentSnapshot> jobOrderDetails) async {
     final linkedProductID = jobOrderData['linkedProductID'];
     final hasLinkedProduct = linkedProductID != null && linkedProductID.toString().isNotEmpty;
+    
+    final TextEditingController paymentController = TextEditingController();
+    ProductHandlingAction? selectedAction;
 
-    return showDialog<ProductHandlingAction>(
+    return showDialog<ProductHandlingResult>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Product Handling'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('How would you like to handle the completed job order?'),
-            const SizedBox(height: 16),
-            if (hasLinkedProduct) ...[
-              const Text('This job order is linked to an existing product.', 
-                style: TextStyle(fontWeight: FontWeight.w500)),
-              const SizedBox(height: 8),
-            ],
-            Text('Found ${jobOrderDetails.length} variant(s) to process:'),
-            const SizedBox(height: 8),
-            ...jobOrderDetails.map((detail) {
-              final data = detail.data() as Map<String, dynamic>;
-              return Padding(
-                padding: const EdgeInsets.only(left: 16, bottom: 4),
-                child: Text(
-                  '• ${data['size'] ?? 'No size'} ${data['color'] ?? 'No color'} (${data['yardageUsed'] ?? 0} yards)',
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Complete Job Order'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Job order is ready to be marked as Done!', 
+                  style: TextStyle(color: Colors.green, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 12),
+                const Text('How would you like to handle the completed product?'),
+                const SizedBox(height: 16),
+                if (hasLinkedProduct) ...[
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue[50],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.blue[200]!),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.link, color: Colors.blue[600], size: 16),
+                        const SizedBox(width: 8),
+                        const Expanded(
+                          child: Text('This job order is linked to an existing product.', 
+                            style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey[200]!),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.inventory, color: Colors.orange[600], size: 16),
+                          const SizedBox(width: 8),
+                          Text('Found ${jobOrderDetails.length} variant(s) to process:', 
+                            style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13)),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      ...jobOrderDetails.map((detail) {
+                        final data = detail.data() as Map<String, dynamic>;
+                        return Padding(
+                          padding: const EdgeInsets.only(left: 20, bottom: 2),
+                          child: Text(
+                            '• ${data['size'] ?? 'No size'} ${data['color'] ?? 'No color'} (${data['yardageUsed'] ?? 0} yards)',
+                            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                          ),
+                        );
+                      }).toList(),
+                    ],
+                  ),
                 ),
-              );
-            }).toList(),
-            const SizedBox(height: 16),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, null),
-            child: const Text('Cancel'),
+                const SizedBox(height: 20),
+                const Divider(),
+                const SizedBox(height: 16),
+                
+                // Payment section
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.green[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.green[200]!),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.attach_money, color: Colors.green[600], size: 16),
+                          const SizedBox(width: 8),
+                          const Text('Worker Payment', 
+                            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      const Text('Enter the amount paid to the worker for this job order:', 
+                        style: TextStyle(fontSize: 12, color: Colors.grey)),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: paymentController,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          hintText: 'Enter payment amount (optional)',
+                          prefixIcon: Icon(Icons.attach_money, size: 16),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text('Leave empty if no payment is made at this time', 
+                        style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                
+                // Action selection
+                const Text('Choose product handling action:', 
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                const SizedBox(height: 8),
+                
+                if (hasLinkedProduct) ...[
+                  RadioListTile<ProductHandlingAction>(
+                    title: const Text('Add to Linked Product'),
+                    subtitle: const Text('Add stock to the already linked product'),
+                    value: ProductHandlingAction.addToLinkedProduct,
+                    groupValue: selectedAction,
+                    onChanged: (value) => setState(() => selectedAction = value),
+                    dense: true,
+                  ),
+                ],
+                RadioListTile<ProductHandlingAction>(
+                  title: const Text('Create New Product'),
+                  subtitle: const Text('Create a brand new product from this job order'),
+                  value: ProductHandlingAction.createNewProduct,
+                  groupValue: selectedAction,
+                  onChanged: (value) => setState(() => selectedAction = value),
+                  dense: true,
+                ),
+                RadioListTile<ProductHandlingAction>(
+                  title: const Text('Add to Existing Product'),
+                  subtitle: const Text('Select an existing product to add stock to'),
+                  value: ProductHandlingAction.selectExistingProduct,
+                  groupValue: selectedAction,
+                  onChanged: (value) => setState(() => selectedAction = value),
+                  dense: true,
+                ),
+              ],
+            ),
           ),
-          if (hasLinkedProduct) ...[
+          actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context, ProductHandlingAction.addToLinkedProduct),
-              child: const Text('Add to Linked Product'),
+              onPressed: () => Navigator.pop(context, null),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton.icon(
+              onPressed: selectedAction != null ? () {
+                final paymentAmount = double.tryParse(paymentController.text.trim()) ?? 0.0;
+                Navigator.pop(context, ProductHandlingResult(
+                  action: selectedAction!,
+                  paymentAmount: paymentAmount,
+                ));
+              } : null,
+              icon: const Icon(Icons.check, size: 16),
+              label: const Text('Complete Job Order'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green[600],
+                foregroundColor: Colors.white,
+              ),
             ),
           ],
-          TextButton(
-            onPressed: () => Navigator.pop(context, ProductHandlingAction.createNewProduct),
-            child: const Text('Create New Product'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, ProductHandlingAction.selectExistingProduct),
-            child: const Text('Select Existing Product'),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -1786,13 +1837,13 @@ class _JobOrderListPageState extends State<JobOrderListPage>
     for (final detail in jobOrderDetails) {
       final detailData = detail.data() as Map<String, dynamic>;
       
-      // Create ProductVariant record
+      // Create ProductVariant record with correct field names
       final variantRef = FirebaseFirestore.instance.collection('productVariants').doc();
       batch.set(variantRef, {
         'productID': linkedProductID,
         'size': detailData['size'] ?? '',
-        'colorID': detailData['color'] ?? '', // Will be converted to colorID in production
-        'quantityInStock': 1, // Each jobOrderDetail represents 1 piece
+        'colorID': detailData['color'] ?? '', // ERDv9: Use colorID for product variants (stores color string)
+        'quantityInStock': detailData['quantity'] ?? 1, // Use actual quantity
         'createdAt': Timestamp.now(),
         'updatedAt': Timestamp.now(),
         'sourceJobOrderID': jobOrderID,
@@ -1802,53 +1853,110 @@ class _JobOrderListPageState extends State<JobOrderListPage>
 
     await batch.commit();
     print('[DEBUG] Added ${jobOrderDetails.length} variants to linked product $linkedProductID');
+    
+    // Refresh cached product data to reflect new variants
+    await _refreshProductData(linkedProductID);
   }
 
   // Create a new product from the job order
   Future<void> _createNewProduct(String jobOrderID, String jobOrderName, Map<String, dynamic> jobOrderData, List<QueryDocumentSnapshot> jobOrderDetails) async {
     print('[DEBUG] Creating new product from job order: $jobOrderID');
+    print('[DEBUG] Job order name: "$jobOrderName"');
+    print('[DEBUG] Job order data: $jobOrderData');
+    print('[DEBUG] Job order details count: ${jobOrderDetails.length}');
 
-    // Get product info from the original product template (if any)
-    final originalProductID = jobOrderData['productID'];
-    final originalProductInfo = productData[originalProductID] ?? {};
-
-    // Create new product
-    final productRef = FirebaseFirestore.instance.collection('products').doc();
-    await productRef.set({
-      'name': jobOrderName,
-      'notes': 'Created from job order: $jobOrderName',
-      'price': originalProductInfo['price'] ?? 0.0,
-      'categoryID': originalProductInfo['category'] ?? 'custom',
-      'isUpcycled': originalProductInfo['isUpcycled'] ?? false,
-      'isMade': true,
-      'createdBy': jobOrderData['createdBy'] ?? 'unknown',
-      'createdAt': Timestamp.now(),
-      'updatedAt': Timestamp.now(),
-      'sourceJobOrderID': jobOrderID,
-    });
-
-    // Create product variants from jobOrderDetails
-    final batch = FirebaseFirestore.instance.batch();
+    if (jobOrderDetails.isEmpty) {
+      throw Exception('No job order details provided - cannot create product without variants');
+    }
     
-    for (final detail in jobOrderDetails) {
-      final detailData = detail.data() as Map<String, dynamic>;
-      
-      // Create ProductVariant record
-      final variantRef = FirebaseFirestore.instance.collection('productVariants').doc();
-      batch.set(variantRef, {
-        'productID': productRef.id,
-        'size': detailData['size'] ?? '',
-        'colorID': detailData['color'] ?? '', // Will be converted to colorID in production
-        'quantityInStock': 1, // Each jobOrderDetail represents 1 piece
-        'createdAt': Timestamp.now(),
-        'updatedAt': Timestamp.now(),
-        'sourceJobOrderID': jobOrderID,
-        'sourceJobOrderDetailID': detail.id,
-      });
+    if (jobOrderName.trim().isEmpty) {
+      throw Exception('Job order name is empty - cannot create product without a name');
     }
 
-    await batch.commit();
-    print('[DEBUG] Created new product ${productRef.id} with ${jobOrderDetails.length} variants');
+    try {
+      // Get product info from the original product template (if any)
+      final originalProductID = jobOrderData['productID'];
+      final originalProductInfo = this.productData[originalProductID] ?? {};
+      print('[DEBUG] Original product ID: $originalProductID');
+      print('[DEBUG] Original product info: $originalProductInfo');
+
+      // Create new product
+      final productRef = FirebaseFirestore.instance.collection('products').doc();
+      print('[DEBUG] Generated new product ID: ${productRef.id}');
+      
+      // Use proper field names matching the Product model and existing collection structure
+      final newProductData = {
+        'name': jobOrderName,
+        'notes': 'Created from job order: $jobOrderName',
+        'price': originalProductInfo['price'] ?? jobOrderData['price'] ?? 0.0,
+        'categoryID': originalProductInfo['category'] ?? 'custom', // Using categoryID as per ERDv9
+        'isUpcycled': originalProductInfo['isUpcycled'] ?? jobOrderData['isUpcycled'] ?? false,
+        'isMade': true, // This is a completed product
+        'createdBy': jobOrderData['createdBy'] ?? jobOrderData['assignedTo'] ?? 'unknown',
+        'createdAt': Timestamp.now(), // Use Firestore Timestamp
+        'updatedAt': Timestamp.now(), // Use Firestore Timestamp
+        'sourceJobOrderID': jobOrderID, // Additional metadata
+      };
+      
+      print('[DEBUG] Product data to be saved: $newProductData');
+      
+      await productRef.set(newProductData);
+      print('[DEBUG] Product document created successfully');
+
+      // Verify the product was created
+      final verifyProduct = await productRef.get();
+      if (!verifyProduct.exists) {
+        throw Exception('Product document was not created in database');
+      }
+      print('[DEBUG] Product creation verified - document exists with data: ${verifyProduct.data()}');
+
+      // Create product variants from jobOrderDetails
+      final batch = FirebaseFirestore.instance.batch();
+      
+      for (final detail in jobOrderDetails) {
+        final detailData = detail.data() as Map<String, dynamic>;
+        print('[DEBUG] Processing job order detail: ${detail.id} - $detailData');
+        
+        // Create ProductVariant record with correct field names
+        final variantRef = FirebaseFirestore.instance.collection('productVariants').doc();
+        final variantData = {
+          'productID': productRef.id,
+          'size': detailData['size'] ?? '',
+          'colorID': detailData['color'] ?? '', // ERDv9: Use colorID for product variants (stores color string)
+          'quantityInStock': detailData['quantity'] ?? 1, // Use the actual quantity from job order detail
+          'createdAt': Timestamp.now(),
+          'updatedAt': Timestamp.now(),
+          'sourceJobOrderID': jobOrderID, // Additional metadata
+          'sourceJobOrderDetailID': detail.id, // Additional metadata
+        };
+        
+        print('[DEBUG] Variant data to be saved: $variantData');
+        batch.set(variantRef, variantData);
+      }
+
+      await batch.commit();
+      print('[DEBUG] Created new product ${productRef.id} with ${jobOrderDetails.length} variants successfully');
+      
+      // Verify variants were created
+      final verifyVariants = await FirebaseFirestore.instance
+          .collection('productVariants')
+          .where('productID', isEqualTo: productRef.id)
+          .get();
+      
+      print('[DEBUG] Verification: Found ${verifyVariants.docs.length} variants for product ${productRef.id}');
+      
+      if (verifyVariants.docs.length != jobOrderDetails.length) {
+        print('[WARNING] Mismatch in variant count - expected ${jobOrderDetails.length}, found ${verifyVariants.docs.length}');
+      }
+      
+      // Refresh cached product data to reflect new variants
+      await _refreshProductData(productRef.id);
+      
+    } catch (e, stackTrace) {
+      print('[ERROR] Failed to create new product: $e');
+      print('[ERROR] Stack trace: $stackTrace');
+      rethrow; // Re-throw the error so it can be handled by the calling method
+    }
   }
 
   // Select an existing product to add stock to
@@ -1929,13 +2037,13 @@ class _JobOrderListPageState extends State<JobOrderListPage>
     for (final detail in jobOrderDetails) {
       final detailData = detail.data() as Map<String, dynamic>;
       
-      // Create ProductVariant record
+      // Create ProductVariant record with correct field names
       final variantRef = FirebaseFirestore.instance.collection('productVariants').doc();
       batch.set(variantRef, {
         'productID': selectedProductID,
         'size': detailData['size'] ?? '',
-        'colorID': detailData['color'] ?? '', // Will be converted to colorID in production
-        'quantityInStock': 1, // Each jobOrderDetail represents 1 piece
+        'colorID': detailData['color'] ?? '', // ERDv9: Use colorID for product variants (stores color string)
+        'quantityInStock': detailData['quantity'] ?? 1, // Use actual quantity
         'createdAt': Timestamp.now(),
         'updatedAt': Timestamp.now(),
         'sourceJobOrderID': jobOrderID,
@@ -1945,5 +2053,60 @@ class _JobOrderListPageState extends State<JobOrderListPage>
 
     await batch.commit();
     print('[DEBUG] Added ${jobOrderDetails.length} variants to selected product $selectedProductID');
+    
+    // Refresh cached product data to reflect new variants
+    await _refreshProductData(selectedProductID);
+  }
+
+  // Refresh product data for a specific product (to update cached variants)
+  Future<void> _refreshProductData(String productID) async {
+    print('[DEBUG] Refreshing product data for product: $productID');
+    
+    try {
+      final productDoc = await FirebaseFirestore.instance
+          .collection('products')
+          .doc(productID)
+          .get();
+      
+      if (!productDoc.exists) {
+        print('[WARNING] Product $productID not found when refreshing data');
+        return;
+      }
+      
+      final productDocData = productDoc.data()!;
+      
+      // Fetch variants for this product
+      final variantsSnapshot = await FirebaseFirestore.instance
+          .collection('productVariants')
+          .where('productID', isEqualTo: productID)
+          .get();
+      
+      List<Map<String, dynamic>> variants = [];
+      for (var variantDoc in variantsSnapshot.docs) {
+        final variantData = variantDoc.data();
+        variants.add({
+          'variantID': variantDoc.id,
+          'size': variantData['size'] ?? '',
+          'color': variantData['colorID'] ?? variantData['color'] ?? '', // ERDv9: Use colorID, fallback to legacy color
+          'quantityInStock': variantData['quantityInStock'] ?? 0,
+        });
+      }
+      
+      // Update cached product data
+      productData[productID] = {
+        'name': productDocData['name'] ?? '',
+        'category': productDocData['category'] ?? '',
+        'price': productDocData['price'] ?? 0.0,
+        'imageURL': productDocData['imageURL'] ?? '',
+        'isUpcycled': productDocData['isUpcycled'] ?? false,
+        'variants': variants,
+        'fabrics': [], // Keep empty for compatibility
+      };
+      
+      print('[DEBUG] Updated cached data for product $productID with ${variants.length} variants');
+      
+    } catch (e) {
+      print('[ERROR] Failed to refresh product data for $productID: $e');
+    }
   }
 }
