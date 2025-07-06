@@ -4,6 +4,8 @@ import 'package:fashion_tech/frontend/auth/login_page.dart';
 import 'package:fashion_tech/frontend/auth/signup_page.dart';
 import 'package:fashion_tech/frontend/profit/profit_checker.dart';
 import 'package:fashion_tech/frontend/products/product_inventory_page.dart';
+import 'package:fashion_tech/frontend/logs/productLogs.dart';
+import 'package:fashion_tech/frontend/logs/jobOrderLogs.dart';
 
 class HomeDashboard extends StatefulWidget {
   const HomeDashboard({super.key});
@@ -133,6 +135,46 @@ class _HomeDashboardState extends State<HomeDashboard> {
                 ],
               ),
               const SizedBox(height: 24),
+              // Orders
+
+                                ElevatedButton(
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                     MaterialPageRoute(builder: (context) => const ProductLogsPage()),
+                                    );
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.blue[600],
+                                    foregroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                                    elevation: 0,
+                                  ),
+                                  child: const Text('Product Logs'),
+                                ),
+
+
+                                ElevatedButton(
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                     MaterialPageRoute(builder: (context) => const JobOrderLogsPage()),
+                                    );
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.blue[600],
+                                    foregroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                                    elevation: 0,
+                                  ),
+                                  child: const Text('Job Order Logs'),
+                                ),
 
               // Recent Activity
               _modernCard(
