@@ -5,8 +5,8 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import '../../utils/utils.dart';
 import '../../backend/fetch_suppliers.dart';
+import '../common/simple_color_dropdown.dart';
 
 class EditFabricModal extends StatefulWidget {
   final Map<String, dynamic> fabric;
@@ -75,7 +75,7 @@ class _EditFabricModalState extends State<EditFabricModal> {
     final fabric = widget.fabric;
     _nameController = TextEditingController(text: fabric['name'] ?? '');
     _selectedType = _typeOptions.contains(fabric['type']) ? fabric['type'] : _typeOptions.first;
-    _selectedColor = ColorUtils.colorOptions.contains(fabric['color']) ? fabric['color'] : ColorUtils.colorOptions.first;
+    _selectedColor = fabric['color'] ?? 'Black'; // Use fabric color directly, dropdown will handle validation
     _quantityController = TextEditingController(text: (fabric['quantity'] ?? '').toString());
     _expenseController = TextEditingController(text: (fabric['pricePerUnit'] ?? '').toString());
     _selectedQuality = _qualityOptions.contains(fabric['qualityGrade']) ? fabric['qualityGrade'] : _qualityOptions.first;
@@ -778,47 +778,15 @@ class _EditFabricModalState extends State<EditFabricModal> {
                                   ],
                                 ),
                                 const SizedBox(height: 8),
-                                Flexible(
-                                  child: DropdownButtonFormField<String>(
-                                    value: ColorUtils.colorOptions.contains(_selectedColor) ? _selectedColor : ColorUtils.colorOptions.first,
-                                    isExpanded: true,
-                                    decoration: InputDecoration(
-                                      filled: true,
-                                      fillColor: Colors.grey.shade50,
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                        borderSide: BorderSide.none,
-                                      ),
-                                      enabledBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                        borderSide: BorderSide(color: Colors.grey.shade200),
-                                      ),
-                                      focusedBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                        borderSide: BorderSide(color: Colors.blue.shade400, width: 2),
-                                      ),
-                                      errorBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                        borderSide: BorderSide(color: Colors.red.shade400, width: 2),
-                                      ),
-                                      focusedErrorBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                        borderSide: BorderSide(color: Colors.red.shade400, width: 2),
-                                      ),
-                                      errorMaxLines: 2,
-                                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                                    ),
-                                    selectedItemBuilder: (context) {
-                                      return ColorUtils.buildColorSelectedItems(context, size: 16);
-                                    },
-                                    items: ColorUtils.buildColorDropdownItems(),
-                                    validator: (val) {
-                                      if (val == null || val.isEmpty) return 'Please select a color';
-                                      return null;
-                                    },
-                                    autovalidateMode: AutovalidateMode.onUserInteraction,
-                                    onChanged: (v) => setState(() => _selectedColor = v ?? ColorUtils.colorOptions.first),
-                                  ),
+                                // Simple color dropdown with hex colors
+                                SimpleColorDropdown(
+                                  selectedColor: _selectedColor,
+                                  onChanged: (value) => setState(() => _selectedColor = value ?? 'Black'),
+                                  isRequired: true,
+                                  validator: (val) {
+                                    if (val == null || val.isEmpty) return 'Please select a color';
+                                    return null;
+                                  },
                                 ),
                               ],
                             ),

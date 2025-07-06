@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../../utils/size_utils.dart';
-import '../../../utils/color_utils.dart';
 import '../../common/color_selector.dart';
 
 class ProductVariantInput {
@@ -58,7 +57,7 @@ class ProductVariantsSection extends StatelessWidget {
                   onPressed: () {
                     onAddVariant(ProductVariantInput(
                       size: SizeUtils.sizeOptions.first,
-                      color: ColorUtils.colorOptions.first,
+                      color: 'Black', // Default color that should be available
                       quantityInStock: 0,
                     ));
                   },

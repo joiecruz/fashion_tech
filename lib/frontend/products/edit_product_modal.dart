@@ -3,9 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'dart:convert';
-import '../../utils/utils.dart';
 import '../../utils/size_utils.dart';
-import '../../utils/color_utils.dart';
+import '../common/simple_color_dropdown.dart';
 
 class ProductVariantInput {
   String size;
@@ -904,7 +903,7 @@ Future<void> _saveProduct() async {
                                 setState(() {
                                   _variants.add(ProductVariantInput(
                                     size: SizeUtils.sizeOptions.first,
-                                    color: ColorUtils.colorOptions.first,
+                                    color: 'Black', // Default color that should be available
                                     quantityInStock: 0,
                                   ));
                                 });
@@ -987,21 +986,14 @@ Future<void> _saveProduct() async {
                                       const SizedBox(width: 8),
                                       // Color Dropdown
                                       Expanded(
-                                        child: DropdownButtonFormField<String>(
-                                          value: variant.color,
-                                          decoration: const InputDecoration(
-                                            labelText: 'Color',
-                                            border: OutlineInputBorder(),
-                                          ),
-                                          selectedItemBuilder: (context) {
-                                            return ColorUtils.buildColorSelectedItems(context, size: 16);
-                                          },
-                                          items: ColorUtils.buildColorDropdownItems(),
+                                        child: SimpleColorDropdown(
+                                          selectedColor: variant.color,
                                           onChanged: (value) {
                                             setState(() {
-                                              _variants[index].color = value!;
+                                              _variants[index].color = value ?? 'Black';
                                             });
                                           },
+                                          isRequired: true,
                                         ),
                                       ),
                                     ],

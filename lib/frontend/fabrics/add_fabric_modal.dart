@@ -6,10 +6,10 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/foundation.dart'; // For kIsWeb
-import '../../utils/utils.dart';
 import '../../backend/fetch_suppliers.dart';
 import '../../backend/add_supplier_fabric.dart';
 import '../../services/fabric_operations_service.dart';
+import '../common/simple_color_dropdown.dart';
 
 class AddFabricModal extends StatefulWidget {
   const AddFabricModal({super.key});
@@ -23,7 +23,7 @@ class _AddFabricModalState extends State<AddFabricModal> {
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _nameController = TextEditingController();
   String _selectedType = 'Cotton';
-  String _selectedColor = ColorUtils.colorOptions.first;
+  String _selectedColor = 'Black'; // Default color
   final TextEditingController _quantityController = TextEditingController();
   final TextEditingController _expenseController = TextEditingController();
   String _selectedQuality = 'Good';
@@ -52,13 +52,6 @@ class _AddFabricModalState extends State<AddFabricModal> {
   void initState() {
     super.initState();
     _loadSuppliers();
-    
-    // Add listeners to text controllers for live validation updates
-    _nameController.addListener(() => setState(() {}));
-    _quantityController.addListener(() => setState(() {}));
-    _expenseController.addListener(() => setState(() {}));
-    _minOrderController.addListener(() => setState(() {}));
-    _reasonsController.addListener(() => setState(() {}));
     
     // Add listeners for keyboard handling
     _reasonsFocus.addListener(() {
@@ -1013,51 +1006,21 @@ void _submitForm() async {
                                   ],
                                 ),
                                 const SizedBox(height: 8),
-                                Flexible(
-                                  child: DropdownButtonFormField<String>(
-                                    value: _selectedColor,
-                                    isExpanded: true,
-                                    decoration: InputDecoration(
-                                      filled: true,
-                                      fillColor: Colors.grey.shade50,
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                        borderSide: BorderSide.none,
-                                      ),
-                                      enabledBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                        borderSide: BorderSide(color: Colors.grey.shade200),
-                                      ),
-                                      focusedBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                        borderSide: BorderSide(color: Colors.blue.shade400, width: 2),
-                                      ),
-                                      errorBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                        borderSide: BorderSide(color: Colors.red.shade400, width: 2),
-                                      ),
-                                      focusedErrorBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                        borderSide: BorderSide(color: Colors.red.shade400, width: 2),
-                                      ),
-                                      errorMaxLines: 2,
-                                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                                    ),
-                                    selectedItemBuilder: (context) {
-                                      return ColorUtils.buildColorSelectedItems(context, size: 16);
-                                    },
-                                    items: ColorUtils.buildColorDropdownItems(),
-                                    validator: (val) {
-                                      if (val == null || val.isEmpty) return 'Please select a color';
-                                      return null;
-                                    },
-                                    autovalidateMode: AutovalidateMode.onUserInteraction,
-                                    onChanged: (value) {
+                                // Simple color dropdown to avoid stack overflow
+                                SimpleColorDropdown(
+                                  selectedColor: _selectedColor,
+                                  onChanged: (value) {
+                                    if (value != null && value != _selectedColor) {
                                       setState(() {
-                                        _selectedColor = value!;
+                                        _selectedColor = value;
                                       });
-                                    },
-                                  ),
+                                    }
+                                  },
+                                  isRequired: true,
+                                  validator: (val) {
+                                    if (val == null || val.isEmpty) return 'Please select a color';
+                                    return null;
+                                  },
                                 ),
                               ],
                             ),

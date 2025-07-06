@@ -1,17 +1,22 @@
 import 'package:flutter/material.dart';
+import '../services/color_service.dart';
 
 /// Universal color utilities for the Fashion Tech app
 /// Provides consistent color mapping and visual indicators across all modals and components
 class ColorUtils {
-  // Universal color options for the app
-  static const List<String> colorOptions = [
+  // Cache for database colors
+  static List<Map<String, dynamic>> _cachedColors = [];
+  static bool _isLoaded = false;
+
+  // Fallback colors (in case database is not available)
+  static const List<String> _fallbackColorOptions = [
     'Black', 'White', 'Gray', 'Red', 'Blue', 'Green', 
     'Yellow', 'Pink', 'Purple', 'Brown', 'Orange', 'Navy',
     'Beige', 'Cream', 'Maroon', 'Teal', 'Gold', 'Silver', 'Other'
   ];
 
-  // Universal color mapping for visual indicators
-  static const Map<String, Color> colorMap = {
+  // Universal color mapping for visual indicators (fallback)
+  static const Map<String, Color> _fallbackColorMap = {
     'Black': Colors.black,
     'White': Colors.white,
     'Gray': Colors.grey,
@@ -37,6 +42,52 @@ class ColorUtils {
   static const Set<String> lightColors = {
     'White', 'Cream', 'Beige', 'Yellow', 'Silver'
   };
+
+  /// Load colors from database
+  static Future<void> _loadColorsFromDatabase() async {
+    if (_isLoaded) return;
+    
+    try {
+      _cachedColors = await ColorService.getAllColors();
+      _isLoaded = true;
+    } catch (e) {
+      print('Failed to load colors from database: $e');
+      _isLoaded = true; // Mark as loaded to avoid repeated attempts
+    }
+  }
+
+  /// Get color options (from database or fallback)
+  static Future<List<String>> getColorOptions() async {
+    await _loadColorsFromDatabase();
+    
+    if (_cachedColors.isNotEmpty) {
+      return _cachedColors.map((color) => color['name'] as String).toList();
+    }
+    
+    return _fallbackColorOptions;
+  }
+
+  /// Get color options synchronously (returns cached or fallback)
+  static List<String> get colorOptions {
+    if (_cachedColors.isNotEmpty) {
+      return _cachedColors.map((color) => color['name'] as String).toList();
+    }
+    return _fallbackColorOptions;
+  }
+
+  /// Get color map (from database or fallback)
+  static Map<String, Color> get colorMap {
+    if (_cachedColors.isNotEmpty) {
+      final map = <String, Color>{};
+      for (final color in _cachedColors) {
+        final name = color['name'] as String;
+        final hexCode = color['hexCode'] as String;
+        map[name] = _parseHexColor(hexCode);
+      }
+      return map;
+    }
+    return _fallbackColorMap;
+  }
 
   /// Creates a color indicator widget with consistent styling
   /// 
@@ -104,15 +155,9 @@ class ColorUtils {
       return colorMap[colorValue]!;
     }
 
-    // Try hex color parsing
+    // Try hex color parsing directly (avoid circular dependency)
     if (colorValue.startsWith('#') || RegExp(r'^[0-9A-Fa-f]{6,8}$').hasMatch(colorValue)) {
-      try {
-        String hex = colorValue.replaceAll('#', '');
-        if (hex.length == 6) hex = 'FF$hex';
-        return Color(int.parse(hex, radix: 16));
-      } catch (e) {
-        return fallback;
-      }
+      return _parseHexColor(colorValue, fallback: fallback);
     }
 
     // Try common color name mapping (case-insensitive)
@@ -170,6 +215,11 @@ class ColorUtils {
     }).toList();
   }
 
+  /// Initialize colors from database (should be called early in app lifecycle)
+  static Future<void> initializeColors() async {
+    await _loadColorsFromDatabase();
+  }
+
   /// Validates if a color name exists in our color system
   /// 
   /// [colorName] - The color name to validate
@@ -180,5 +230,18 @@ class ColorUtils {
   /// Gets all available color names
   static List<String> getAllColorNames() {
     return List.from(colorOptions);
+  }
+
+  /// Internal method to parse hex color without circular dependency
+  static Color _parseHexColor(String hexCode, {Color fallback = Colors.grey}) {
+    if (hexCode.isEmpty) return fallback;
+    
+    try {
+      String hex = hexCode.replaceAll('#', '');
+      if (hex.length == 6) hex = 'FF$hex';
+      return Color(int.parse(hex, radix: 16));
+    } catch (e) {
+      return fallback;
+    }
   }
 }

@@ -7,6 +7,7 @@ import 'frontend/auth/login_page.dart';
 import 'frontend/admin/admin_home_page.dart';
 import 'services/user_service.dart';
 import 'services/color_service.dart';
+import 'utils/color_utils.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -14,9 +15,14 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
   
-  // Initialize default colors in the background (optional - can be done manually)
+  // Initialize default colors in the background
   ColorService.initializeDefaultColors().catchError((error) {
     print('[INFO] Colors may need manual initialization: $error');
+  });
+  
+  // Initialize ColorUtils with database colors
+  ColorUtils.initializeColors().catchError((error) {
+    print('[INFO] ColorUtils will use fallback colors: $error');
   });
   
   runApp(const MyApp());
