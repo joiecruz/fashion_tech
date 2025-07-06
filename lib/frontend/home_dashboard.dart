@@ -11,8 +11,8 @@ class HomeDashboard extends StatefulWidget {
   @override
   State<HomeDashboard> createState() => _HomeDashboardState();
 }
-
 class _HomeDashboardState extends State<HomeDashboard> {
+
   Future<String> _getSupplierName(String supplierID) async {
     try {
       final doc = await FirebaseFirestore.instance
@@ -44,6 +44,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
 
   @override
   Widget build(BuildContext context) {
+      print("In home dashboard");
     return Scaffold(
       backgroundColor: const Color(0xFFF6F7FB),
       body: SafeArea(

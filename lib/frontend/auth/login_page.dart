@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'signup_page.dart';
 import '../../backend/login_be.dart';
 import '../main_scaffold.dart';
+import '../admin/admin_home_page.dart'; // <-- Add this import
 
 class LoginPage extends StatefulWidget {
   const LoginPage({Key? key}) : super(key: key);
@@ -47,10 +49,26 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
     setState(() => _isLoading = true);
 
     try {
-      await LoginBackend.signInWithEmail(
+      final userCredential = await LoginBackend.signInWithEmail(
         email: _emailController.text,
         password: _passwordController.text,
       );
+
+      // --- Ensure role is set if email starts with 'admin' ---
+      final email = _emailController.text.trim();
+      final firstFive = email.length >= 5 ? email.substring(0, 5).toLowerCase() : '';
+      if (firstFive == 'admin') {
+        final userDocRef = FirebaseFirestore.instance.collection('users').doc(userCredential.user!.uid);
+        await userDocRef.set({'role': 'admin'}, SetOptions(merge: true));
+      }
+
+      // Fetch user role from Firestore (after possible update)
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userCredential.user!.uid)
+          .get();
+      final role = userDoc.data()?['role'];
+      print('DEBUG: UID=${userCredential.user!.uid}, role=$role');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -61,9 +79,15 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         );
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const MainScaffold()),
-        );
+        if (role == 'admin') {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const AdminHomePage()),
+          );
+        } else {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const MainScaffold()),
+          );
+        }
       }
     } on FirebaseAuthException catch (e) {
       String message = 'An error occurred';

@@ -1,5 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
-// import 'package:google_sign_in/google_sign_in.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class LoginBackend {
   /// Sign in using email and password
@@ -7,10 +7,20 @@ class LoginBackend {
     required String email,
     required String password,
   }) async {
-    return await FirebaseAuth.instance.signInWithEmailAndPassword(
+    final userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
       email: email.trim(),
       password: password,
     );
+
+    // Check if email starts with 'admin' (case-insensitive)
+    final emailLower = email.trim().toLowerCase();
+    if (emailLower.length >= 5 && emailLower.substring(0, 5) == 'admin') {
+      // Set role to 'admin' in Firestore
+      final userDoc = FirebaseFirestore.instance.collection('users').doc(userCredential.user!.uid);
+      await userDoc.set({'role': 'admin'}, SetOptions(merge: true));
+    }
+
+    return userCredential;
   }
 
   /// Create a new user with email and password
@@ -18,10 +28,20 @@ class LoginBackend {
     required String email,
     required String password,
   }) async {
-    return await FirebaseAuth.instance.createUserWithEmailAndPassword(
+    final userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
       email: email.trim(),
       password: password,
     );
+
+    // Check if email starts with 'admin' (case-insensitive)
+    final emailLower = email.trim().toLowerCase();
+    if (emailLower.length >= 5 && emailLower.substring(0, 5) == 'admin') {
+      // Set role to 'admin' in Firestore
+      final userDoc = FirebaseFirestore.instance.collection('users').doc(userCredential.user!.uid);
+      await userDoc.set({'role': 'admin'}, SetOptions(merge: true));
+    }
+
+    return userCredential;
   }
 
   /// Sign out the current user
