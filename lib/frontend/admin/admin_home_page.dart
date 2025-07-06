@@ -347,10 +347,6 @@ class _JobOrderLogsTabState extends State<JobOrderLogsTab> {
   }
 }
 
-// --- The rest of your dashboard code (Overview, Users, Transactions, Job Orders, Inventory, etc.) ---
-// ...Keep your existing _OverviewTab, _UsersTab, _TransactionsTab, _JobOrdersTab, _InventoryTab, etc...
-// ...No changes needed to
-
 // --- ADMIN HOME PAGE & DASHBOARD ---
 // ...rest of your dashboard code (unchanged)...
 // --- ADMIN HOME PAGE & DASHBOARD ---

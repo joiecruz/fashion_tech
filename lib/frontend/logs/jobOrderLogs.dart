@@ -27,7 +27,6 @@ class _JobOrderLogsPageState extends State<JobOrderLogsPage> {
     setState(() => _loading = true);
     final snapshot = await FirebaseFirestore.instance
         .collection('jobOrderLogs')
-        .where('createdBy', isEqualTo: userId)
         .orderBy('timestamp', descending: true)
         .get();
 
