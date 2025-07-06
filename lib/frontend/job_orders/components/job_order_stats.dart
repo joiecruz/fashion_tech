@@ -33,13 +33,9 @@ class JobOrderStats extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Colors.orange[50]!, Colors.white],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                ),
+                color: Colors.grey[50],
                 border: Border(
-                  bottom: BorderSide(color: Colors.orange[200]!, width: 1),
+                  bottom: BorderSide(color: Colors.grey[200]!, width: 1),
                 ),
               ),
               child: Row(
@@ -49,7 +45,7 @@ class JobOrderStats extends StatelessWidget {
                     children: [
                       Icon(
                         Icons.analytics_outlined,
-                        color: Colors.orange[600],
+                        color: Colors.grey[600],
                         size: 20,
                       ),
                       const SizedBox(width: 8),
@@ -64,13 +60,19 @@ class JobOrderStats extends StatelessWidget {
                     ],
                   ),
                   Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       if (!isExpanded) ...[
-                        Text(
-                          '$totalOrders orders • $openOrders open${overdueOrders > 0 ? ' • $overdueOrders overdue' : ''}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[600],
+                        Container(
+                          constraints: const BoxConstraints(maxWidth: 200),
+                          child: Text(
+                            '$totalOrders orders • $openOrders open${overdueOrders > 0 ? ' • $overdueOrders overdue' : ''}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[600],
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -90,106 +92,66 @@ class JobOrderStats extends StatelessWidget {
               ),
             ),
           ),
-          // Animated Stats Content
+          // Animated Stats Content - Using the exact same pattern as inventory page
           AnimatedContainer(
             duration: const Duration(milliseconds: 300),
             curve: Curves.easeInOut,
-            height: isExpanded ? null : 0,
+            constraints: BoxConstraints(
+              maxHeight: isExpanded ? 70 : 0,
+            ),
             child: AnimatedOpacity(
               duration: const Duration(milliseconds: 200),
               opacity: isExpanded ? 1.0 : 0.0,
-              child: isExpanded ? Container(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-                child: overdueOrders > 0
-                  ? Column(
-                      mainAxisSize: MainAxisSize.min,
+              child: AnimatedOpacity(
+                opacity: 1.0, // This matches the inventory page pattern
+                duration: const Duration(milliseconds: 300),
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
                       children: [
-                        // First row with main stats
-                        Row(
-                          children: [
-                            Expanded(child: _buildStatCard(
-                              icon: Icons.assignment,
-                              iconColor: Colors.orange[600]!,
-                              title: 'Total\nOrders',
-                              value: totalOrders.toString(),
-                              isCompact: true,
-                            )),
-                            const SizedBox(width: 10),
-                            Expanded(child: _buildStatCard(
-                              icon: Icons.access_time,
-                              iconColor: Colors.orange[700]!,
-                              title: 'Open\nOrders',
-                              value: openOrders.toString(),
-                              isCompact: true,
-                            )),
-                            const SizedBox(width: 10),
-                            Expanded(child: _buildStatCard(
-                              icon: Icons.trending_up,
-                              iconColor: Colors.orange[500]!,
-                              title: 'In\nProgress',
-                              value: inProgressOrders.toString(),
-                              isCompact: true,
-                            )),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        // Second row with completion and overdue
-                        Row(
-                          children: [
-                            Expanded(child: _buildStatCard(
-                              icon: Icons.check_circle,
-                              iconColor: Colors.green[600]!,
-                              title: 'Completed\nOrders',
-                              value: doneOrders.toString(),
-                              isCompact: true,
-                            )),
-                            const SizedBox(width: 10),
-                            Expanded(child: _buildStatCard(
-                              icon: Icons.warning,
-                              iconColor: Colors.red[600]!,
-                              title: 'Overdue\nOrders',
-                              value: overdueOrders.toString(),
-                              isCompact: true,
-                              isUrgent: true,
-                            )),
-                            const SizedBox(width: 10),
-                            Expanded(child: Container()), // Empty space for balance
-                          ],
-                        ),
-                      ],
-                    )
-                  : Row(
-                      children: [
-                        Expanded(child: _buildStatCard(
+                        _buildCompactStatCard(
                           icon: Icons.assignment,
                           iconColor: Colors.orange[600]!,
-                          title: 'Total\nOrders',
+                          title: 'Total Orders',
                           value: totalOrders.toString(),
-                        )),
-                        const SizedBox(width: 12),
-                        Expanded(child: _buildStatCard(
+                        ),
+                        const SizedBox(width: 8),
+                        _buildCompactStatCard(
                           icon: Icons.access_time,
                           iconColor: Colors.orange[700]!,
-                          title: 'Open\nOrders',
+                          title: 'Open',
                           value: openOrders.toString(),
-                        )),
-                        const SizedBox(width: 12),
-                        Expanded(child: _buildStatCard(
+                        ),
+                        const SizedBox(width: 8),
+                        _buildCompactStatCard(
                           icon: Icons.trending_up,
-                          iconColor: Colors.orange[500]!,
-                          title: 'In\nProgress',
+                          iconColor: Colors.blue[600]!,
+                          title: 'In Progress',
                           value: inProgressOrders.toString(),
-                        )),
-                        const SizedBox(width: 12),
-                        Expanded(child: _buildStatCard(
+                        ),
+                        const SizedBox(width: 8),
+                        _buildCompactStatCard(
                           icon: Icons.check_circle,
                           iconColor: Colors.green[600]!,
-                          title: 'Completed\nOrders',
+                          title: 'Completed',
                           value: doneOrders.toString(),
-                        )),
+                        ),
+                        if (overdueOrders > 0) ...[
+                          const SizedBox(width: 8),
+                          _buildCompactStatCard(
+                            icon: Icons.warning,
+                            iconColor: Colors.red[600]!,
+                            title: 'Overdue',
+                            value: overdueOrders.toString(),
+                          ),
+                        ],
                       ],
                     ),
-              ) : const SizedBox.shrink(),
+                  ),
+                ),
+              ),
             ),
           ),
         ],
@@ -197,66 +159,64 @@ class JobOrderStats extends StatelessWidget {
     );
   }
 
-  Widget _buildStatCard({
+  Widget _buildCompactStatCard({
     required IconData icon,
     required Color iconColor,
     required String title,
     required String value,
-    bool isCompact = false,
-    bool isUrgent = false,
+    bool isWide = false,
   }) {
     return Container(
-      padding: EdgeInsets.all(isCompact ? 8 : 16),
+      width: isWide ? 130 : 90,
+      padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
-        gradient: isUrgent
-          ? LinearGradient(
-              colors: [Colors.red[50]!, Colors.red[100]!.withOpacity(0.3)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            )
-          : LinearGradient(
-              colors: [Colors.orange[50]!, Colors.orange[100]!.withOpacity(0.3)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isUrgent ? Colors.red[200]! : Colors.orange[200]!,
-          width: isUrgent ? 1.5 : 1,
+        gradient: LinearGradient(
+          colors: [
+            iconColor.withOpacity(0.12),
+            iconColor.withOpacity(0.05),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: (isUrgent ? Colors.red : Colors.orange).withOpacity(0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: iconColor.withOpacity(0.2)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            icon,
-            color: iconColor,
-            size: isCompact ? 16 : 24,
+          Container(
+            decoration: BoxDecoration(
+              color: iconColor.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            padding: const EdgeInsets.all(3),
+            child: Icon(icon, color: iconColor, size: 14),
           ),
-          SizedBox(height: isCompact ? 4 : 8),
+          const SizedBox(height: 4),
           Text(
             title,
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: isCompact ? 9 : 12,
-              color: Colors.grey[600],
-              height: 1.1,
+              fontSize: 9,
+              color: iconColor.withOpacity(0.8),
+              fontWeight: FontWeight.w600,
+              height: 1.0,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
-          SizedBox(height: isCompact ? 2 : 4),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: isCompact ? 14 : 20,
-              fontWeight: FontWeight.bold,
-              color: isUrgent ? Colors.red[700] : Colors.black87,
+          const SizedBox(height: 1),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              value,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: isWide ? 11 : 12,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+                height: 1.0,
+              ),
             ),
           ),
         ],

@@ -276,11 +276,15 @@ class _SupplierDashboardPageState extends State<SupplierDashboardPage>
                                           Row(
                                             children: [
                                               if (!_isStatsExpanded) ...[
-                                                Text(
-                                                  '${_totalSuppliers} suppliers • ${_suppliersWithEmail} with email',
-                                                  style: TextStyle(
-                                                    fontSize: 12,
-                                                    color: Colors.grey[600],
+                                                Expanded(
+                                                  child: Text(
+                                                    '${_totalSuppliers} suppliers • ${_suppliersWithEmail} with email',
+                                                    style: TextStyle(
+                                                      fontSize: 12,
+                                                      color: Colors.grey[600],
+                                                    ),
+                                                    overflow: TextOverflow.ellipsis,
+                                                    maxLines: 1,
                                                   ),
                                                 ),
                                                 const SizedBox(width: 8),
@@ -305,36 +309,39 @@ class _SupplierDashboardPageState extends State<SupplierDashboardPage>
                                     duration: const Duration(milliseconds: 300),
                                     curve: Curves.easeInOut,
                                     constraints: BoxConstraints(
-                                      maxHeight: _isStatsExpanded ? 200 : 0,
+                                      maxHeight: _isStatsExpanded ? 70 : 0,
                                     ),
                                     child: AnimatedOpacity(
                                       duration: const Duration(milliseconds: 200),
                                       opacity: _isStatsExpanded ? 1.0 : 0.0,
                                       child: Container(
-                                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-                                        child: Row(
-                                          children: [
-                                            Expanded(child: _buildStatCard(
-                                              icon: Icons.local_shipping_outlined,
-                                              iconColor: Colors.purple[600]!,
-                                              title: 'Total\nSuppliers',
-                                              value: _totalSuppliers.toString(),
-                                            )),
-                                            const SizedBox(width: 12),
-                                            Expanded(child: _buildStatCard(
-                                              icon: Icons.email_outlined,
-                                              iconColor: Colors.blue[600]!,
-                                              title: 'With Email\nContact',
-                                              value: _suppliersWithEmail.toString(),
-                                            )),
-                                            const SizedBox(width: 12),
-                                            Expanded(child: _buildStatCard(
-                                              icon: Icons.location_on_outlined,
-                                              iconColor: Colors.green[600]!,
-                                              title: 'Unique\nLocations',
-                                              value: (_uniqueLocations.length - 1).toString(), // -1 for 'All'
-                                            )),
-                                          ],
+                                        padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
+                                        child: SingleChildScrollView(
+                                          scrollDirection: Axis.horizontal,
+                                          child: Row(
+                                            children: [
+                                              _buildCompactStatCard(
+                                                icon: Icons.local_shipping_outlined,
+                                                iconColor: Colors.purple[600]!,
+                                                title: 'Total Suppliers',
+                                                value: _totalSuppliers.toString(),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              _buildCompactStatCard(
+                                                icon: Icons.email_outlined,
+                                                iconColor: Colors.blue[600]!,
+                                                title: 'With Email',
+                                                value: _suppliersWithEmail.toString(),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              _buildCompactStatCard(
+                                                icon: Icons.location_on_outlined,
+                                                iconColor: Colors.green[600]!,
+                                                title: 'Locations',
+                                                value: (_uniqueLocations.length - 1).toString(), // -1 for 'All'
+                                              ),
+                                            ],
+                                          ),
                                         ),
                                       ),
                                     ),
@@ -347,76 +354,77 @@ class _SupplierDashboardPageState extends State<SupplierDashboardPage>
                           SliverToBoxAdapter(
                             child: Container(
                               color: Colors.white,
-                              padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Container(
-                                      height: 48,
-                                      decoration: BoxDecoration(
-                                        gradient: LinearGradient(
-                                          colors: [Colors.purple[600]!, Colors.purple[700]!],
-                                          begin: Alignment.centerLeft,
-                                          end: Alignment.centerRight,
-                                        ),
-                                        borderRadius: BorderRadius.circular(12),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: Colors.purple[600]!.withOpacity(0.3),
-                                            blurRadius: 8,
-                                            offset: const Offset(0, 4),
+                              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                              child: Container(
+                                height: 42,
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [Colors.purple[600]!, Colors.purple[700]!],
+                                    begin: Alignment.centerLeft,
+                                    end: Alignment.centerRight,
+                                  ),
+                                  borderRadius: BorderRadius.circular(10),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.purple[600]!.withOpacity(0.25),
+                                      blurRadius: 6,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                    onTap: () async {
+                                      final result = await showModalBottomSheet<bool>(
+                                        context: context,
+                                        isScrollControlled: true,
+                                        backgroundColor: Colors.transparent,
+                                        builder: (context) => Container(
+                                          margin: const EdgeInsets.only(top: 100),
+                                          height: MediaQuery.of(context).size.height - 100,
+                                          decoration: const BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
                                           ),
-                                        ],
-                                      ),
-                                      child: Material(
-                                        color: Colors.transparent,
-                                        child: InkWell(
-                                          onTap: () async {
-                                            final result = await showModalBottomSheet<bool>(
-                                              context: context,
-                                              isScrollControlled: true,
-                                              backgroundColor: Colors.transparent,
-                                              builder: (context) => Container(
-                                                margin: const EdgeInsets.only(top: 100),
-                                                height: MediaQuery.of(context).size.height - 100,
-                                                decoration: const BoxDecoration(
-                                                  color: Colors.white,
-                                                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                                                ),
-                                                child: const AddSupplierModal(),
-                                              ),
-                                            );
+                                          child: const AddSupplierModal(),
+                                        ),
+                                      );
 
-                                            if (result == true) {
-                                              _loadSuppliers(isRefresh: true);
-                                            }
-                                          },
-                                          borderRadius: BorderRadius.circular(12),
-                                          child: const Row(
-                                            mainAxisAlignment: MainAxisAlignment.center,
-                                            children: [
-                                              Icon(
-                                                Icons.add_circle_outline,
-                                                color: Colors.white,
-                                                size: 18,
-                                              ),
-                                              SizedBox(width: 8),
-                                              Text(
-                                                'Add New Supplier',
-                                                style: TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 14,
-                                                  fontWeight: FontWeight.w600,
-                                                  letterSpacing: 0.5,
-                                                ),
-                                              ),
-                                            ],
+                                      if (result == true) {
+                                        _loadSuppliers(isRefresh: true);
+                                      }
+                                    },
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(3),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white.withOpacity(0.2),
+                                            borderRadius: BorderRadius.circular(6),
+                                          ),
+                                          child: const Icon(
+                                            Icons.add_rounded,
+                                            color: Colors.white,
+                                            size: 14,
                                           ),
                                         ),
-                                      ),
+                                        const SizedBox(width: 8),
+                                        const Text(
+                                          'Add New Supplier',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                            letterSpacing: 0.3,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                ],
+                                ),
                               ),
                             ),
                           ),
@@ -446,64 +454,63 @@ class _SupplierDashboardPageState extends State<SupplierDashboardPage>
     );
   }
 
-  Widget _buildStatCard({
+  Widget _buildCompactStatCard({
     required IconData icon,
     required Color iconColor,
     required String title,
     required String value,
-    bool isLarge = false,
+    bool isWide = false,
   }) {
-    final Gradient cardGradient = LinearGradient(
-      colors: [
-        iconColor.withOpacity(0.16),
-        iconColor.withOpacity(0.07),
-      ],
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-    );
-    final Color iconBg = iconColor.withOpacity(0.15);
-
     return Container(
-      padding: const EdgeInsets.all(16),
+      width: isWide ? 130 : 90,
+      padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
-        gradient: cardGradient,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: iconColor.withOpacity(0.18)),
+        gradient: LinearGradient(
+          colors: [
+            iconColor.withOpacity(0.12),
+            iconColor.withOpacity(0.05),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: iconColor.withOpacity(0.2)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
             decoration: BoxDecoration(
-              color: iconBg,
-              borderRadius: BorderRadius.circular(8),
+              color: iconColor.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(6),
             ),
-            padding: const EdgeInsets.all(8),
-            child: Icon(icon, color: iconColor, size: 24),
+            padding: const EdgeInsets.all(3),
+            child: Icon(icon, color: iconColor, size: 14),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           Text(
             title,
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: 12,
-              color: iconColor,
+              fontSize: 9,
+              color: iconColor.withOpacity(0.8),
               fontWeight: FontWeight.w600,
-              height: 1.2,
+              height: 1.0,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 4),
-          Flexible(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                value,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: isLarge ? 18 : 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
+          const SizedBox(height: 1),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              value,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: isWide ? 11 : 12,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+                height: 1.0,
               ),
             ),
           ),

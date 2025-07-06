@@ -5,7 +5,6 @@ import 'edit_product_modal.dart';
 import 'package:fashion_tech/backend/fetch_products.dart';
 import 'package:fashion_tech/frontend/profit/sell_modal.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../utils/image_utils.dart';
 import 'dart:convert';
 
 class ProductInventoryPage extends StatefulWidget {
@@ -32,6 +31,7 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
   String _selectedCategory = 'All';
   bool _showUpcycledOnly = false;
   bool _showLowStockOnly = false;
+  bool _hideOutOfStock = false;
   bool _isStatsExpanded = true;
 
   late AnimationController _animationController;
@@ -218,10 +218,9 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
         bool matchesCategory = _selectedCategory == 'All' || product['category'] == _selectedCategory;
         bool matchesUpcycled = !_showUpcycledOnly || product['isUpcycled'];
         bool matchesLowStock = !_showLowStockOnly || product['lowStock'];
-
-        // Exclude products with no stock
-        final int stock = product['stock'] ?? 0;
-        bool hasStock = stock > 0;
+        
+        // Optional filter to hide out-of-stock products
+        bool hasStock = !_hideOutOfStock || (product['stock'] ?? 0) > 0;
 
         return matchesSearch && matchesCategory && matchesUpcycled && matchesLowStock && hasStock;
       }).toList();
@@ -230,6 +229,7 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
 
   int get _totalProducts => _products.length;
   int get _lowStockCount => _products.where((p) => p['lowStock']).length;
+  int get _outOfStockCount => _products.where((p) => (p['stock'] ?? 0) == 0).length;
   double get _totalPotentialValue => _products.fold(0.0, (sum, p) => sum + (p['price'] ?? 0) * (p['stock'] ?? 0));
 
   String _formatCurrency(double value) {
@@ -302,6 +302,13 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
                                   _filterProducts();
                                 });
                               }),
+                              const SizedBox(width: 12),
+                              _buildToggleChip('Hide Out of Stock', _hideOutOfStock, (value) {
+                                setState(() {
+                                  _hideOutOfStock = value;
+                                  _filterProducts();
+                                });
+                              }),
                             ],
                           ),
                         ),
@@ -366,11 +373,15 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
                                           Row(
                                             children: [
                                               if (!_isStatsExpanded) ...[
-                                                Text(
-                                                  '${_totalProducts} products • ${_lowStockCount} low stock',
-                                                  style: TextStyle(
-                                                    fontSize: 12,
-                                                    color: Colors.grey[600],
+                                                Expanded(
+                                                  child: Text(
+                                                    '${_totalProducts} products • ${_lowStockCount} low stock • ${_outOfStockCount} out of stock',
+                                                    style: TextStyle(
+                                                      fontSize: 12,
+                                                      color: Colors.grey[600],
+                                                    ),
+                                                    overflow: TextOverflow.ellipsis,
+                                                    maxLines: 1,
                                                   ),
                                                 ),
                                                 const SizedBox(width: 8),
@@ -395,7 +406,7 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
                                     duration: const Duration(milliseconds: 300),
                                     curve: Curves.easeInOut,
                                     constraints: BoxConstraints(
-                                      maxHeight: _isStatsExpanded ? 200 : 0,
+                                      maxHeight: _isStatsExpanded ? 70 : 0,
                                     ),
                                     child: AnimatedOpacity(
                                       duration: const Duration(milliseconds: 200),
@@ -404,30 +415,41 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
                                         opacity: _isRefreshing ? 0.6 : 1.0,
                                         duration: const Duration(milliseconds: 300),
                                         child: Container(
-                                          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-                                          child: Row(
-                                            children: [
-                                              Expanded(child: _buildStatCard(
-                                                icon: Icons.inventory_2_outlined,
-                                                iconColor: Colors.blue[600]!,
-                                                title: 'Total\nProducts',
-                                                value: _totalProducts.toString(),
-                                              )),
-                                              const SizedBox(width: 12),
-                                              Expanded(child: _buildStatCard(
-                                                icon: Icons.warning_outlined,
-                                                iconColor: Colors.red[600]!,
-                                                title: 'Low Stock\n(<5)',
-                                                value: _lowStockCount.toString(),
-                                              )),
-                                              const SizedBox(width: 12),                              Expanded(child: _buildStatCard(
-                                icon: Icons.attach_money,
-                                iconColor: Colors.green[600]!,
-                                title: 'Potential\nValue',
-                                value: _formatCurrency(_totalPotentialValue),
-                                isLarge: true,
-                              )),
-                                            ],
+                                          padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
+                                          child: SingleChildScrollView(
+                                            scrollDirection: Axis.horizontal,
+                                            child: Row(
+                                              children: [
+                                                _buildCompactStatCard(
+                                                  icon: Icons.inventory_2_outlined,
+                                                  iconColor: Colors.blue[600]!,
+                                                  title: 'Total Products',
+                                                  value: _totalProducts.toString(),
+                                                ),
+                                                const SizedBox(width: 8),
+                                                _buildCompactStatCard(
+                                                  icon: Icons.warning_outlined,
+                                                  iconColor: Colors.red[600]!,
+                                                  title: 'Low Stock',
+                                                  value: _lowStockCount.toString(),
+                                                ),
+                                                const SizedBox(width: 8),
+                                                _buildCompactStatCard(
+                                                  icon: Icons.remove_circle_outline,
+                                                  iconColor: Colors.grey[600]!,
+                                                  title: 'Out of Stock',
+                                                  value: _outOfStockCount.toString(),
+                                                ),
+                                                const SizedBox(width: 8),
+                                                _buildCompactStatCard(
+                                                  icon: Icons.attach_money,
+                                                  iconColor: Colors.green[600]!,
+                                                  title: 'Potential Value',
+                                                  value: _formatCurrency(_totalPotentialValue),
+                                                  isWide: true,
+                                                ),
+                                              ],
+                                            ),
                                           ),
                                         ),
                                       ),
@@ -441,80 +463,82 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
                           SliverToBoxAdapter(
                             child: Container(
                               color: Colors.white,
-                              padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Container(
-                                      height: 48,
-                                      decoration: BoxDecoration(
-                                        gradient: LinearGradient(
-                                          colors: [Colors.blue[600]!, Colors.blue[700]!],
-                                          begin: Alignment.centerLeft,
-                                          end: Alignment.centerRight,
-                                        ),
-                                        borderRadius: BorderRadius.circular(12),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: Colors.blue[600]!.withOpacity(0.3),
-                                            blurRadius: 8,
-                                            offset: const Offset(0, 4),
+                              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                              child: Container(
+                                height: 42,
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [Colors.blue[600]!, Colors.blue[700]!],
+                                    begin: Alignment.centerLeft,
+                                    end: Alignment.centerRight,
+                                  ),
+                                  borderRadius: BorderRadius.circular(10),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.blue[600]!.withOpacity(0.25),
+                                      blurRadius: 6,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                    onTap: () async {
+                                      final result = await showModalBottomSheet<bool>(
+                                        context: context,
+                                        isScrollControlled: true,
+                                        backgroundColor: Colors.transparent,
+                                        builder: (context) => Container(
+                                          margin: const EdgeInsets.only(top: 100),
+                                          height: MediaQuery.of(context).size.height - 100,
+                                          decoration: const BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
                                           ),
-                                        ],
-                                      ),
-                                      child: Material(
-                                        color: Colors.transparent,
-                                        child: InkWell(
-                                          onTap: () async {
-                                            final result = await showModalBottomSheet<bool>(
-                                              context: context,
-                                              isScrollControlled: true,
-                                              backgroundColor: Colors.transparent,
-                                              builder: (context) => Container(
-                                                margin: const EdgeInsets.only(top: 100),
-                                                height: MediaQuery.of(context).size.height - 100,
-                                                decoration: const BoxDecoration(
-                                                  color: Colors.white,
-                                                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                                                ),
-                                                child: const AddProductModal(),
-                                              ),
-                                            );
+                                          child: const AddProductModal(),
+                                        ),
+                                      );
 
-                                            if (result == true) {
-                                              _selectedCategory = 'All';
-                                              _showUpcycledOnly = false;
-                                              _showLowStockOnly = false;
-                                              _searchController.clear();
-                                              await _loadProducts(isRefresh: true);
-                                            }
-                                          },
-                                          borderRadius: BorderRadius.circular(12),
-                                          child: const Row(
-                                            mainAxisAlignment: MainAxisAlignment.center,
-                                            children: [
-                                              Icon(
-                                                Icons.add_circle_outline,
-                                                color: Colors.white,
-                                                size: 18,
-                                              ),
-                                              SizedBox(width: 8),
-                                              Text(
-                                                'Add New Product',
-                                                style: TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 14,
-                                                  fontWeight: FontWeight.w600,
-                                                  letterSpacing: 0.5,
-                                                ),
-                                              ),
-                                            ],
+                                      if (result == true) {
+                                        _selectedCategory = 'All';
+                                        _showUpcycledOnly = false;
+                                        _showLowStockOnly = false;
+                                        _hideOutOfStock = false;
+                                        _searchController.clear();
+                                        await _loadProducts(isRefresh: true);
+                                      }
+                                    },
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(3),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white.withOpacity(0.2),
+                                            borderRadius: BorderRadius.circular(6),
+                                          ),
+                                          child: const Icon(
+                                            Icons.add_rounded,
+                                            color: Colors.white,
+                                            size: 14,
                                           ),
                                         ),
-                                      ),
+                                        const SizedBox(width: 8),
+                                        const Text(
+                                          'Add New Product',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                            letterSpacing: 0.3,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                ],
+                                ),
                               ),
                             ),
                           ),
@@ -544,72 +568,70 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
     );
   }
 
-Widget _buildStatCard({
-  required IconData icon,
-  required Color iconColor,
-  required String title,
-  required String value,
-  bool isLarge = false,
-}) {
-  // Choose a gradient based on the iconColor
-  Gradient cardGradient = LinearGradient(
-    colors: [
-      iconColor.withOpacity(0.18),
-      iconColor.withOpacity(0.07),
-    ],
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-  );
-  final Color iconBg = iconColor.withOpacity(0.15);
-
-  return Container(
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      gradient: cardGradient,
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: iconColor.withOpacity(0.18)),
-    ),
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          decoration: BoxDecoration(
-            color: iconBg,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          padding: const EdgeInsets.all(8),
-          child: Icon(icon, color: iconColor, size: 24),
+  Widget _buildCompactStatCard({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String value,
+    bool isWide = false,
+  }) {
+    return Container(
+      width: isWide ? 130 : 90,
+      padding: const EdgeInsets.all(6),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            iconColor.withOpacity(0.12),
+            iconColor.withOpacity(0.05),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        const SizedBox(height: 8),
-        Text(
-          title,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 12,
-            color: iconColor,
-            fontWeight: FontWeight.w600,
-            height: 1.2,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: iconColor.withOpacity(0.2)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              color: iconColor.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            padding: const EdgeInsets.all(3),
+            child: Icon(icon, color: iconColor, size: 14),
           ),
-        ),
-        const SizedBox(height: 4),
-        Flexible(
-          child: FittedBox(
+          const SizedBox(height: 4),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 9,
+              color: iconColor.withOpacity(0.8),
+              fontWeight: FontWeight.w600,
+              height: 1.0,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 1),
+          FittedBox(
             fit: BoxFit.scaleDown,
             child: Text(
               value,
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: isLarge ? 16 : 20,
+                fontSize: isWide ? 11 : 12,
                 fontWeight: FontWeight.bold,
                 color: Colors.black87,
+                height: 1.0,
               ),
             ),
           ),
-        ),
-      ],
-    ),
-  );
-}
+        ],
+      ),
+    );
+  }
 
   Widget _buildFilterChip(String label, String value, List<String> options) {
     return PopupMenuButton<String>(
@@ -924,6 +946,25 @@ Widget _buildStatCard({
                                             ),
                                           ),
                                         ],
+                                        if ((product['stock'] ?? 0) == 0) ...[
+                                          const SizedBox(height: 4),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                            decoration: BoxDecoration(
+                                              color: Colors.grey[100],
+                                              borderRadius: BorderRadius.circular(12),
+                                              border: Border.all(color: Colors.grey[300]!),
+                                            ),
+                                            child: Text(
+                                              'Out of Stock',
+                                              style: TextStyle(
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.w600,
+                                                color: Colors.grey[700],
+                                              ),
+                                            ),
+                                          ),
+                                        ],
                                       ],
                                     ),
                                   ],
@@ -1129,6 +1170,7 @@ Widget _buildStatCard({
                                 _selectedCategory = 'All';
                                 _showUpcycledOnly = false;
                                 _showLowStockOnly = false;
+                                _hideOutOfStock = false;
                                 _searchController.clear();
                                 await _loadProducts(isRefresh: true);
                               }

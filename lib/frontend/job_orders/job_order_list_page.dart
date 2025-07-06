@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'add_job_order_modal.dart';
 import 'job_order_edit_modal.dart';
-import 'components/job_order_stats.dart';
 import 'components/job_order_filters.dart';
 import 'components/job_order_card.dart';
 import 'components/job_order_empty_state.dart';
@@ -221,6 +220,71 @@ class _JobOrderListPageState extends State<JobOrderListPage>
     super.dispose();
   }
 
+  Widget _buildCompactStatCard({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String value,
+    bool isWide = false,
+  }) {
+    return Container(
+      width: isWide ? 130 : 90,
+      padding: const EdgeInsets.all(6),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            iconColor.withOpacity(0.12),
+            iconColor.withOpacity(0.05),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: iconColor.withOpacity(0.2)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              color: iconColor.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            padding: const EdgeInsets.all(3),
+            child: Icon(icon, color: iconColor, size: 14),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 9,
+              color: iconColor.withOpacity(0.8),
+              fontWeight: FontWeight.w600,
+              height: 1.0,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 1),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              value,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: isWide ? 11 : 12,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+                height: 1.0,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!_dataLoaded) {
@@ -350,26 +414,225 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                     child: CustomScrollView(
                       physics: const AlwaysScrollableScrollPhysics(),
                       slivers: [
-                        // Overview section
+                        // Overview section - Built directly into page for smooth animation
                         SliverToBoxAdapter(
-                          child: JobOrderStats(
-                            isExpanded: _isStatsExpanded,
-                            onToggle: () {
-                              setState(() {
-                                _isStatsExpanded = !_isStatsExpanded;
-                              });
-                            },
-                            totalOrders: _totalOrders,
-                            openOrders: _openOrders,
-                            inProgressOrders: _inProgressOrders,
-                            doneOrders: _doneOrders,
-                            overdueOrders: _overdueOrders,
+                          child: Container(
+                            color: Colors.white,
+                            child: Column(
+                              children: [
+                                // Collapse/Expand Button
+                                InkWell(
+                                  onTap: () {
+                                    setState(() {
+                                      _isStatsExpanded = !_isStatsExpanded;
+                                    });
+                                  },
+                                  child: Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey[50],
+                                      border: Border(
+                                        bottom: BorderSide(color: Colors.grey[200]!, width: 1),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Icon(
+                                              Icons.analytics_outlined,
+                                              color: Colors.grey[600],
+                                              size: 20,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              'Overview',
+                                              style: TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w600,
+                                                color: Colors.grey[800],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        Row(
+                                          children: [
+                                            if (!_isStatsExpanded) ...[
+                                              Container(
+                                                constraints: const BoxConstraints(maxWidth: 200),
+                                                child: Text(
+                                                  '$_totalOrders orders • $_openOrders open${_overdueOrders > 0 ? ' • $_overdueOrders overdue' : ''}',
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    color: Colors.grey[600],
+                                                  ),
+                                                  overflow: TextOverflow.ellipsis,
+                                                  maxLines: 1,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                            ],
+                                            AnimatedRotation(
+                                              turns: _isStatsExpanded ? 0.5 : 0.0,
+                                              duration: const Duration(milliseconds: 200),
+                                              child: Icon(
+                                                Icons.keyboard_arrow_down,
+                                                color: Colors.grey[600],
+                                                size: 20,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                // Animated Stats Content - Using height instead of maxHeight for smoother animation
+                                ClipRect(
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 300),
+                                    curve: Curves.easeInOut,
+                                    height: _isStatsExpanded ? 70.0 : 0.0,
+                                    child: AnimatedOpacity(
+                                      duration: const Duration(milliseconds: 200),
+                                      opacity: _isStatsExpanded ? 1.0 : 0.0,
+                                      child: AnimatedOpacity(
+                                        opacity: _isRefreshing ? 0.6 : 1.0,
+                                        duration: const Duration(milliseconds: 300),
+                                        child: Container(
+                                          padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
+                                          child: SingleChildScrollView(
+                                            scrollDirection: Axis.horizontal,
+                                            child: Row(
+                                              children: [
+                                                _buildCompactStatCard(
+                                                  icon: Icons.assignment,
+                                                  iconColor: Colors.orange[600]!,
+                                                  title: 'Total Orders',
+                                                  value: _totalOrders.toString(),
+                                                ),
+                                                const SizedBox(width: 8),
+                                                _buildCompactStatCard(
+                                                  icon: Icons.access_time,
+                                                  iconColor: Colors.orange[700]!,
+                                                  title: 'Open',
+                                                  value: _openOrders.toString(),
+                                                ),
+                                                const SizedBox(width: 8),
+                                                _buildCompactStatCard(
+                                                  icon: Icons.trending_up,
+                                                  iconColor: Colors.blue[600]!,
+                                                  title: 'In Progress',
+                                                  value: _inProgressOrders.toString(),
+                                                ),
+                                                const SizedBox(width: 8),
+                                                _buildCompactStatCard(
+                                                  icon: Icons.check_circle,
+                                                  iconColor: Colors.green[600]!,
+                                                  title: 'Completed',
+                                                  value: _doneOrders.toString(),
+                                                ),
+                                                if (_overdueOrders > 0) ...[
+                                                  const SizedBox(width: 8),
+                                                  _buildCompactStatCard(
+                                                    icon: Icons.warning,
+                                                    iconColor: Colors.red[600]!,
+                                                    title: 'Overdue',
+                                                    value: _overdueOrders.toString(),
+                                                  ),
+                                                ],
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        // Add New Job Order Button
+                        SliverToBoxAdapter(
+                          child: Container(
+                            color: Colors.white,
+                            padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+                            child: Container(
+                              height: 42,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [Colors.orange[600]!, Colors.orange[700]!],
+                                  begin: Alignment.centerLeft,
+                                  end: Alignment.centerRight,
+                                ),
+                                borderRadius: BorderRadius.circular(10),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.orange[600]!.withOpacity(0.25),
+                                    blurRadius: 6,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  onTap: () async {
+                                    await showModalBottomSheet(
+                                      context: context,
+                                      isScrollControlled: true,
+                                      backgroundColor: Colors.transparent,
+                                      builder: (context) => Container(
+                                        margin: const EdgeInsets.only(top: 100),
+                                        decoration: const BoxDecoration(
+                                          color: Colors.white,
+                                          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                                        ),
+                                        child: AddJobOrderModal(),
+                                      ),
+                                    );
+                                  },
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(3),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withOpacity(0.2),
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                        child: const Icon(
+                                          Icons.add_rounded,
+                                          color: Colors.white,
+                                          size: 14,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      const Text(
+                                        'Add New Job Order',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                          letterSpacing: 0.3,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
                           ),
                         ),
 
                         // Job orders list
                         SliverPadding(
-                          padding: const EdgeInsets.only(bottom: 100),
+                          padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
                           sliver: SliverList(
                             delegate: SliverChildBuilderDelegate(
                               (context, index) {
@@ -388,7 +651,7 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                                       child: Opacity(
                                         opacity: value,
                                         child: Padding(
-                                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                                          padding: const EdgeInsets.only(bottom: 16),
                                           child: JobOrderCard(
                                             doc: jobOrders[index],
                                             index: index,
@@ -475,29 +738,6 @@ class _JobOrderListPageState extends State<JobOrderListPage>
             ),
           ],
         ),
-      ),
-
-      // Floating Action Button
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          await showModalBottomSheet(
-            context: context,
-            isScrollControlled: true,
-            backgroundColor: Colors.transparent,
-            builder: (context) => Container(
-              margin: const EdgeInsets.only(top: 100),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-              ),
-              child: AddJobOrderModal(),
-            ),
-          );
-        },
-        icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text('New Job Order', style: TextStyle(color: Colors.white)),
-        backgroundColor: Colors.orange[600],
-        elevation: 4,
       ),
     );
   }
