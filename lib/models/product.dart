@@ -10,6 +10,10 @@ class Product {
   final DateTime createdAt;
   final DateTime updatedAt;
   final DateTime? deletedAt; // New field for soft delete in ERDv9
+  final DateTime? acquisitionDate; // Date the product was acquired
+  final String? imageURL; // Primary image URL
+  final int stock; // Total stock quantity
+  final List<String> variantIDs; // List of variant IDs linked to this product
 
   Product({
     required this.id,
@@ -23,6 +27,10 @@ class Product {
     required this.createdAt,
     required this.updatedAt,
     this.deletedAt,
+    this.acquisitionDate,
+    this.imageURL,
+    this.stock = 0,
+    this.variantIDs = const [],
   });
 
   factory Product.fromMap(String id, Map<String, dynamic> data) {
@@ -40,6 +48,12 @@ class Product {
       deletedAt: data['deletedAt'] != null 
           ? (data['deletedAt'] is DateTime ? data['deletedAt'] : DateTime.tryParse(data['deletedAt'].toString())) 
           : null,
+      acquisitionDate: data['acquisitionDate'] != null 
+          ? (data['acquisitionDate'] is DateTime ? data['acquisitionDate'] : DateTime.tryParse(data['acquisitionDate'].toString())) 
+          : null,
+      imageURL: data['imageURL'],
+      stock: data['stock']?.toInt() ?? 0,
+      variantIDs: data['variantIDs'] != null ? List<String>.from(data['variantIDs']) : [],
     );
   }
 
@@ -55,6 +69,10 @@ class Product {
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
       'deletedAt': deletedAt?.toIso8601String(),
+      'acquisitionDate': acquisitionDate?.toIso8601String(),
+      'imageURL': imageURL,
+      'stock': stock,
+      'variantIDs': variantIDs,
     };
   }
 }

@@ -52,6 +52,7 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
   final FocusNode _specialInstructionsFocus = FocusNode();
   bool _isUpcycled = false;
   String _jobStatus = 'In Progress';
+  String _selectedCategory = 'custom'; // Add category field
   List<FormProductVariant> _variants = [];
 
   List<Map<String, dynamic>> _userFabrics = [];
@@ -244,6 +245,7 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
       _specialInstructionsController.text = jobOrder['specialInstructions'] ?? '';
       _isUpcycled = jobOrder['isUpcycled'] ?? false;
       _jobStatus = jobOrder['status'] ?? 'In Progress';
+      _selectedCategory = jobOrder['category'] ?? 'custom'; // Load category field
       print('[DEBUG] Loaded job status from database: "${_jobStatus}"');
 
       // Fetch all jobOrderDetails for this job order
@@ -671,6 +673,14 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
           value: _isUpcycled,
           onChanged: (val) => setState(() => _isUpcycled = val),
           icon: Icons.recycling,
+        ),
+        const SizedBox(height: 16),
+        _buildDropdownField(
+          value: _selectedCategory,
+          label: 'Product Category',
+          icon: Icons.category,
+          items: ['top', 'bottom', 'dress', 'outerwear', 'accessories', 'shoes', 'custom'],
+          onChanged: (val) => setState(() => _selectedCategory = val ?? 'custom'),
         ),
         const SizedBox(height: 16),
         _buildDropdownField(
@@ -1208,6 +1218,7 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
         'specialInstructions': _specialInstructionsController.text.trim(),
         'isUpcycled': _isUpcycled,
         'status': _jobStatus,
+        'category': _selectedCategory, // Add category field
         'updatedAt': FieldValue.serverTimestamp(),
       });
       print('[DEBUG] Main job order document updated successfully.');

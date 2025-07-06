@@ -77,6 +77,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
   
   bool _isUpcycled = false;
   String _jobStatus = 'In Progress';
+  String _selectedCategory = 'custom'; // Add category field
   List<FormProductVariant> _variants = [];
 
   List<Map<String, dynamic>> _userFabrics = [];
@@ -848,6 +849,20 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
           value: _isUpcycled,
           onChanged: (val) => setState(() => _isUpcycled = val),
           icon: Icons.recycling,
+        ),
+        const SizedBox(height: 16),
+        _buildDropdownField(
+          value: _selectedCategory,
+          label: 'Product Category',
+          icon: Icons.category,
+          items: ['top', 'bottom', 'dress', 'outerwear', 'accessories', 'shoes', 'custom'],
+          onChanged: (val) => setState(() => _selectedCategory = val ?? 'custom'),
+          validator: (val) {
+            if (val == null || val.isEmpty) {
+              return 'Please select a category';
+            }
+            return null;
+          },
         ),
         const SizedBox(height: 16),
         _buildDropdownField(
@@ -1789,6 +1804,9 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
         'orderDate': (_orderDateController.text.isNotEmpty)
             ? Timestamp.fromDate(DateTime.tryParse(_orderDateController.text) ?? DateTime.now())
             : FieldValue.serverTimestamp(), // custom field (not in ERDv9)
+        'price': double.tryParse(_priceController.text) ?? 0.0, // Add price field
+        'isUpcycled': _isUpcycled, // Add upcycled flag
+        'category': _selectedCategory, // Add category field
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
