@@ -1846,7 +1846,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
           'size': variant.size, // required
           'color': colorString, // ERDv9: color field is string from fabric, not colorID FK
           'notes': '', // ERDv9: notes field (optional)
-          // Note: quantity is not in ERDv9 JOBORDERDETAIL schema
+          'quantity': variant.quantity, // Add quantity field for job order details
           'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
         });

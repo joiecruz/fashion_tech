@@ -40,6 +40,17 @@ class _ProductDetailPageState extends State<ProductDetailPage>
   }
 
   Future<void> _openEditProductModal() async {
+    // Prepare productData with variants for the edit modal
+    final productDataWithVariants = {
+      ..._productData,
+      'variants': _variants.map((v) => {
+        'size': v.size,
+        'colorID': v.colorID,
+        'color': v.colorID, // For compatibility
+        'quantityInStock': v.quantityInStock,
+      }).toList(),
+    };
+
     final result = await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -52,7 +63,7 @@ class _ProductDetailPageState extends State<ProductDetailPage>
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: EditProductModal(
-          productData: _productData,
+          productData: productDataWithVariants,
         ),
       ),
     );

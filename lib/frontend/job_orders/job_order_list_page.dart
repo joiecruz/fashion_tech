@@ -83,40 +83,18 @@ class _JobOrderListPageState extends State<JobOrderListPage>
         doc.id: (doc.data()['name'] ?? '') as String
     };
 
-    // Fetch products with variants and fabrics for complete data
+    // Fetch products - no longer storing variants to avoid bidirectional references
     productData = {};
     for (var doc in productsSnap.docs) {
       final productDocData = doc.data();
       
-      // Fetch variants for this product
-      final variantsSnapshot = await FirebaseFirestore.instance
-          .collection('productVariants')
-          .where('productID', isEqualTo: doc.id)
-          .get();
-      
-      List<Map<String, dynamic>> variants = [];
-      for (var variantDoc in variantsSnapshot.docs) {
-        final variantData = variantDoc.data();
-        variants.add({
-          'variantID': variantDoc.id,
-          'size': variantData['size'] ?? '',
-          'color': variantData['colorID'] ?? variantData['color'] ?? '', // ERDv9: Use colorID, fallback to legacy color
-          'quantityInStock': variantData['quantityInStock'] ?? 0,
-        });
-      }
-      
-      // Note: Fabrics are not directly linked to products in ERDv9, they're linked via job orders
-      // For now, we'll keep an empty fabrics array for compatibility
-      List<Map<String, dynamic>> fabrics = [];
-      
+      // Store only core product data - variants will be queried on-demand
       productData[doc.id] = {
         'name': productDocData['name'] ?? '',
         'category': productDocData['category'] ?? '',
         'price': productDocData['price'] ?? 0.0,
         'imageURL': productDocData['imageURL'] ?? '',
         'isUpcycled': productDocData['isUpcycled'] ?? false,
-        'variants': variants,
-        'fabrics': fabrics,
       };
     }
 

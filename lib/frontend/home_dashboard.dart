@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:fashion_tech/frontend/auth/login_page.dart';
-import 'package:fashion_tech/frontend/auth/signup_page.dart';
 import 'package:fashion_tech/frontend/profit/profit_checker.dart';
 import 'package:fashion_tech/frontend/products/product_inventory_page.dart';
 
@@ -33,7 +31,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
     final snapshot = await FirebaseFirestore.instance.collection('products').get();
     int totalStock = 0;
     for (var doc in snapshot.docs) {
-      final data = doc.data() as Map<String, dynamic>;
+      final data = doc.data();
       final qty = data['stock'];
       if (qty != null) {
         totalStock += (qty as num).toInt();

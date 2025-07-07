@@ -155,18 +155,27 @@ class JobOrderActions {
     
     for (final detail in jobOrderDetails) {
       final detailData = detail.data() as Map<String, dynamic>;
+      final quantity = (detailData['quantity'] ?? 0) as int;
+      
+      // Skip if somehow we get 0 quantity
+      if (quantity <= 0) {
+        print('[WARNING] Skipping variant with 0 quantity for detail: ${detail.id}');
+        continue;
+      }
       
       final variantRef = FirebaseFirestore.instance.collection('productVariants').doc();
       batch.set(variantRef, {
         'productID': linkedProductID,
         'size': detailData['size'] ?? '',
         'colorID': detailData['color'] ?? '',
-        'quantityInStock': detailData['quantity'] ?? 1,
+        'quantityInStock': quantity, // Use quantity from jobOrderDetails
         'createdAt': Timestamp.now(),
         'updatedAt': Timestamp.now(),
         'sourceJobOrderID': jobOrderID,
         'sourceJobOrderDetailID': detail.id,
       });
+      
+      print('[DEBUG] Adding variant to linked product - quantity: $quantity, size: ${detailData['size']}, color: ${detailData['color']}');
     }
 
     await batch.commit();
@@ -197,15 +206,32 @@ class JobOrderActions {
       final originalProductID = jobOrderData['productID'];
       final originalProductInfo = this.productData[originalProductID] ?? {};
 
-      // Calculate total stock from all variants
-      final totalStock = jobOrderDetails.fold<int>(
-        0,
-        (sum, detail) => sum + ((detail.data() as Map<String, dynamic>)['quantity'] ?? 0) as int,
-      );
+      // Calculate total stock from jobOrderDetails quantities
+      int totalStock = 0;
+      
+      for (final detail in jobOrderDetails) {
+        final detailData = detail.data() as Map<String, dynamic>;
+        final quantity = (detailData['quantity'] ?? 0) as int;
+        
+        if (quantity <= 0) {
+          throw Exception('JobOrderDetail has invalid quantity: ${detail.id} (quantity: $quantity)');
+        }
+        
+        totalStock += quantity;
+        print('[DEBUG] JobOrderDetail quantity - ID: ${detail.id}, quantity: $quantity');
+      }
+
+      print('[DEBUG] Total stock calculated from jobOrderDetails: $totalStock');
+
+      if (totalStock <= 0) {
+        throw Exception('Total stock must be greater than 0 to create product');
+      }
 
       // Calculate unit price (use custom price if provided, otherwise calculate from total)
       final totalPrice = (jobOrderData['price'] ?? 0.0) as double;
-      final unitPrice = productResult.customPrice ?? (totalStock > 0 ? totalPrice / totalStock : totalPrice);
+      final unitPrice = productResult.customPrice ?? (totalPrice / totalStock);
+      
+      print('[DEBUG] Total price: $totalPrice, Unit price: $unitPrice, Total stock: $totalStock');
 
       final productRef = FirebaseFirestore.instance.collection('products').doc();
       
@@ -215,6 +241,13 @@ class JobOrderActions {
       
       for (final detail in jobOrderDetails) {
         final detailData = detail.data() as Map<String, dynamic>;
+        final variantQuantity = (detailData['quantity'] ?? 0) as int;
+        
+        // Skip if somehow we get 0 quantity
+        if (variantQuantity <= 0) {
+          print('[WARNING] Skipping variant with 0 quantity for detail: ${detail.id}');
+          continue;
+        }
         
         final variantRef = FirebaseFirestore.instance.collection('productVariants').doc();
         variantIDs.add(variantRef.id);
@@ -223,13 +256,14 @@ class JobOrderActions {
           'productID': productRef.id,
           'size': detailData['size'] ?? '',
           'colorID': detailData['color'] ?? '',
-          'quantityInStock': detailData['quantity'] ?? 1,
+          'quantityInStock': variantQuantity, // Use quantity from jobOrderDetails
           'createdAt': Timestamp.now(),
           'updatedAt': Timestamp.now(),
           'sourceJobOrderID': jobOrderID,
           'sourceJobOrderDetailID': detail.id,
         };
         
+        print('[DEBUG] Creating variant with quantity: $variantQuantity for size: ${detailData['size']}, color: ${detailData['color']}');
         batch.set(variantRef, variantData);
       }
       
@@ -247,10 +281,13 @@ class JobOrderActions {
         'acquisitionDate': Timestamp.now(), // Set to current time when converted
         'deletedAt': null,
         'imageURL': productResult.imageURLs.isNotEmpty ? productResult.imageURLs.first : null,
-        'stock': totalStock,
+        'stock': totalStock, // Ensure stock matches total from variants
         'variantIDs': variantIDs,
         'sourceJobOrderID': jobOrderID,
       };
+      
+      print('[DEBUG] Creating product with data: ${newProductData.keys.toList()}');
+      print('[DEBUG] Product stock: ${newProductData['stock']}, Price: ${newProductData['price']}');
       
       batch.set(productRef, newProductData);
       await batch.commit();
@@ -355,18 +392,27 @@ class JobOrderActions {
     
     for (final detail in jobOrderDetails) {
       final detailData = detail.data() as Map<String, dynamic>;
+      final quantity = (detailData['quantity'] ?? 0) as int;
+      
+      // Skip if somehow we get 0 quantity
+      if (quantity <= 0) {
+        print('[WARNING] Skipping variant with 0 quantity for detail: ${detail.id}');
+        continue;
+      }
       
       final variantRef = FirebaseFirestore.instance.collection('productVariants').doc();
       batch.set(variantRef, {
         'productID': selectedProductID,
         'size': detailData['size'] ?? '',
         'colorID': detailData['color'] ?? '',
-        'quantityInStock': detailData['quantity'] ?? 1,
+        'quantityInStock': quantity, // Use quantity from jobOrderDetails
         'createdAt': Timestamp.now(),
         'updatedAt': Timestamp.now(),
         'sourceJobOrderID': jobOrderID,
         'sourceJobOrderDetailID': detail.id,
       });
+      
+      print('[DEBUG] Adding variant to selected product - quantity: $quantity, size: ${detailData['size']}, color: ${detailData['color']}');
     }
 
     await batch.commit();
@@ -398,28 +444,45 @@ class JobOrderActions {
           .get();
       
       List<Map<String, dynamic>> variants = [];
+      int totalStock = 0;
+      
       for (var variantDoc in variantsSnapshot.docs) {
         final variantData = variantDoc.data();
+        final quantity = (variantData['quantityInStock'] ?? 0) as int;
+        totalStock += quantity;
+        
         variants.add({
           'variantID': variantDoc.id,
           'size': variantData['size'] ?? '',
           'color': variantData['colorID'] ?? variantData['color'] ?? '',
-          'quantityInStock': variantData['quantityInStock'] ?? 0,
+          'quantityInStock': quantity,
         });
       }
       
-      // Update cached product data
-      productData[productID] = {
-        'name': productDocData['name'] ?? '',
-        'category': productDocData['category'] ?? '',
-        'price': productDocData['price'] ?? 0.0,
-        'imageURL': productDocData['imageURL'] ?? '',
-        'isUpcycled': productDocData['isUpcycled'] ?? false,
-        'variants': variants,
-        'fabrics': [],
-      };
+      print('[DEBUG] Calculated total stock: $totalStock from ${variants.length} variants');
       
-      print('[DEBUG] Updated cached data for product $productID with ${variants.length} variants');
+      // Update the product document with the correct stock if it differs
+      if (productDocData['stock'] != totalStock) {
+        print('[DEBUG] Updating product stock from ${productDocData['stock']} to $totalStock');
+        await FirebaseFirestore.instance
+            .collection('products')
+            .doc(productID)
+            .update({
+              'stock': totalStock,
+              'updatedAt': Timestamp.now(),
+            });
+      }
+          // Update cached product data - no longer storing variants to avoid bidirectional references
+    productData[productID] = {
+      'name': productDocData['name'] ?? '',
+      'category': productDocData['category'] ?? '',
+      'price': productDocData['price'] ?? 0.0,
+      'imageURL': productDocData['imageURL'] ?? '',
+      'isUpcycled': productDocData['isUpcycled'] ?? false,
+      'stock': totalStock, // Use calculated stock
+    };
+      
+      print('[DEBUG] Updated cached data for product $productID with ${variants.length} variants and total stock: $totalStock');
       
       // Trigger refresh callback
       onDataRefresh();

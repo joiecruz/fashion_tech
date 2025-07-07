@@ -45,21 +45,10 @@ class _ProductHandlingDialogState extends State<ProductHandlingDialog> {
   final TextEditingController _paymentController = TextEditingController();
   final TextEditingController _priceController = TextEditingController();
   ProductHandlingAction? _selectedAction;
-  String _selectedCategory = 'top';
   bool _useCustomPrice = false;
   List<File> _selectedImages = [];
   List<String> _uploadedImageURLs = [];
   bool _isUploading = false;
-  
-  final List<String> _categories = [
-    'top',
-    'bottom',
-    'dress',
-    'outerwear',
-    'accessories',
-    'shoes',
-    'custom',
-  ];
 
   @override
   void initState() {
@@ -79,6 +68,56 @@ class _ProductHandlingDialogState extends State<ProductHandlingDialog> {
       final unitPrice = totalPrice / totalQuantity;
       _priceController.text = unitPrice.toStringAsFixed(2);
     }
+  }
+
+  bool _canComplete() {
+    // Basic validation: must have selected an action
+    if (_selectedAction == null) {
+      return false;
+    }
+    
+    // Additional validation based on selected action
+    switch (_selectedAction!) {
+      case ProductHandlingAction.createNewProduct:
+        // For new product creation, validate custom price if enabled
+        if (_useCustomPrice) {
+          final customPrice = double.tryParse(_priceController.text.trim());
+          if (customPrice == null || customPrice <= 0) {
+            return false;
+          }
+        }
+        break;
+      
+      case ProductHandlingAction.addToLinkedProduct:
+      case ProductHandlingAction.selectExistingProduct:
+        // For existing product actions, no additional validation needed
+        break;
+    }
+    
+    return true;
+  }
+
+  String? _getValidationMessage() {
+    if (_selectedAction == null) {
+      return 'Please select how you want to handle the completed product.';
+    }
+    
+    switch (_selectedAction!) {
+      case ProductHandlingAction.createNewProduct:
+        if (_useCustomPrice) {
+          final customPrice = double.tryParse(_priceController.text.trim());
+          if (customPrice == null || customPrice <= 0) {
+            return 'Please enter a valid custom price greater than 0.';
+          }
+        }
+        break;
+      
+      case ProductHandlingAction.addToLinkedProduct:
+      case ProductHandlingAction.selectExistingProduct:
+        break;
+    }
+    
+    return null;
   }
 
   Future<void> _pickImages() async {
@@ -199,17 +238,33 @@ class _ProductHandlingDialogState extends State<ProductHandlingDialog> {
                     children: [
                       Icon(Icons.inventory, color: Colors.orange[600], size: 16),
                       const SizedBox(width: 8),
-                      Text('Found ${widget.jobOrderDetails.length} variant(s) to process:', 
+                      Text('Job Order Details:', 
                         style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13)),
                     ],
                   ),
                   const SizedBox(height: 8),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 20, bottom: 4),
+                    child: Text(
+                      'Total Quantity: ${widget.jobOrderDetails.fold<int>(0, (sum, detail) => sum + ((detail.data() as Map<String, dynamic>)['quantity'] ?? 0) as int)} units',
+                      style: TextStyle(fontSize: 12, color: Colors.grey[700], fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 20, bottom: 4),
+                    child: Text(
+                      'Variants to create: ${widget.jobOrderDetails.length}',
+                      style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
                   ...widget.jobOrderDetails.map((detail) {
                     final data = detail.data() as Map<String, dynamic>;
+                    final quantity = (data['quantity'] ?? 0) as int;
                     return Padding(
                       padding: const EdgeInsets.only(left: 20, bottom: 2),
                       child: Text(
-                        '• ${data['size'] ?? 'No size'} ${data['color'] ?? 'No color'} (${data['yardageUsed'] ?? 0} yards)',
+                        '• ${data['size'] ?? 'No size'} ${data['color'] ?? 'No color'} - ${quantity} units (${data['yardageUsed'] ?? 0} yards)',
                         style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                       ),
                     );
@@ -224,58 +279,68 @@ class _ProductHandlingDialogState extends State<ProductHandlingDialog> {
             const SizedBox(height: 8),
             
             if (hasLinkedProduct) ...[
-              RadioListTile<ProductHandlingAction>(
-                title: const Text('Add to linked product'),
-                subtitle: const Text('Add variants to the existing linked product'),
-                value: ProductHandlingAction.addToLinkedProduct,
-                groupValue: _selectedAction,
-                onChanged: (value) => setState(() => _selectedAction = value),
+              Container(
+                decoration: BoxDecoration(
+                  color: _selectedAction == ProductHandlingAction.addToLinkedProduct 
+                    ? Colors.green[50] 
+                    : null,
+                  borderRadius: BorderRadius.circular(8),
+                  border: _selectedAction == ProductHandlingAction.addToLinkedProduct 
+                    ? Border.all(color: Colors.green[200]!) 
+                    : null,
+                ),
+                child: RadioListTile<ProductHandlingAction>(
+                  title: const Text('Add to linked product'),
+                  subtitle: const Text('Add variants to the existing linked product'),
+                  value: ProductHandlingAction.addToLinkedProduct,
+                  groupValue: _selectedAction,
+                  onChanged: (value) => setState(() => _selectedAction = value),
+                ),
               ),
             ],
             
-            RadioListTile<ProductHandlingAction>(
-              title: const Text('Create new product'),
-              subtitle: const Text('Create a new product from this job order'),
-              value: ProductHandlingAction.createNewProduct,
-              groupValue: _selectedAction,
-              onChanged: (value) => setState(() => _selectedAction = value),
+            Container(
+              decoration: BoxDecoration(
+                color: _selectedAction == ProductHandlingAction.createNewProduct 
+                  ? Colors.green[50] 
+                  : null,
+                borderRadius: BorderRadius.circular(8),
+                border: _selectedAction == ProductHandlingAction.createNewProduct 
+                  ? Border.all(color: Colors.green[200]!) 
+                  : null,
+              ),
+              child: RadioListTile<ProductHandlingAction>(
+                title: const Text('Create new product'),
+                subtitle: const Text('Create a new product from this job order'),
+                value: ProductHandlingAction.createNewProduct,
+                groupValue: _selectedAction,
+                onChanged: (value) => setState(() => _selectedAction = value),
+              ),
             ),
             
-            RadioListTile<ProductHandlingAction>(
-              title: const Text('Select existing product'),
-              subtitle: const Text('Add variants to an existing product'),
-              value: ProductHandlingAction.selectExistingProduct,
-              groupValue: _selectedAction,
-              onChanged: (value) => setState(() => _selectedAction = value),
+            Container(
+              decoration: BoxDecoration(
+                color: _selectedAction == ProductHandlingAction.selectExistingProduct 
+                  ? Colors.green[50] 
+                  : null,
+                borderRadius: BorderRadius.circular(8),
+                border: _selectedAction == ProductHandlingAction.selectExistingProduct 
+                  ? Border.all(color: Colors.green[200]!) 
+                  : null,
+              ),
+              child: RadioListTile<ProductHandlingAction>(
+                title: const Text('Select existing product'),
+                subtitle: const Text('Add variants to an existing product'),
+                value: ProductHandlingAction.selectExistingProduct,
+                groupValue: _selectedAction,
+                onChanged: (value) => setState(() => _selectedAction = value),
+              ),
             ),
             
             // Show additional fields when creating new product
             if (_selectedAction == ProductHandlingAction.createNewProduct) ...[
               const SizedBox(height: 16),
               const Divider(),
-              const SizedBox(height: 16),
-              
-              // Category selection
-              const Text('Product Category:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<String>(
-                value: _selectedCategory,
-                items: _categories.map((category) {
-                  return DropdownMenuItem(
-                    value: category,
-                    child: Text(category.toUpperCase()),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  setState(() {
-                    _selectedCategory = value!;
-                  });
-                },
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                ),
-              ),
               const SizedBox(height: 16),
               
               // Price selection
@@ -394,39 +459,35 @@ class _ProductHandlingDialogState extends State<ProductHandlingDialog> {
                 ],
               ),
             ),
-            const SizedBox(height: 16),
             
-            // Action selection
-            const Text('Choose product handling action:', 
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-            const SizedBox(height: 8),
-            
-            if (hasLinkedProduct) ...[
-              RadioListTile<ProductHandlingAction>(
-                title: const Text('Add to Linked Product'),
-                subtitle: const Text('Add stock to the already linked product'),
-                value: ProductHandlingAction.addToLinkedProduct,
-                groupValue: _selectedAction,
-                onChanged: (value) => setState(() => _selectedAction = value),
-                dense: true,
+            // Validation message
+            if (_getValidationMessage() != null) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange[200]!),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.orange[600], size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _getValidationMessage()!,
+                        style: TextStyle(
+                          color: Colors.orange[700],
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
-            RadioListTile<ProductHandlingAction>(
-              title: const Text('Create New Product'),
-              subtitle: const Text('Create a brand new product from this job order'),
-              value: ProductHandlingAction.createNewProduct,
-              groupValue: _selectedAction,
-              onChanged: (value) => setState(() => _selectedAction = value),
-              dense: true,
-            ),
-            RadioListTile<ProductHandlingAction>(
-              title: const Text('Add to Existing Product'),
-              subtitle: const Text('Select an existing product to add stock to'),
-              value: ProductHandlingAction.selectExistingProduct,
-              groupValue: _selectedAction,
-              onChanged: (value) => setState(() => _selectedAction = value),
-              dense: true,
-            ),
           ],
         ),
       ),
@@ -435,24 +496,29 @@ class _ProductHandlingDialogState extends State<ProductHandlingDialog> {
           onPressed: () => Navigator.pop(context, null),
           child: const Text('Cancel'),
         ),
-        ElevatedButton.icon(
-          onPressed: _selectedAction != null ? () {
-            final paymentAmount = double.tryParse(_paymentController.text.trim()) ?? 0.0;
-            final customPrice = _useCustomPrice ? double.tryParse(_priceController.text.trim()) : null;
-            
-            Navigator.pop(context, ProductHandlingResult(
-              action: _selectedAction!,
-              paymentAmount: paymentAmount,
-              categoryID: _selectedCategory,
-              customPrice: customPrice,
-              imageURLs: _uploadedImageURLs,
-            ));
-          } : null,
-          icon: const Icon(Icons.check, size: 16),
-          label: const Text('Complete Job Order'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.green[600],
-            foregroundColor: Colors.white,
+        Tooltip(
+          message: _canComplete() 
+            ? 'Complete the job order and handle the product'
+            : _getValidationMessage() ?? 'Please complete all required fields',
+          child: ElevatedButton.icon(
+            onPressed: _canComplete() ? () {
+              final paymentAmount = double.tryParse(_paymentController.text.trim()) ?? 0.0;
+              final customPrice = _useCustomPrice ? double.tryParse(_priceController.text.trim()) : null;
+              
+              Navigator.pop(context, ProductHandlingResult(
+                action: _selectedAction!,
+                paymentAmount: paymentAmount,
+                categoryID: null, // Use original product category from job order
+                customPrice: customPrice,
+                imageURLs: _uploadedImageURLs,
+              ));
+            } : null,
+            icon: const Icon(Icons.check, size: 16),
+            label: const Text('Complete Job Order'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green[600],
+              foregroundColor: Colors.white,
+            ),
           ),
         ),
       ],

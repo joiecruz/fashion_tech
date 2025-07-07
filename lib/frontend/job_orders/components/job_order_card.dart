@@ -47,25 +47,28 @@ class JobOrderCard extends StatelessWidget {
 
     // Get related data
     final productInfo = productData[productID] ?? {};
-    final List<dynamic> productVariants = productInfo['variants'] ?? [];
-    final List<dynamic> productFabrics = productInfo['fabrics'] ?? [];
-
-    // Try to find the matching variant for this job order
+    
+    // Fetch variant data on-demand if needed for display (no longer cached)
     Map<String, dynamic>? matchedVariant;
     if (data['variantID'] != null && data['variantID'].toString().isNotEmpty) {
-      matchedVariant = productVariants.cast<Map<String, dynamic>>().firstWhere(
-        (v) => v['variantID'] == data['variantID'],
-        orElse: () => {},
-      );
+      // For now, we'll show the variant info from the job order data itself
+      // since variants are no longer pre-cached to avoid bidirectional references
+      matchedVariant = {
+        'variantID': data['variantID'],
+        'color': data['color'] ?? '',  // Job order stores its own variant info
+        'size': data['size'] ?? '',    // Job order stores its own variant info
+      };
     }
 
     // Try to find the matching fabric for this job order
     Map<String, dynamic>? matchedFabric;
     if (data['fabricID'] != null && data['fabricID'].toString().isNotEmpty) {
-      matchedFabric = productFabrics.cast<Map<String, dynamic>>().firstWhere(
-        (f) => f['fabricID'] == data['fabricID'],
-        orElse: () => {},
-      );
+      // For now, we'll show the fabric info from the job order data itself
+      // since fabrics are linked via job orders in ERDv9, not products
+      matchedFabric = {
+        'fabricID': data['fabricID'],
+        'fabricName': data['fabricName'] ?? '',  // Job order may store fabric info
+      };
     }
 
     // Extract color, size, and fabric name
