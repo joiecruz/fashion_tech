@@ -12,7 +12,7 @@ class JobOrderLogsPage extends StatefulWidget {
 
 class _JobOrderLogsPageState extends State<JobOrderLogsPage> {
   final user = FirebaseAuth.instance.currentUser;
-  late final String? userId;
+  String? userId;
   bool _loading = true;
   List<Map<String, dynamic>> _logs = [];
 
@@ -27,6 +27,7 @@ class _JobOrderLogsPageState extends State<JobOrderLogsPage> {
     setState(() => _loading = true);
     final snapshot = await FirebaseFirestore.instance
         .collection('jobOrderLogs')
+        .where('createdBy', isEqualTo: userId)
         .orderBy('timestamp', descending: true)
         .get();
 

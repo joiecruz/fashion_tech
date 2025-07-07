@@ -27,6 +27,7 @@ class _ProductLogsPageState extends State<ProductLogsPage> {
     setState(() => _loading = true);
     final snapshot = await FirebaseFirestore.instance
         .collection('inventoryLogs')
+        .where('createdBy', isEqualTo: userId)
         .orderBy('createdAt', descending: true)
         .get();
 
