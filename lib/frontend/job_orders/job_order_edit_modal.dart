@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../utils/color_utils.dart';
+import '../common/simple_category_dropdown.dart';
 import 'models/form_models.dart';
 import 'widgets/variant_card.dart';
 import 'widgets/variant_breakdown_summary.dart';
@@ -52,7 +53,7 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
   final FocusNode _specialInstructionsFocus = FocusNode();
   bool _isUpcycled = false;
   String _jobStatus = 'In Progress';
-  String _selectedCategory = 'custom'; // Add category field
+  String _selectedCategory = 'uncategorized'; // Add category field
   List<FormProductVariant> _variants = [];
 
   List<Map<String, dynamic>> _userFabrics = [];
@@ -245,8 +246,9 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
       _specialInstructionsController.text = jobOrder['specialInstructions'] ?? '';
       _isUpcycled = jobOrder['isUpcycled'] ?? false;
       _jobStatus = jobOrder['status'] ?? 'In Progress';
-      _selectedCategory = jobOrder['category'] ?? 'custom'; // Load category field
+      _selectedCategory = jobOrder['categoryID'] ?? jobOrder['category'] ?? 'uncategorized'; // ERDv9: Load categoryID field with fallback
       print('[DEBUG] Loaded job status from database: "${_jobStatus}"');
+      print('[DEBUG] Loaded category from database: "${_selectedCategory}" (categoryID: ${jobOrder['categoryID']}, category: ${jobOrder['category']})');
 
       // Fetch all jobOrderDetails for this job order
       final detailsSnapshot = await FirebaseFirestore.instance
@@ -705,13 +707,7 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
           icon: Icons.recycling,
         ),
         const SizedBox(height: 16),
-        _buildDropdownField(
-          value: _selectedCategory,
-          label: 'Product Category',
-          icon: Icons.category,
-          items: ['top', 'bottom', 'dress', 'outerwear', 'accessories', 'shoes', 'custom'],
-          onChanged: (val) => setState(() => _selectedCategory = val ?? 'custom'),
-        ),
+        _buildCategoryField(),
         const SizedBox(height: 16),
         _buildDropdownField(
           value: _jobStatus,
@@ -722,6 +718,46 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
         ),
       ],
       key: _additionalDetailsSectionKey,
+    );
+  }
+
+  Widget _buildCategoryField() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.category, color: Colors.blue[600], size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Product Category',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey[800],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SimpleCategoryDropdown(
+            selectedCategory: _selectedCategory,
+            onChanged: (value) {
+              setState(() {
+                _selectedCategory = value ?? 'uncategorized';
+              });
+            },
+            isRequired: false,
+          ),
+        ],
+      ),
     );
   }
 
@@ -1248,7 +1284,7 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
         'specialInstructions': _specialInstructionsController.text.trim(),
         'isUpcycled': _isUpcycled,
         'status': _jobStatus,
-        'category': _selectedCategory, // Add category field
+        'categoryID': _selectedCategory, // ERDv9: Store categoryID instead of category
         'updatedAt': FieldValue.serverTimestamp(),
       });
       print('[DEBUG] Main job order document updated successfully.');

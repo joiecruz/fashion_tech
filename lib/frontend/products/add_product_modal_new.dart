@@ -8,9 +8,6 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import '../../models/product.dart';
 import '../../models/product_image.dart';
-import '../../utils/utils.dart';
-import '../../utils/size_utils.dart';
-import '../../utils/color_utils.dart';
 import '../../backend/fetch_suppliers.dart';
 
 // Import modular components
@@ -42,7 +39,7 @@ class _AddProductModalState extends State<AddProductModal>
   final FocusNode _stockFocus = FocusNode();
   final FocusNode _notesFocus = FocusNode();
   
-  String _selectedCategory = 'top';
+  String _selectedCategory = 'uncategorized';
   String? _selectedSupplierID;
   List<Map<String, dynamic>> _suppliers = [];
   bool _loadingSuppliers = true;
@@ -59,13 +56,6 @@ class _AddProductModalState extends State<AddProductModal>
   bool _useFirebaseStorage = true;
 
   List<ProductVariantInput> _variants = [];
-
-  final List<String> _categories = [
-    'top',
-    'bottom',
-    'outerwear',
-    'accessories',
-  ];
 
   // Animation controller for smooth transitions
   late AnimationController _animationController;
@@ -682,10 +672,9 @@ class _AddProductModalState extends State<AddProductModal>
                           priceFocus: _priceFocus,
                           nextFocus: _stockFocus,
                           selectedCategory: _selectedCategory,
-                          categories: _categories,
                           onCategoryChanged: (value) {
                             setState(() {
-                              _selectedCategory = value;
+                              _selectedCategory = value ?? 'uncategorized';
                             });
                           },
                         ),

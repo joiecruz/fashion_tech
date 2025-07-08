@@ -6,6 +6,7 @@ import 'components/job_order_filters.dart';
 import 'components/job_order_card.dart';
 import 'components/job_order_empty_state.dart';
 import 'components/job_order_actions.dart';
+import '../../services/category_service.dart';
 
 class JobOrderListPage extends StatefulWidget {
   const JobOrderListPage({super.key});
@@ -23,6 +24,7 @@ class _JobOrderListPageState extends State<JobOrderListPage>
   Map<String, String> userNames = {};
   Map<String, String> productNames = {};
   Map<String, Map<String, dynamic>> productData = {};
+  Map<String, String> categoryNames = {}; // Add category cache
   bool _dataLoaded = false;
   bool _isStatsExpanded = true;
   bool _isRefreshing = false;  // Add refresh state
@@ -75,6 +77,33 @@ class _JobOrderListPageState extends State<JobOrderListPage>
         doc.id: '${(doc.data()['firstName'] ?? '')} ${(doc.data()['lastName'] ?? '')}'.trim()
     };
 
+    // Fetch categories for display names
+    try {
+      final categories = await CategoryService.getAllProductCategories();
+      print('DEBUG: Found ${categories.length} categories');
+      categoryNames = {
+        for (var category in categories)
+          category['name']: category['displayName'] ?? category['name']
+      };
+    } catch (e) {
+      print('DEBUG: Error loading categories: $e');
+      // Use fallback category names
+      categoryNames = {
+        'top': 'Top',
+        'bottom': 'Bottom',
+        'outerwear': 'Outerwear',
+        'dress': 'Dress',
+        'activewear': 'Activewear',
+        'underwear': 'Underwear & Intimates',
+        'sleepwear': 'Sleepwear',
+        'swimwear': 'Swimwear',
+        'footwear': 'Footwear',
+        'accessories': 'Accessories',
+        'formal': 'Formal Wear',
+        'uncategorized': 'Uncategorized',
+      };
+    }
+
     // Fetch all products with full data for ERDv8 compliance
     final productsSnap = await FirebaseFirestore.instance.collection('products').get();
     print('DEBUG: Found ${productsSnap.docs.length} products');
@@ -88,10 +117,15 @@ class _JobOrderListPageState extends State<JobOrderListPage>
     for (var doc in productsSnap.docs) {
       final productDocData = doc.data();
       
+      // Get category info - handle both new categoryID and legacy category fields
+      final categoryID = productDocData['categoryID'] ?? productDocData['category'] ?? 'uncategorized';
+      final categoryDisplayName = categoryNames[categoryID] ?? categoryID.toString().toUpperCase();
+      
       // Store only core product data - variants will be queried on-demand
       productData[doc.id] = {
         'name': productDocData['name'] ?? '',
-        'category': productDocData['category'] ?? '',
+        'categoryID': categoryID, // ERDv9: Store the category ID
+        'categoryName': categoryDisplayName, // ERDv9: Store the display name
         'price': productDocData['price'] ?? 0.0,
         'imageURL': productDocData['imageURL'] ?? '',
         'isUpcycled': productDocData['isUpcycled'] ?? false,
@@ -118,6 +152,7 @@ class _JobOrderListPageState extends State<JobOrderListPage>
       userNames.clear();
       productNames.clear();
       productData.clear();
+      categoryNames.clear();
       
       // Reload all data
       await _preloadData();
@@ -636,6 +671,7 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                                             userNames: userNames,
                                             productNames: productNames,
                                             productData: productData,
+                                            categoryNames: categoryNames,
                                             status: (jobOrders[index].data() as Map<String, dynamic>)['status'] ?? 'Open',
                                             onEdit: () async {
                                               await showModalBottomSheet(

@@ -8,6 +8,7 @@ class JobOrderCard extends StatelessWidget {
   final Map<String, String> userNames;
   final Map<String, String> productNames;
   final Map<String, Map<String, dynamic>> productData;
+  final Map<String, String> categoryNames;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
   final VoidCallback onMarkAsDone;
@@ -20,6 +21,7 @@ class JobOrderCard extends StatelessWidget {
     required this.userNames,
     required this.productNames,
     required this.productData,
+    required this.categoryNames,
     required this.onEdit,
     required this.onDelete,
     required this.onMarkAsDone,
@@ -267,23 +269,24 @@ class JobOrderCard extends StatelessWidget {
               ),
 
               // Category and upcycled tags (if applicable)
-              if (productInfo['category'] != null || productInfo['isUpcycled'] == true) ...[
+              if (productInfo['categoryName'] != null || productInfo['isUpcycled'] == true) ...[
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    if (productInfo['category'] != null) ...[
+                    if (productInfo['categoryName'] != null) ...[
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: Colors.grey[100],
+                          color: Colors.blue[50],
                           borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: Colors.blue[200]!, width: 0.5),
                         ),
                         child: Text(
-                          (productInfo['category'] as String).toUpperCase(),
+                          productInfo['categoryName'] as String,
                           style: TextStyle(
                             fontSize: 9,
                             fontWeight: FontWeight.w600,
-                            color: Colors.grey[600],
+                            color: Colors.blue[700],
                           ),
                         ),
                       ),

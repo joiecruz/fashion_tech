@@ -49,7 +49,7 @@ class FetchProductsBackend {
           'name': productData['name'] ?? 'Unknown Product',
           'description': productData['description'],
           'notes': productData['notes'],
-          'category': productData['category'] ?? 'Uncategorized',
+          'category': productData['categoryID'] ?? productData['category'] ?? 'uncategorized', // ERDv9: Use categoryID with fallback
           'price': price,
           'isUpcycled': productData['isUpcycled'] ?? false,
           'isMade': productData['isMade'] ?? false,

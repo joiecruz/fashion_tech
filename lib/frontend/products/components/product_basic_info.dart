@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../common/simple_category_dropdown.dart';
 
 class ProductBasicInfo extends StatelessWidget {
   final TextEditingController nameController;
@@ -7,8 +8,7 @@ class ProductBasicInfo extends StatelessWidget {
   final FocusNode priceFocus;
   final FocusNode nextFocus;
   final String selectedCategory;
-  final List<String> categories;
-  final Function(String) onCategoryChanged;
+  final Function(String?) onCategoryChanged;
 
   const ProductBasicInfo({
     super.key,
@@ -18,7 +18,6 @@ class ProductBasicInfo extends StatelessWidget {
     required this.priceFocus,
     required this.nextFocus,
     required this.selectedCategory,
-    required this.categories,
     required this.onCategoryChanged,
   });
 
@@ -167,31 +166,10 @@ class ProductBasicInfo extends StatelessWidget {
                         ),
                         const SizedBox(height: 8),
                         Flexible(
-                          child: DropdownButtonFormField<String>(
-                            value: selectedCategory,
-                            isExpanded: true,
-                            decoration: InputDecoration(
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide: BorderSide(color: Colors.grey[300]!),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide: BorderSide(color: Colors.blue[600]!),
-                              ),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                            ),
-                            items: categories.map((category) {
-                              return DropdownMenuItem(
-                                value: category,
-                                child: Text(
-                                  category.toUpperCase(),
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontSize: 14),
-                                ),
-                              );
-                            }).toList(),
-                            onChanged: (value) => onCategoryChanged(value!),
+                          child: SimpleCategoryDropdown(
+                            selectedCategory: selectedCategory,
+                            onChanged: onCategoryChanged,
+                            isRequired: true,
                           ),
                         ),
                       ],

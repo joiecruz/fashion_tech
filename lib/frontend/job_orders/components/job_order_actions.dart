@@ -268,11 +268,16 @@ class JobOrderActions {
       }
       
       // Create the product with all required fields
+      final specialInstructions = jobOrderData['specialInstructions']?.toString().trim() ?? '';
+      final productNotes = specialInstructions.isNotEmpty 
+          ? specialInstructions 
+          : 'Created from job order: $jobOrderName';
+      
       final newProductData = {
         'name': jobOrderName,
-        'notes': 'Created from job order: $jobOrderName',
+        'notes': productNotes,
         'price': unitPrice,
-        'categoryID': productResult.categoryID ?? jobOrderData['category'] ?? originalProductInfo['category'] ?? 'custom',
+        'categoryID': productResult.categoryID ?? jobOrderData['category'] ?? originalProductInfo['category'] ?? 'uncategorized',
         'isUpcycled': originalProductInfo['isUpcycled'] ?? jobOrderData['isUpcycled'] ?? false,
         'isMade': true,
         'createdBy': jobOrderData['createdBy'] ?? jobOrderData['assignedTo'] ?? 'unknown',

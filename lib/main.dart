@@ -7,6 +7,7 @@ import 'frontend/auth/login_page.dart';
 import 'frontend/admin/admin_home_page.dart';
 import 'services/user_service.dart';
 import 'services/color_service.dart';
+import 'services/category_service.dart';
 import 'utils/color_utils.dart';
 
 void main() async {
@@ -18,6 +19,11 @@ void main() async {
   // Initialize default colors in the background
   ColorService.initializeDefaultColors().catchError((error) {
     print('[INFO] Colors may need manual initialization: $error');
+  });
+  
+  // Initialize default categories in the background
+  CategoryService.initializeDefaultCategories().catchError((error) {
+    print('[INFO] Categories may need manual initialization: $error');
   });
   
   // Initialize ColorUtils with database colors

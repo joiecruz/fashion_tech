@@ -4,7 +4,10 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'dart:convert';
 import '../../utils/size_utils.dart';
+import '../../backend/fetch_suppliers.dart';
 import '../common/simple_color_dropdown.dart';
+import '../common/simple_category_dropdown.dart';
+import 'components/supplier_dropdown.dart';
 
 class ProductVariantInput {
   String size;
@@ -37,11 +40,13 @@ class _EditProductModalState extends State<EditProductModal> {
   
   final FocusNode _nameFocus = FocusNode();
   final FocusNode _priceFocus = FocusNode();
-  final FocusNode _supplierFocus = FocusNode();
   final FocusNode _stockFocus = FocusNode();
   final FocusNode _notesFocus = FocusNode();
   
-  String _selectedCategory = 'top';
+  String _selectedCategory = 'uncategorized';
+  String? _selectedSupplierID;
+  List<Map<String, dynamic>> _suppliers = [];
+  bool _loadingSuppliers = true;
   bool _isUpcycled = false;
   bool _isMade = false;
   bool _isLoading = false;
@@ -54,13 +59,6 @@ class _EditProductModalState extends State<EditProductModal> {
 
   List<ProductVariantInput> _variants = [];
 
-  final List<String> _categories = [
-    'top',
-    'bottom',
-    'outerwear',
-    'accessories',
-  ];
-
   @override
   void initState() {
     super.initState();
@@ -69,9 +67,15 @@ class _EditProductModalState extends State<EditProductModal> {
     _supplierController.text = widget.productData['supplier'] ?? '';
     _notesController.text = widget.productData['notes'] ?? '';
     _stockController.text = widget.productData['stock']?.toString() ?? '';
-    _selectedCategory = widget.productData['categoryID'] ?? widget.productData['category'] ?? _categories.first; // ERDv9: Handle both new and legacy data
+    _selectedCategory = widget.productData['categoryID'] ?? widget.productData['category'] ?? 'uncategorized'; // ERDv9: Handle both new and legacy data
     _isUpcycled = widget.productData['isUpcycled'] ?? false;
     _isMade = widget.productData['isMade'] ?? false;
+
+    // Set the supplier ID if it exists
+    _selectedSupplierID = widget.productData['supplierID'];
+
+    // Load suppliers
+    _loadSuppliers();
 
     // Acquisition date
     final acquisitionRaw = widget.productData['acquisitionDate'];
@@ -121,10 +125,40 @@ class _EditProductModalState extends State<EditProductModal> {
     _scrollController.dispose();
     _nameFocus.dispose();
     _priceFocus.dispose();
-    _supplierFocus.dispose();
     _stockFocus.dispose();
     _notesFocus.dispose();
     super.dispose();
+  }
+
+// Load suppliers from database
+  Future<void> _loadSuppliers() async {
+    try {
+      final suppliers = await FetchSuppliersBackend.fetchAllSuppliers();
+      if (mounted) {
+        setState(() {
+          _suppliers = suppliers;
+          _loadingSuppliers = false;
+          
+          // Try to find and set the existing supplier ID
+          if (_supplierController.text.isNotEmpty) {
+            final matchingSupplier = suppliers.firstWhere(
+              (supplier) => supplier['name'] == _supplierController.text,
+              orElse: () => {},
+            );
+            if (matchingSupplier.isNotEmpty) {
+              _selectedSupplierID = matchingSupplier['id'];
+            }
+          }
+        });
+      }
+    } catch (e) {
+      print('Error loading suppliers: $e');
+      if (mounted) {
+        setState(() {
+          _loadingSuppliers = false;
+        });
+      }
+    }
   }
 
 Future<void> _pickImage() async {
@@ -211,7 +245,7 @@ Future<void> _saveProduct() async {
       'name': _nameController.text.trim(),
       'price': double.tryParse(_priceController.text) ?? 0,
       'categoryID': _selectedCategory, // ERDv9: Changed from 'category' to 'categoryID'
-      'supplier': _supplierController.text.trim(),
+      'supplierID': _selectedSupplierID, // ERDv9: Use supplierID instead of supplier name
       'notes': _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
       'isUpcycled': _isUpcycled,
       'isMade': _isMade,
@@ -518,7 +552,7 @@ Future<void> _saveProduct() async {
                                     controller: _priceController,
                                     focusNode: _priceFocus,
                                     textInputAction: TextInputAction.next,
-                                    onFieldSubmitted: (_) => _supplierFocus.requestFocus(),
+                                    onFieldSubmitted: (_) => _stockFocus.requestFocus(),
                                     keyboardType: TextInputType.numberWithOptions(decimal: true),
                                     decoration: InputDecoration(
                                       hintText: '0.00',
@@ -573,35 +607,14 @@ Future<void> _saveProduct() async {
                                 ),
                                 const SizedBox(height: 8),
                                 Flexible(
-                                  child: DropdownButtonFormField<String>(
-                                    value: _selectedCategory,
-                                    isExpanded: true,
-                                    decoration: InputDecoration(
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: BorderSide(color: Colors.grey[300]!),
-                                      ),
-                                      focusedBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: BorderSide(color: Colors.blue[600]!),
-                                      ),
-                                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                                    ),
-                                    items: _categories.map((category) {
-                                      return DropdownMenuItem(
-                                        value: category,
-                                        child: Text(
-                                          category.toUpperCase(),
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(fontSize: 14),
-                                        ),
-                                      );
-                                    }).toList(),
+                                  child: SimpleCategoryDropdown(
+                                    selectedCategory: _selectedCategory,
                                     onChanged: (value) {
                                       setState(() {
-                                        _selectedCategory = value!;
+                                        _selectedCategory = value ?? 'uncategorized';
                                       });
                                     },
+                                    isRequired: true,
                                   ),
                                 ),
                               ],
@@ -613,46 +626,28 @@ Future<void> _saveProduct() async {
                   ),
                 ),
                 const SizedBox(height: 16),
-                // Supplier/Source (Optional)
-                Card(
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Supplier/Source - Optional',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey[800],
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        TextFormField(
-                          controller: _supplierController,
-                          focusNode: _supplierFocus,
-                          textInputAction: TextInputAction.next,
-                          onFieldSubmitted: (_) => _stockFocus.requestFocus(),
-                          decoration: InputDecoration(
-                            hintText: 'Enter supplier name or source',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(color: Colors.grey[300]!),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(color: Colors.blue[600]!),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                // Supplier Dropdown
+                SupplierDropdown(
+                  selectedSupplierID: _selectedSupplierID,
+                  suppliers: _suppliers,
+                  loadingSuppliers: _loadingSuppliers,
+                  onSupplierChanged: (value) {
+                    setState(() {
+                      _selectedSupplierID = value;
+                      // Update the text controller for backward compatibility
+                      if (value != null && value.isNotEmpty) {
+                        final selectedSupplier = _suppliers.firstWhere(
+                          (supplier) => supplier['id'] == value,
+                          orElse: () => {},
+                        );
+                        if (selectedSupplier.isNotEmpty) {
+                          _supplierController.text = selectedSupplier['name'] ?? '';
+                        }
+                      } else {
+                        _supplierController.text = '';
+                      }
+                    });
+                  },
                 ),
                 const SizedBox(height: 16),
                 // Acquisition Date

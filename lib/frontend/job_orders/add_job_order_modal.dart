@@ -37,6 +37,7 @@ import 'widgets/fabric_suppliers_section.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../models/customer.dart';
 import '../customers/add_customer_modal.dart';
+import '../common/simple_category_dropdown.dart';
 
 class AddJobOrderModal extends StatefulWidget {
   const AddJobOrderModal({Key? key}) : super(key: key);
@@ -77,7 +78,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
   
   bool _isUpcycled = false;
   String _jobStatus = 'In Progress';
-  String _selectedCategory = 'custom'; // Add category field
+  String _selectedCategory = 'uncategorized'; // Add category field
   List<FormProductVariant> _variants = [];
 
   List<Map<String, dynamic>> _userFabrics = [];
@@ -851,14 +852,15 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
           icon: Icons.recycling,
         ),
         const SizedBox(height: 16),
-        _buildDropdownField(
-          value: _selectedCategory,
-          label: 'Product Category',
-          icon: Icons.category,
-          items: ['top', 'bottom', 'dress', 'outerwear', 'accessories', 'shoes', 'custom'],
-          onChanged: (val) => setState(() => _selectedCategory = val ?? 'custom'),
-          validator: (val) {
-            if (val == null || val.isEmpty) {
+        SimpleCategoryDropdown(
+          selectedCategory: _selectedCategory,
+          onChanged: (value) {
+            setState(() {
+              _selectedCategory = value ?? 'uncategorized';
+            });
+          },
+          validator: (value) {
+            if (value == null || value.isEmpty) {
               return 'Please select a category';
             }
             return null;
@@ -1806,7 +1808,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
             : FieldValue.serverTimestamp(), // custom field (not in ERDv9)
         'price': double.tryParse(_priceController.text) ?? 0.0, // Add price field
         'isUpcycled': _isUpcycled, // Add upcycled flag
-        'category': _selectedCategory, // Add category field
+        'categoryID': _selectedCategory, // ERDv9: Store categoryID instead of category
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });

@@ -4,6 +4,7 @@ import 'product_detail_page.dart';
 import 'edit_product_modal.dart';
 import 'package:fashion_tech/backend/fetch_products.dart';
 import 'package:fashion_tech/frontend/profit/sell_modal.dart';
+import 'package:fashion_tech/services/category_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:convert';
 
@@ -33,6 +34,11 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
   bool _showLowStockOnly = false;
   bool _hideOutOfStock = false;
   bool _isStatsExpanded = true;
+
+  // Dynamic category system
+  Map<String, String> _categoryDisplayNames = {};
+  List<String> _availableCategories = [];
+  bool _categoriesLoaded = false;
 
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -83,10 +89,58 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
       curve: Curves.easeInOut,
     ));
 
+    _loadCategories();
     _loadProducts();
     _searchController.addListener(_filterProducts);
     // Remove this line, as _products is empty at init:
     // ProductInventoryPage.setPotentialValue(_products.fold(0.0, (sum, p) => sum + p['potentialValue']));
+  }
+
+  Future<void> _loadCategories() async {
+    try {
+      // Initialize categories if needed
+      final isInitialized = await CategoryService.areDefaultCategoriesInitialized();
+      if (!isInitialized) {
+        await CategoryService.initializeDefaultCategories();
+      }
+
+      // Get categories from service
+      final categories = await CategoryService.getAllProductCategories();
+      
+      if (mounted) {
+        setState(() {
+          _categoryDisplayNames = {
+            for (var category in categories)
+              category['name']: category['displayName'] ?? category['name']
+          };
+          _availableCategories = ['All', ...categories.map<String>((cat) => cat['name'])];
+          _categoriesLoaded = true;
+        });
+      }
+    } catch (e) {
+      print('Error loading categories: $e');
+      // Use fallback categories
+      if (mounted) {
+        setState(() {
+          _categoryDisplayNames = {
+            'top': 'Top',
+            'bottom': 'Bottom',
+            'outerwear': 'Outerwear',
+            'dress': 'Dress',
+            'activewear': 'Activewear',
+            'underwear': 'Underwear & Intimates',
+            'sleepwear': 'Sleepwear',
+            'swimwear': 'Swimwear',
+            'footwear': 'Footwear',
+            'accessories': 'Accessories',
+            'formal': 'Formal Wear',
+            'uncategorized': 'Uncategorized',
+          };
+          _availableCategories = ['All', ..._categoryDisplayNames.keys];
+          _categoriesLoaded = true;
+        });
+      }
+    }
   }
 
   @override
@@ -215,7 +269,9 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
     setState(() {
       _filteredProducts = _products.where((product) {
         bool matchesSearch = product['name'].toLowerCase().contains(query);
-        bool matchesCategory = _selectedCategory == 'All' || product['category'] == _selectedCategory;
+        // Use categoryID for filtering (the backend fetch already maps categoryID to 'category' field)
+        String productCategoryID = product['category'] ?? 'uncategorized'; 
+        bool matchesCategory = _selectedCategory == 'All' || productCategoryID == _selectedCategory;
         bool matchesUpcycled = !_showUpcycledOnly || product['isUpcycled'];
         bool matchesLowStock = !_showLowStockOnly || product['lowStock'];
         
@@ -240,6 +296,11 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
     } else {
       return '₱${value.toStringAsFixed(0)}';
     }
+  }
+
+  String _getCategoryDisplayName(String? categoryID) {
+    if (categoryID == null || categoryID.isEmpty) return 'Uncategorized';
+    return _categoryDisplayNames[categoryID] ?? categoryID.toUpperCase();
   }
 
   @override
@@ -287,7 +348,7 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
                           duration: const Duration(milliseconds: 300),
                           child: Row(
                             children: [
-                              _buildFilterChip('Category', _selectedCategory, ['All', 'top', 'bottom', 'outerwear', 'accessories']),
+                              _buildFilterChip('Category', _selectedCategory, _availableCategories),
                               const SizedBox(width: 12),
                               _buildToggleChip('Upcycled', _showUpcycledOnly, (value) {
                                 setState(() {
@@ -646,78 +707,28 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Colors.white, Colors.grey[50]!],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.grey[300]!, width: 1),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.06),
-              blurRadius: 4,
-              offset: const Offset(0, 1),
-            ),
-          ],
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.grey[300]!),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              padding: const EdgeInsets.all(3),
-              decoration: BoxDecoration(
-                color: Colors.blue[100],
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Icon(
-                Icons.category_rounded,
-                size: 12,
-                color: Colors.blue[700],
-              ),
-            ),
-            const SizedBox(width: 6),
+            Text('$label: ', style: const TextStyle(fontWeight: FontWeight.w600)),
             Text(
-              value == 'All' ? value : value.toUpperCase(),
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey[800],
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.2,
-              ),
+              value == 'All' ? 'All' : _getCategoryDisplayName(value),
+              style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.blue),
             ),
             const SizedBox(width: 4),
-            Icon(
-              Icons.keyboard_arrow_down_rounded,
-              size: 14,
-              color: Colors.grey[600],
-            ),
+            const Icon(Icons.arrow_drop_down, size: 18),
           ],
         ),
       ),
-      itemBuilder: (BuildContext context) {
-        return options.map((String option) {
-          String displayOption = option == 'All' ? option : option.toUpperCase();
+      itemBuilder: (context) {
+        return options.map((option) {
           return PopupMenuItem<String>(
             value: option,
-            child: Row(
-              children: [
-                Icon(
-                  option == 'All' ? Icons.grid_view_rounded : Icons.label_rounded,
-                  size: 14,
-                  color: Colors.grey[600],
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  displayOption,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: option == value ? FontWeight.w600 : FontWeight.w400,
-                    color: option == value ? Colors.blue[700] : Colors.grey[800],
-                  ),
-                ),
-              ],
-            ),
+            child: Text(option == 'All' ? 'All' : _getCategoryDisplayName(option)),
           );
         }).toList();
       },
@@ -876,7 +887,7 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
                                             ),
                                           ),
                                           Text(
-                                            '${product['category'].toString().toUpperCase()}',
+                                            _getCategoryDisplayName(product['category']),
                                             style: TextStyle(
                                               fontSize: 14,
                                               color: Colors.grey[600],
