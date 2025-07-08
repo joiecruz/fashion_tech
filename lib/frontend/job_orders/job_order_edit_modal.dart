@@ -254,34 +254,64 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
           .where('jobOrderID', isEqualTo: widget.jobOrderId)
           .get();
 
-      // Create individual variants for each jobOrderDetail document
-      // This ensures proper editing of individual records
-      final List<FormProductVariant> variants = [];
+      // Group jobOrderDetails by size and color to create proper variants
+      final Map<String, FormProductVariant> variantMap = {};
+      
       for (final doc in detailsSnapshot.docs) {
         final data = doc.data();
+        final size = data['size'] ?? '';
+        final color = data['color'] ?? ''; // ERDv9: Use color field, handle legacy data
+        final quantity = data['quantity'] ?? 0;
+        
+        print('[DEBUG] Processing detail ${doc.id}: size=$size, color=$color, quantity=$quantity');
+        
+        // Create a unique key for each size-color combination
+        final variantKey = '${size}_$color';
+        
         final fabric = VariantFabric(
           fabricId: data['fabricID'] ?? '',
           fabricName: data['fabricName'] ?? '',
           yardageUsed: (data['yardageUsed'] ?? 0).toDouble(),
         );
 
-        // Create a separate variant for each jobOrderDetail document
-        variants.add(FormProductVariant(
-          id: doc.id, // Use the actual document ID
-          productID: jobOrder['productID'] ?? '',
-          size: data['size'] ?? '',
-          colorID: data['color'] ?? '', // ERDv9: Use colorID, handle legacy data
-          quantityInStock: 0,
-          quantity: data['quantity'] ?? 0,
-          fabrics: [fabric], // Each variant has its own fabric
-        ));
+        if (variantMap.containsKey(variantKey)) {
+          // Add fabric to existing variant
+          final existingVariant = variantMap[variantKey]!;
+          existingVariant.fabrics.add(fabric);
+          // Update quantity if this detail has a higher quantity (they should all be the same for the same variant)
+          if (quantity > existingVariant.quantity) {
+            print('[DEBUG] Updating variant $variantKey quantity from ${existingVariant.quantity} to $quantity');
+            existingVariant.quantity = quantity;
+          }
+          print('[DEBUG] Added fabric to existing variant $variantKey, now has ${existingVariant.fabrics.length} fabrics');
+        } else {
+          // Create new variant
+          print('[DEBUG] Creating new variant $variantKey with quantity $quantity');
+          variantMap[variantKey] = FormProductVariant(
+            id: doc.id, // Use the first document ID for this variant
+            productID: jobOrder['productID'] ?? '',
+            size: size,
+            colorID: color, // ERDv9: Use colorID, handle legacy data
+            quantityInStock: 0,
+            quantity: quantity,
+            fabrics: [fabric],
+          );
+        }
+      }
+
+      final List<FormProductVariant> variants = variantMap.values.toList();
+
+      // Log final variants for debugging
+      for (int i = 0; i < variants.length; i++) {
+        final v = variants[i];
+        print('[DEBUG] Final variant $i: size=${v.size}, color=${v.colorID}, quantity=${v.quantity}, fabrics=${v.fabrics.length}');
       }
 
       setState(() {
         _variants = variants;
         _loadingJobOrder = false;
       });
-      print('[DEBUG] _fetchJobOrderData completed successfully. Found ${variants.length} variants');
+      print('[DEBUG] _fetchJobOrderData completed successfully. Found ${variants.length} variants from ${detailsSnapshot.docs.length} detail records');
     } catch (e) {
       print('[ERROR] Failed to fetch job order data: $e');
       setState(() {
@@ -1223,7 +1253,7 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
       });
       print('[DEBUG] Main job order document updated successfully.');
 
-      // Handle variants update - CRITICAL FIXES HERE
+      // Handle variants update - COMPLETELY REWRITTEN FOR PROPER MULTI-FABRIC SUPPORT
       final detailsRef = FirebaseFirestore.instance.collection('jobOrderDetails');
       
       // Get all existing job order details
@@ -1232,87 +1262,55 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
           .get();
       print('[DEBUG] Found ${existingDetails.docs.length} existing jobOrderDetails.');
 
-      // Track which existing documents we're updating
-      final Set<String> processedDocIds = {};
+      // Delete all existing details first (we'll recreate them based on current variants)
+      final batch = FirebaseFirestore.instance.batch();
+      for (final doc in existingDetails.docs) {
+        batch.delete(doc.reference);
+      }
 
-      // Process each variant - handle both existing and new variants
+      // Create new jobOrderDetail documents for each fabric in each variant
       for (int i = 0; i < _variants.length; i++) {
         final variant = _variants[i];
-        print('[DEBUG] Processing variant $i: ${variant.id}');
+        print('[DEBUG] Processing variant $i: size=${variant.size}, color=${variant.colorID}, quantity=${variant.quantity}');
         
         // Skip variants without proper data
         if (variant.fabrics.isEmpty) {
-          print('[WARNING] Variant ${variant.id} has no fabrics, skipping...');
+          print('[WARNING] Variant $i has no fabrics, skipping...');
           continue;
         }
 
-        // Process each fabric in the variant (supports multiple fabrics per variant)
+        // Create a separate jobOrderDetail document for each fabric in this variant
         for (int j = 0; j < variant.fabrics.length; j++) {
           final fabric = variant.fabrics[j];
-          print('[DEBUG] Processing fabric $j for variant ${variant.id}');
+          print('[DEBUG] Creating detail for fabric $j: ${fabric.fabricId} - ${fabric.yardageUsed} yards');
           
           if (fabric.fabricId.isEmpty) {
             print('[WARNING] Fabric $j has empty fabricId, skipping...');
             continue;
           }
 
-          // Check if this is an existing jobOrderDetail that should be updated
-          DocumentSnapshot? existingDoc;
-          try {
-            existingDoc = existingDetails.docs.firstWhere(
-              (doc) => doc.id == variant.id,
-            );
-          } catch (e) {
-            existingDoc = null;
-          }
-
           final variantData = {
             'jobOrderID': widget.jobOrderId,
             'size': variant.size,
-            'color': variant.color, // Using variant.color directly
-            'quantity': variant.quantity,
+            'color': variant.colorID, // ERDv9: Use colorID consistently
+            'quantity': variant.quantity, // Same quantity for all fabrics in this variant
             'fabricID': fabric.fabricId,
             'fabricName': fabric.fabricName,
             'yardageUsed': fabric.yardageUsed,
+            'createdAt': FieldValue.serverTimestamp(),
             'updatedAt': FieldValue.serverTimestamp(),
           };
 
-          if (existingDoc != null && !processedDocIds.contains(variant.id)) {
-            // Update existing document
-            print('[DEBUG] Updating existing variant document: ${variant.id}');
-            await detailsRef.doc(variant.id).update(variantData);
-            processedDocIds.add(variant.id);
-          } else if (existingDoc == null) {
-            // Create new document for new variants
-            print('[DEBUG] Creating new variant document...');
-            variantData['createdAt'] = FieldValue.serverTimestamp();
-            final newDocRef = await detailsRef.add(variantData);
-            print('[DEBUG] New variant created with ID: ${newDocRef.id}');
-            
-            // Create a new variant object with the correct ID and replace it in the list
-            _variants[i] = FormProductVariant(
-              id: newDocRef.id,
-              productID: variant.productID,
-              size: variant.size,
-              colorID: variant.colorID,
-              quantityInStock: variant.quantityInStock,
-              quantity: variant.quantity,
-              fabrics: variant.fabrics,
-            );
-            processedDocIds.add(newDocRef.id);
-          }
+          // Create new document for each fabric
+          final newDocRef = detailsRef.doc(); // Generate new document ID
+          batch.set(newDocRef, variantData);
+          print('[DEBUG] Queued creation of detail document: ${newDocRef.id}');
         }
       }
 
-      // Delete variants that were removed from the UI
-      for (final doc in existingDetails.docs) {
-        if (!processedDocIds.contains(doc.id)) {
-          print('[DEBUG] Deleting removed variant: ${doc.id}');
-          await detailsRef.doc(doc.id).delete();
-        }
-      }
-
-      print('[DEBUG] All database updates completed successfully.');
+      // Commit all changes in a single batch
+      await batch.commit();
+      print('[DEBUG] All jobOrderDetail documents updated successfully.');
 
       // Show success message
       if (mounted) {
