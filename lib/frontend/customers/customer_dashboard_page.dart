@@ -37,6 +37,7 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
   @override
   void initState() {
     super.initState();
+    
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 800),
       vsync: this,

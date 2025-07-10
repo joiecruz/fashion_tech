@@ -28,6 +28,10 @@ class _FabricLogbookPageState extends State<FabricLogbookPage>
   bool _isStatsExpanded = true;
   bool _isLoading = true;
   StreamSubscription<QuerySnapshot>? _fabricsSubscription;
+  
+  // User filtering and debugging
+  String? _currentUserId;
+  // Removed _showUserDataOnly - users can only see their own data now
 
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -35,6 +39,7 @@ class _FabricLogbookPageState extends State<FabricLogbookPage>
   @override
   void initState() {
     super.initState();
+    
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 800),
       vsync: this,
@@ -47,36 +52,145 @@ class _FabricLogbookPageState extends State<FabricLogbookPage>
       curve: Curves.easeInOut,
     ));
 
-    _initializeFabrics();
+    _initializeUser();
     _searchController.addListener(_onSearchChanged);
   }
 
+  void _initializeUser() {
+    // Get current user information
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      _currentUserId = user.uid;
+    } else {
+      // Redirect to login if no user
+      Navigator.of(context).pushReplacementNamed('/login');
+      return;
+    }
+    
+    _initializeFabrics();
+  }
+
   void _initializeFabrics() {
-    _fabricsSubscription = FirebaseFirestore.instance
-        .collection('fabrics')
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .listen((snapshot) {
-      if (mounted) {
-        final fabrics = snapshot.docs.map((doc) {
-          final data = doc.data();
-          data['id'] = doc.id;
-          return data;
-        }).toList();
+    _fabricsSubscription?.cancel(); // Cancel any existing subscription
+    
+    // Always filter by current user - users can only see their own data
+    if (_currentUserId == null) {
+      setState(() {
+        _isLoading = false;
+        _allFabrics = [];
+      });
+      return;
+    }
+    
+    try {
+      // Use simple where query for user's fabrics only
+      final fabricsQuery = FirebaseFirestore.instance
+          .collection('fabrics')
+          .where('createdBy', isEqualTo: _currentUserId);
+      print('DEBUG: Using filtered query for user: $_currentUserId');
 
-        setState(() {
-          _allFabrics = fabrics;
-          _isLoading = false;
-        });
+      _fabricsSubscription = fabricsQuery.snapshots()          .listen(
+        (snapshot) {
+          if (mounted) {
+            var fabrics = snapshot.docs.map((doc) {
+              final data = doc.data();
+              data['id'] = doc.id;
+              return data;
+            }).toList();
 
-        _applyFilters();
-        
-        // Start animation on first load
-        if (_animationController.status == AnimationStatus.dismissed) {
-          _animationController.forward();
+            // Since we're filtering by user, we need to sort manually
+            fabrics.sort((a, b) {
+              final aTime = a['createdAt'] as Timestamp?;
+              final bTime = b['createdAt'] as Timestamp?;
+              if (aTime == null && bTime == null) return 0;
+              if (aTime == null) return 1;
+              if (bTime == null) return -1;
+              return bTime.compareTo(aTime); // Descending order
+            });
+
+            setState(() {
+              _allFabrics = fabrics;
+              _isLoading = false;
+            });
+
+            _applyFilters();
+            
+            // Start animation on first load
+            if (_animationController.status == AnimationStatus.dismissed) {
+              _animationController.forward();
+            }
+          }
+        },
+        onError: (error) {
+          print('DEBUG: Firestore error: $error');
+          
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+              _allFabrics = []; // Set empty list so UI shows empty state
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Error loading your fabrics: ${error.toString()}'),
+                backgroundColor: Colors.red.shade600,
+                duration: const Duration(seconds: 5),
+                action: SnackBarAction(
+                  label: 'Retry',
+                  textColor: Colors.white,
+                  onPressed: () {
+                    setState(() {
+                      _isLoading = true;
+                    });
+                    _initializeFabrics();
+                  },
+                ),
+              ),
+            );
+          }
+        },
+      );
+      
+      // Add timeout to detect hanging queries
+      Timer(const Duration(seconds: 10), () {
+        if (_isLoading && mounted) {
+          setState(() {
+            _isLoading = false;
+            _allFabrics = [];
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Loading took too long. Please check your connection.'),
+              backgroundColor: Colors.orange.shade600,
+              action: SnackBarAction(
+                label: 'Retry',
+                textColor: Colors.white,
+                onPressed: () {
+                  setState(() {
+                    _isLoading = true;
+                  });
+                  _initializeFabrics();
+                },
+              ),
+            ),
+          );
         }
+      });
+      
+    } catch (e) {
+      print('DEBUG: Exception creating query: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _allFabrics = [];
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to create query: ${e.toString()}'),
+            backgroundColor: Colors.red.shade600,
+          ),
+        );
       }
-    });
+    }
   }
 
   void _onSearchChanged() {
@@ -120,17 +234,46 @@ class _FabricLogbookPageState extends State<FabricLogbookPage>
     super.dispose();
   }
 
-Future<void> _deleteFabricById(String fabricId) async {
+Future<void> _deleteFabricById(String fabricId, String? fabricCreatedBy) async {
   try {
+    // Check if user owns this fabric
+    if (fabricCreatedBy != _currentUserId) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.warning, color: Colors.white, size: 16),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text('You can only delete fabrics you created!'),
+              ),
+            ],
+          ),
+          backgroundColor: Colors.orange.shade600,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+
     // Delete fabric using the operations service with logging
     await FabricOperationsService.deleteFabric(
       fabricId: fabricId,
       deletedBy: FirebaseAuth.instance.currentUser?.uid ?? 'anonymous',
-      remarks: 'Fabric deleted from inventory',
+      remarks: 'Fabric deleted from inventory by owner',
     );
     
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Fabric deleted successfully!'), backgroundColor: Colors.red),
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.white, size: 16),
+            const SizedBox(width: 8),
+            const Text('Your fabric deleted successfully!'),
+          ],
+        ),
+        backgroundColor: Colors.green.shade600,
+      ),
     );
   } catch (e) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -568,20 +711,111 @@ Future<void> _deleteFabricById(String fabricId) async {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.palette_outlined, size: 64, color: Colors.grey[400]),
-              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.green[100]!, Colors.green[200]!],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(50),
+                ),
+                child: Icon(
+                  Icons.inventory_2_outlined,
+                  size: 48,
+                  color: Colors.green[600],
+                ),
+              ),
+              const SizedBox(height: 24),
               Text(
-                'No fabrics added yet',
+                'Start Your Fabric Collection',
                 style: TextStyle(
-                  fontSize: 18, 
-                  fontWeight: FontWeight.w500,
-                  color: Colors.grey[600],
+                  fontSize: 20, 
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey[700],
                 ),
               ),
               const SizedBox(height: 8),
               Text(
-                'Add your first fabric to get started',
-                style: TextStyle(color: Colors.grey[500]),
+                'Add your first fabric to begin tracking your inventory.',
+                style: TextStyle(
+                  color: Colors.grey[500],
+                  fontSize: 14,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 32),
+              Container(
+                height: 48,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.green[600]!, Colors.green[700]!],
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.green[600]!.withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () async {
+                      await showModalBottomSheet(
+                        context: context,
+                        isScrollControlled: true,
+                        backgroundColor: Colors.transparent,
+                        builder: (context) => Container(
+                          margin: const EdgeInsets.only(top: 100),
+                          height: MediaQuery.of(context).size.height - 100,
+                          decoration: const BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                          ),
+                          child: AddFabricModal(),
+                        ),
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 32),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(
+                              Icons.add_rounded,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          const Text(
+                            'Add Your First Fabric',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ],
           ),
@@ -595,10 +829,25 @@ Future<void> _deleteFabricById(String fabricId) async {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.search_off, size: 64, color: Colors.grey[400]),
-              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.grey[100]!, Colors.grey[200]!],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(50),
+                ),
+                child: Icon(
+                  Icons.search_off,
+                  size: 48,
+                  color: Colors.grey[400],
+                ),
+              ),
+              const SizedBox(height: 24),
               Text(
-                'No fabrics found',
+                'No Matching Fabrics',
                 style: TextStyle(
                   fontSize: 18, 
                   fontWeight: FontWeight.w500,
@@ -607,8 +856,31 @@ Future<void> _deleteFabricById(String fabricId) async {
               ),
               const SizedBox(height: 8),
               Text(
-                'Try adjusting your search criteria',
-                style: TextStyle(color: Colors.grey[500]),
+                'Try adjusting your search terms or filters\nto find what you\'re looking for.',
+                style: TextStyle(
+                  color: Colors.grey[500],
+                  fontSize: 14,
+                  height: 1.4,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              TextButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _searchController.clear();
+                    _selectedType = 'All';
+                    _showUpcycledOnly = false;
+                    _showLowStockOnly = false;
+                  });
+                  _applyFilters();
+                },
+                icon: const Icon(Icons.clear_all),
+                label: const Text('Clear All Filters'),
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.green[600],
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                ),
               ),
             ],
           ),
@@ -860,6 +1132,58 @@ Future<void> _deleteFabricById(String fabricId) async {
                                 },
                               ),
                             ],
+                            // Show creator info for debugging
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.person_rounded,
+                                  size: 14,
+                                  color: fabric['createdBy'] == _currentUserId 
+                                    ? Colors.green[600] 
+                                    : Colors.orange[600],
+                                ),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(
+                                    'Created by: ${fabric['createdBy'] == _currentUserId ? "Me" : fabric['createdBy']?.substring(0, 8) ?? "Unknown"}',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: fabric['createdBy'] == _currentUserId 
+                                        ? Colors.green[700] 
+                                        : Colors.orange[700],
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                // Show full user ID on tap for debugging
+                                if (fabric['createdBy'] != null)
+                                  GestureDetector(
+                                    onTap: () {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text('Full Creator ID: ${fabric['createdBy']}'),
+                                          duration: const Duration(seconds: 3),
+                                        ),
+                                      );
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.all(2),
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey[200],
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Icon(
+                                        Icons.info_outline,
+                                        size: 12,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
                             // Show most recent fabric log remarks if available - WITH DEBUG INFO
                             FutureBuilder<List<FabricLog>>(
                               future: FabricLogService.getRecentFabricLogs(fabric['id'], limit: 1),
@@ -1094,100 +1418,138 @@ Future<void> _deleteFabricById(String fabricId) async {
                     color: Colors.grey[200],
                   ),
                   const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: () async {
-                            final confirm = await showDialog<bool>(
-                              context: context,
-                              builder: (context) => AlertDialog(
-                                title: const Text('Delete Fabric'),
-                                content: const Text('Are you sure you want to delete this fabric? This action cannot be undone.'),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(context, false),
-                                    child: const Text('Cancel'),
+                  // Check ownership for action buttons
+                  Builder(
+                    builder: (context) {
+                      final isOwner = fabric['createdBy'] == _currentUserId;
+                      final createdBy = fabric['createdBy'] as String?;
+                      
+                      return Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: isOwner ? () async {
+                                final confirm = await showDialog<bool>(
+                                  context: context,
+                                  builder: (context) => AlertDialog(
+                                    title: const Text('Delete Fabric'),
+                                    content: Text(isOwner 
+                                      ? 'Are you sure you want to delete this fabric? This action cannot be undone.'
+                                      : 'You can only delete fabrics you created.'),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(context, false),
+                                        child: const Text('Cancel'),
+                                      ),
+                                      if (isOwner)
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(context, true),
+                                          child: const Text('Delete', style: TextStyle(color: Colors.red)),
+                                        ),
+                                    ],
                                   ),
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(context, true),
-                                    child: const Text('Delete', style: TextStyle(color: Colors.red)),
-                                  ),
-                                ],
-                              ),
-                            );
-                            if (confirm == true) {
-                              await _deleteFabricById(fabric['id']);
-                            }
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red[600],
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                          icon: const Icon(Icons.delete, size: 16),
-                          label: const Text('Delete', style: TextStyle(fontWeight: FontWeight.w600)),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () async {
-                            await showModalBottomSheet(
-                              context: context,
-                              isScrollControlled: true,
-                              backgroundColor: Colors.transparent,
-                              builder: (context) => Container(
-                                margin: const EdgeInsets.only(top: 100),
-                                height: MediaQuery.of(context).size.height - 100,
-                                decoration: const BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                                ),
-                                child: EditFabricModal(
-                                  fabric: fabric,
-                                  fabricId: fabric['id'],
+                                );
+                                if (confirm == true) {
+                                  await _deleteFabricById(fabric['id'], createdBy);
+                                }
+                              } : null,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: isOwner ? Colors.red[600] : Colors.grey[400],
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
                                 ),
                               ),
-                            );
-                          },
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.black87,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
+                              icon: Icon(
+                                isOwner ? Icons.delete : Icons.block,
+                                size: 16,
+                              ),
+                              label: Text(
+                                isOwner ? 'Delete' : 'Not Owner',
+                                style: const TextStyle(fontWeight: FontWeight.w600),
+                              ),
                             ),
-                            side: BorderSide(color: Colors.grey.shade300),
                           ),
-                          icon: const Icon(Icons.edit, size: 16),
-                          label: const Text('Edit', style: TextStyle(fontWeight: FontWeight.w600)),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () {
-                            // TODO: Implement order functionality
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Order ${name} feature coming soon!')),
-                            );
-                          },
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.black87,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: isOwner ? () async {
+                                await showModalBottomSheet(
+                                  context: context,
+                                  isScrollControlled: true,
+                                  backgroundColor: Colors.transparent,
+                                  builder: (context) => Container(
+                                    margin: const EdgeInsets.only(top: 100),
+                                    height: MediaQuery.of(context).size.height - 100,
+                                    decoration: const BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                                    ),
+                                    child: EditFabricModal(
+                                      fabric: fabric,
+                                      fabricId: fabric['id'],
+                                    ),
+                                  ),
+                                );
+                              } : () {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Row(
+                                      children: [
+                                        const Icon(Icons.warning, color: Colors.white, size: 16),
+                                        const SizedBox(width: 8),
+                                        const Text('You can only edit fabrics you created!'),
+                                      ],
+                                    ),
+                                    backgroundColor: Colors.orange.shade600,
+                                  ),
+                                );
+                              },
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: isOwner ? Colors.black87 : Colors.grey[600],
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                side: BorderSide(
+                                  color: isOwner ? Colors.grey.shade300 : Colors.grey.shade400,
+                                ),
+                              ),
+                              icon: Icon(
+                                isOwner ? Icons.edit : Icons.edit_off,
+                                size: 16,
+                              ),
+                              label: Text(
+                                isOwner ? 'Edit' : 'View Only',
+                                style: const TextStyle(fontWeight: FontWeight.w600),
+                              ),
                             ),
-                            side: BorderSide(color: Colors.grey.shade300),
                           ),
-                          icon: const Icon(Icons.shopping_cart, size: 16),
-                          label: const Text('Order', style: TextStyle(fontWeight: FontWeight.w600)),
-                        ),
-                      ),
-                    ],
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () {
+                                // TODO: Implement order functionality
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Order $name feature coming soon!')),
+                                );
+                              },
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.black87,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                side: BorderSide(color: Colors.grey.shade300),
+                              ),
+                              icon: const Icon(Icons.shopping_cart, size: 16),
+                              label: const Text('Order', style: TextStyle(fontWeight: FontWeight.w600)),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
                   ),
                 ],
               ),

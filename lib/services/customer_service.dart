@@ -9,10 +9,11 @@ class CustomerService {
   // Get current user ID
   String get _currentUserId => FirebaseAuth.instance.currentUser?.uid ?? 'anonymous';
 
-  // Get all customers
+  // Get all customers (user-specific)
   Stream<List<Customer>> getCustomers() {
     return _firestore
         .collection(_collectionName)
+        .where('createdBy', isEqualTo: _currentUserId)
         .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) => snapshot.docs
@@ -74,10 +75,13 @@ class CustomerService {
     }
   }
 
-  // Get customer count
+  // Get customer count (user-specific)
   Future<int> getCustomerCount() async {
     try {
-      QuerySnapshot snapshot = await _firestore.collection(_collectionName).get();
+      QuerySnapshot snapshot = await _firestore
+          .collection(_collectionName)
+          .where('createdBy', isEqualTo: _currentUserId)
+          .get();
       return snapshot.size;
     } catch (e) {
       print('Error getting customer count: $e');
@@ -85,16 +89,22 @@ class CustomerService {
     }
   }
 
-  // Get customers with job orders count
+  // Get customers with job orders count (user-specific)
   Future<Map<String, int>> getCustomersWithJobOrdersCount() async {
     try {
       Map<String, int> result = {};
       
-      // Get all customers
-      QuerySnapshot customers = await _firestore.collection(_collectionName).get();
+      // Get user's customers only
+      QuerySnapshot customers = await _firestore
+          .collection(_collectionName)
+          .where('createdBy', isEqualTo: _currentUserId)
+          .get();
       
-      // Get job orders grouped by customer
-      QuerySnapshot jobOrders = await _firestore.collection('job_orders').get();
+      // Get user's job orders only
+      QuerySnapshot jobOrders = await _firestore
+          .collection('jobOrders')
+          .where('createdBy', isEqualTo: _currentUserId)
+          .get();
       
       // Count active and completed job orders per customer
       Map<String, Map<String, int>> customerJobOrders = {};
@@ -140,12 +150,13 @@ class CustomerService {
     }
   }
 
-  // Search customers
+  // Search customers (user-specific)
   Future<List<Customer>> searchCustomers(String query) async {
     try {
       if (query.isEmpty) {
         QuerySnapshot snapshot = await _firestore
             .collection(_collectionName)
+            .where('createdBy', isEqualTo: _currentUserId)
             .orderBy('createdAt', descending: true)
             .get();
         return snapshot.docs
@@ -153,9 +164,10 @@ class CustomerService {
             .toList();
       }
 
-      // Search by full name (case insensitive)
+      // Search by full name (case insensitive) - user-specific
       QuerySnapshot snapshot = await _firestore
           .collection(_collectionName)
+          .where('createdBy', isEqualTo: _currentUserId)
           .where('fullName', isGreaterThanOrEqualTo: query)
           .where('fullName', isLessThanOrEqualTo: query + '\uf8ff')
           .get();

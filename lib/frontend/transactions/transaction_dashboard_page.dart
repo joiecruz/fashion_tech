@@ -21,6 +21,7 @@ class _TransactionDashboardPageState extends State<TransactionDashboardPage> {
   int _totalJobOrders = 0;
   final user = FirebaseAuth.instance.currentUser;
   String? userId;
+  String? userEmail;
   // Sales vs Expenses
   double? _totalSales;
   double? _totalExpenses;
@@ -45,6 +46,7 @@ class _TransactionDashboardPageState extends State<TransactionDashboardPage> {
   void initState() {
     super.initState();
     userId = user?.uid;
+    userEmail = user?.email;
     _fetchFabrics();
     _loadProfit();
   }
@@ -226,9 +228,11 @@ class _TransactionDashboardPageState extends State<TransactionDashboardPage> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
-              padding: EdgeInsets.symmetric(
-                horizontal: horizontalPadding,
-                vertical: 18,
+              padding: EdgeInsets.only(
+                left: horizontalPadding,
+                right: horizontalPadding,
+                top: 18,
+                bottom: 120, // Add bottom padding to keep content above floating nav bar
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -317,6 +321,68 @@ class _TransactionDashboardPageState extends State<TransactionDashboardPage> {
                       ],
                     ),
                   ),
+
+                  // User Info Banner
+                  if (userEmail != null)
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 22),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Colors.green[50]!, Colors.green[100]!],
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.green[200]!),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.green[100]!.withOpacity(0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.green[600],
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(
+                              Icons.person,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Your Financial Dashboard',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.green[800],
+                                  ),
+                                ),
+                                Text(
+                                  'Showing only your transactions & data • $userEmail',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.green[600],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
 
                   // --- Stats Row (Lighter gradients) ---
                   Padding(

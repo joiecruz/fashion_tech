@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'add_job_order_modal.dart';
 import 'job_order_edit_modal.dart';
 import 'components/job_order_filters.dart';
@@ -20,6 +21,9 @@ class _JobOrderListPageState extends State<JobOrderListPage>
   String _selectedCategory = 'All Categories';
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
+
+  // User filtering
+  String? _currentUserId;
 
   // Caches for ERDv8 compliance
   Map<String, String> userNames = {};
@@ -61,8 +65,23 @@ class _JobOrderListPageState extends State<JobOrderListPage>
       curve: Curves.easeInOut,
     ));
 
+    _initializeUser();
     _preloadData();
     _searchController.addListener(_onSearchChanged);
+  }
+
+  void _initializeUser() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      setState(() {
+        _currentUserId = user.uid;
+      });
+    } else {
+      // Redirect to login if no user
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.of(context).pushReplacementNamed('/login');
+      });
+    }
   }
 
   void _onSearchChanged() {
@@ -350,10 +369,12 @@ class _JobOrderListPageState extends State<JobOrderListPage>
             // Main content
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance
-                    .collection('jobOrders')
-                    .orderBy('createdAt', descending: true)
-                    .snapshots(),
+                stream: _currentUserId != null 
+                    ? FirebaseFirestore.instance
+                        .collection('jobOrders')
+                        .where('createdBy', isEqualTo: _currentUserId)
+                        .snapshots()
+                    : const Stream.empty(),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
@@ -448,6 +469,32 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                              productName.toLowerCase().contains(_searchQuery);
                     }).toList();
                   }
+
+                  // Sort by createdAt descending (most recent first)
+                  jobOrders.sort((a, b) {
+                    final aData = a.data() as Map<String, dynamic>;
+                    final bData = b.data() as Map<String, dynamic>;
+                    
+                    final aTime = aData['createdAt'];
+                    final bTime = bData['createdAt'];
+                    
+                    if (aTime == null && bTime == null) return 0;
+                    if (aTime == null) return 1;
+                    if (bTime == null) return -1;
+                    
+                    final aDate = aTime is Timestamp
+                        ? aTime.toDate()
+                        : (aTime is DateTime
+                            ? aTime
+                            : DateTime.tryParse(aTime.toString()) ?? DateTime(1970));
+                    final bDate = bTime is Timestamp
+                        ? bTime.toDate()
+                        : (bTime is DateTime
+                            ? bTime
+                            : DateTime.tryParse(bTime.toString()) ?? DateTime(1970));
+                    
+                    return bDate.compareTo(aDate); // Descending order
+                  });
 
                   return RefreshIndicator(
                     onRefresh: _refreshData,

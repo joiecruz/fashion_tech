@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'supplier_detail_page.dart';
 import 'add_supplier_modal.dart';
-import 'package:fashion_tech/backend/fetch_suppliers.dart';
 import '../common/gradient_search_bar.dart';
 
 class SupplierDashboardPage extends StatefulWidget {
@@ -23,6 +24,9 @@ class _SupplierDashboardPageState extends State<SupplierDashboardPage>
   bool _hasEmailOnly = false;
   bool _isStatsExpanded = true;
 
+  // User filtering
+  String? _currentUserId;
+
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
 
@@ -41,8 +45,23 @@ class _SupplierDashboardPageState extends State<SupplierDashboardPage>
       curve: Curves.easeInOut,
     ));
 
-    _loadSuppliers();
+    _initializeUser();
     _searchController.addListener(_filterSuppliers);
+  }
+
+  void _initializeUser() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      setState(() {
+        _currentUserId = user.uid;
+      });
+      _loadSuppliers();
+    } else {
+      // Redirect to login if no user
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.of(context).pushReplacementNamed('/login');
+      });
+    }
   }
 
   @override
@@ -53,6 +72,14 @@ class _SupplierDashboardPageState extends State<SupplierDashboardPage>
   }
 
   Future<void> _loadSuppliers({bool isRefresh = false}) async {
+    if (_currentUserId == null) {
+      setState(() {
+        _isLoading = false;
+        _suppliers = [];
+      });
+      return;
+    }
+    
     if (isRefresh) {
       setState(() {
         _isRefreshing = true;
@@ -64,7 +91,20 @@ class _SupplierDashboardPageState extends State<SupplierDashboardPage>
     }
 
     try {
-      final suppliers = await FetchSuppliersBackend.fetchAllSuppliers();
+      // Fetch suppliers created by current user only
+      final snapshot = await FirebaseFirestore.instance
+          .collection('suppliers')
+          .where('createdBy', isEqualTo: _currentUserId)
+          .orderBy('supplierName')
+          .get();
+
+      final suppliers = snapshot.docs.map((doc) {
+        final data = doc.data();
+        return {
+          'supplierID': doc.id,
+          ...data,
+        };
+      }).toList();
 
       setState(() {
         _suppliers = suppliers;

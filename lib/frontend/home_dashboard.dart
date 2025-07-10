@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fashion_tech/frontend/transactions/transaction_dashboard_page.dart';
 import 'package:fashion_tech/frontend/products/product_inventory_page.dart';
 import 'package:fashion_tech/frontend/logs/productLogs.dart';
@@ -12,6 +13,27 @@ class HomeDashboard extends StatefulWidget {
   State<HomeDashboard> createState() => _HomeDashboardState();
 }
 class _HomeDashboardState extends State<HomeDashboard> {
+  String? _currentUserId;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeUser();
+  }
+
+  void _initializeUser() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      setState(() {
+        _currentUserId = user.uid;
+      });
+    } else {
+      // Redirect to login if no user
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.of(context).pushReplacementNamed('/login');
+      });
+    }
+  }
 
   Future<String> _getSupplierName(String supplierID) async {
     try {
@@ -30,7 +52,14 @@ class _HomeDashboardState extends State<HomeDashboard> {
   }
   // Add this method inside _HomeDashboardState:
   Future<int> _getTotalStock() async {
-    final snapshot = await FirebaseFirestore.instance.collection('products').get();
+    if (_currentUserId == null) return 0;
+    
+    final snapshot = await FirebaseFirestore.instance
+        .collection('products')
+        .where('createdBy', isEqualTo: _currentUserId)
+        .where('deletedAt', isNull: true)
+        .get();
+        
     int totalStock = 0;
     for (var doc in snapshot.docs) {
       final data = doc.data();
@@ -49,7 +78,12 @@ class _HomeDashboardState extends State<HomeDashboard> {
       backgroundColor: const Color(0xFFF6F7FB),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+          padding: const EdgeInsets.only(
+            left: 18,
+            right: 18,
+            top: 18,
+            bottom: 40, // Add bottom padding to ensure content is visible above main nav bar
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -84,7 +118,13 @@ class _HomeDashboardState extends State<HomeDashboard> {
                 children: [
                   Expanded(
                     child: StreamBuilder<QuerySnapshot>(
-                      stream: FirebaseFirestore.instance.collection('fabrics').snapshots(),
+                      stream: _currentUserId != null 
+                          ? FirebaseFirestore.instance
+                              .collection('fabrics')
+                              .where('createdBy', isEqualTo: _currentUserId)
+                              .where('deletedAt', isNull: true)
+                              .snapshots()
+                          : const Stream.empty(),
                       builder: (context, snapshot) {
                         double totalYards = 0.0;
                         if (snapshot.hasData) {
@@ -113,7 +153,13 @@ class _HomeDashboardState extends State<HomeDashboard> {
                   const SizedBox(width: 16),
                   Expanded(
                     child: StreamBuilder<QuerySnapshot>(
-                      stream: FirebaseFirestore.instance.collection('products').snapshots(),
+                      stream: _currentUserId != null 
+                          ? FirebaseFirestore.instance
+                              .collection('products')
+                              .where('createdBy', isEqualTo: _currentUserId)
+                              .where('deletedAt', isNull: true)
+                              .snapshots()
+                          : const Stream.empty(),
                       builder: (context, snapshot) {
                         int totalProducts = snapshot.hasData ? snapshot.data!.docs.length : 0;
                         return _modernStatCard(
@@ -182,11 +228,14 @@ class _HomeDashboardState extends State<HomeDashboard> {
                     _sectionTitle('Recent Activity', Icons.timeline),
                     const SizedBox(height: 8),
                     StreamBuilder<QuerySnapshot>(
-                      stream: FirebaseFirestore.instance
-                          .collection('activity')
-                          .orderBy('timestamp', descending: true)
-                          .limit(5)
-                          .snapshots(),
+                      stream: _currentUserId != null 
+                          ? FirebaseFirestore.instance
+                              .collection('activity')
+                              .where('createdBy', isEqualTo: _currentUserId)
+                              .orderBy('timestamp', descending: true)
+                              .limit(5)
+                              .snapshots()
+                          : const Stream.empty(),
                       builder: (context, snapshot) {
                         final activities = snapshot.data?.docs ?? [];
                         if (activities.isEmpty) {

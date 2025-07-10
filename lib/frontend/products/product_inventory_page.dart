@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'add_product_modal.dart';
 import 'product_detail_page.dart';
 import 'edit_product_modal.dart';
-import 'package:fashion_tech/backend/fetch_products.dart';
 import 'package:fashion_tech/frontend/transactions/sell_modal.dart';
 import 'package:fashion_tech/services/category_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:convert';
 import '../common/gradient_search_bar.dart';
 
@@ -35,6 +35,9 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
   bool _showLowStockOnly = false;
   bool _hideOutOfStock = false;
   bool _isStatsExpanded = true;
+
+  // User filtering
+  String? _currentUserId;
 
   // Dynamic category system
   Map<String, String> _categoryDisplayNames = {};
@@ -89,11 +92,24 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
       curve: Curves.easeInOut,
     ));
 
+    _initializeUser();
     _loadCategories();
-    _loadProducts();
     _searchController.addListener(_filterProducts);
     // Remove this line, as _products is empty at init:
     // ProductInventoryPage.setPotentialValue(_products.fold(0.0, (sum, p) => sum + p['potentialValue']));
+  }
+
+  void _initializeUser() {
+    // Get current user information
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      _currentUserId = user.uid;
+      _loadProducts();
+    } else {
+      // Redirect to login if no user
+      Navigator.of(context).pushReplacementNamed('/login');
+      return;
+    }
   }
 
   Future<void> _loadCategories() async {
@@ -148,6 +164,14 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
   }
 
   Future<void> _loadProducts({bool isRefresh = false}) async {
+    if (_currentUserId == null) {
+      setState(() {
+        _isLoading = false;
+        _products = [];
+      });
+      return;
+    }
+    
     if (isRefresh) {
       setState(() {
         _isRefreshing = true;
@@ -159,7 +183,59 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
     }
 
     try {
-      final products = await FetchProductsBackend.fetchProducts();
+      // Fetch products created by current user only
+      final productsSnapshot = await FirebaseFirestore.instance
+          .collection('products')
+          .where('createdBy', isEqualTo: _currentUserId)
+          .where('deletedAt', isNull: true)
+          .orderBy('updatedAt', descending: true)
+          .get();
+
+      List<Map<String, dynamic>> products = [];
+
+      for (var productDoc in productsSnapshot.docs) {
+        final productData = productDoc.data();
+
+        // Fetch variants for this product
+        final variantsSnapshot = await FirebaseFirestore.instance
+            .collection('productVariants')
+            .where('productID', isEqualTo: productDoc.id)
+            .get();
+
+        int totalStock = 0;
+        List<Map<String, dynamic>> variants = [];
+
+        for (var variantDoc in variantsSnapshot.docs) {
+          final variantData = variantDoc.data();
+          totalStock += (variantData['quantityInStock'] ?? 0) as int;
+          variants.add({
+            'variantID': variantDoc.id,
+            'size': variantData['size'] ?? '',
+            'color': variantData['colorID'] ?? variantData['color'] ?? '',
+            'quantityInStock': variantData['quantityInStock'] ?? 0,
+          });
+        }
+
+        String imageURL = productData['imageURL'] ?? '';
+        double price = (productData['price'] ?? 0.0).toDouble();
+        double potentialValue = price * totalStock;
+        bool lowStock = totalStock < 5;
+
+        products.add({
+          'productID': productDoc.id,
+          'name': productData['name'] ?? 'Unknown Product',
+          'description': productData['description'],
+          'price': price,
+          'imageURL': imageURL,
+          'categoryID': productData['categoryID'],
+          'createdBy': productData['createdBy'],
+          'updatedAt': productData['updatedAt'],
+          'totalStock': totalStock,
+          'potentialValue': potentialValue,
+          'lowStock': lowStock,
+          'variants': variants,
+        });
+      }
 
       // Sort by updatedAt descending (most recent first)
       products.sort((a, b) {
@@ -194,8 +270,7 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
       // Update the static potential value for dashboard
       double totalPotentialValue = 0.0;
       for (final product in products) {
-        // If you have a 'potentialValue' field, use it. Otherwise, calculate price * stock.
-        totalPotentialValue += (product['price'] ?? 0) * (product['stock'] ?? 0);
+        totalPotentialValue += (product['price'] ?? 0) * (product['totalStock'] ?? 0);
       }
       ProductInventoryPage.setPotentialValue(totalPotentialValue);
 
@@ -265,14 +340,14 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
     setState(() {
       _filteredProducts = _products.where((product) {
         bool matchesSearch = product['name'].toLowerCase().contains(query);
-        // Use categoryID for filtering (the backend fetch already maps categoryID to 'category' field)
-        String productCategoryID = product['category'] ?? 'uncategorized'; 
+        // Use categoryID for filtering
+        String productCategoryID = product['categoryID'] ?? 'uncategorized'; 
         bool matchesCategory = _selectedCategory == 'All' || productCategoryID == _selectedCategory;
         bool matchesUpcycled = !_showUpcycledOnly || product['isUpcycled'];
         bool matchesLowStock = !_showLowStockOnly || product['lowStock'];
         
         // Optional filter to hide out-of-stock products
-        bool hasStock = !_hideOutOfStock || (product['stock'] ?? 0) > 0;
+        bool hasStock = !_hideOutOfStock || (product['totalStock'] ?? 0) > 0;
 
         return matchesSearch && matchesCategory && matchesUpcycled && matchesLowStock && hasStock;
       }).toList();
@@ -281,8 +356,8 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
 
   int get _totalProducts => _products.length;
   int get _lowStockCount => _products.where((p) => p['lowStock']).length;
-  int get _outOfStockCount => _products.where((p) => (p['stock'] ?? 0) == 0).length;
-  double get _totalPotentialValue => _products.fold(0.0, (sum, p) => sum + (p['price'] ?? 0) * (p['stock'] ?? 0));
+  int get _outOfStockCount => _products.where((p) => (p['totalStock'] ?? 0) == 0).length;
+  double get _totalPotentialValue => _products.fold(0.0, (sum, p) => sum + (p['price'] ?? 0) * (p['totalStock'] ?? 0));
 
   String _formatCurrency(double value) {
     if (value >= 1000000) {
@@ -711,22 +786,151 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
                               ),
                             ),
                           ),
-                          // Product List
-                          SliverPadding(
-                            padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
-                            sliver: SliverList(
-                              delegate: SliverChildBuilderDelegate(
-                                (context, index) {
-                                  final product = _filteredProducts[index];
-                                  return Padding(
-                                    padding: const EdgeInsets.only(bottom: 16),
-                                    child: _buildProductCard(product, index),
-                                  );
-                                },
-                                childCount: _filteredProducts.length,
-                              ),
-                            ),
-                          ),
+                          // Product List or Empty State
+                          _filteredProducts.isEmpty
+                              ? SliverToBoxAdapter(
+                                  child: Container(
+                                    color: Colors.white,
+                                    padding: const EdgeInsets.fromLTRB(20, 40, 20, 100),
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(24),
+                                          decoration: BoxDecoration(
+                                            gradient: LinearGradient(
+                                              colors: [Colors.grey[100]!, Colors.grey[200]!],
+                                              begin: Alignment.topLeft,
+                                              end: Alignment.bottomRight,
+                                            ),
+                                            borderRadius: BorderRadius.circular(50),
+                                          ),
+                                          child: Icon(
+                                            Icons.inventory_2_outlined,
+                                            size: 48,
+                                            color: Colors.grey[400],
+                                          ),
+                                        ),
+                                        const SizedBox(height: 24),
+                                        Text(
+                                          _products.isEmpty
+                                              ? 'No Products Yet'
+                                              : 'No Products Found',
+                                          style: TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.grey[700],
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          _products.isEmpty
+                                              ? 'Start building your inventory by adding your first product.'
+                                              : 'Try adjusting your search terms or filters to find what you\'re looking for.',
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            color: Colors.grey[500],
+                                            height: 1.4,
+                                          ),
+                                        ),
+                                        if (_products.isEmpty) ...[
+                                          const SizedBox(height: 32),
+                                          Container(
+                                            height: 42,
+                                            decoration: BoxDecoration(
+                                              gradient: LinearGradient(
+                                                colors: [Colors.blue[600]!, Colors.blue[700]!],
+                                                begin: Alignment.centerLeft,
+                                                end: Alignment.centerRight,
+                                              ),
+                                              borderRadius: BorderRadius.circular(10),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: Colors.blue[600]!.withOpacity(0.25),
+                                                  blurRadius: 6,
+                                                  offset: const Offset(0, 2),
+                                                ),
+                                              ],
+                                            ),
+                                            child: Material(
+                                              color: Colors.transparent,
+                                              child: InkWell(
+                                                onTap: () async {
+                                                  final result = await showModalBottomSheet<bool>(
+                                                    context: context,
+                                                    isScrollControlled: true,
+                                                    backgroundColor: Colors.transparent,
+                                                    builder: (context) => Container(
+                                                      margin: const EdgeInsets.only(top: 100),
+                                                      height: MediaQuery.of(context).size.height - 100,
+                                                      decoration: const BoxDecoration(
+                                                        color: Colors.white,
+                                                        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                                                      ),
+                                                      child: const AddProductModal(),
+                                                    ),
+                                                  );
+
+                                                  if (result == true) {
+                                                    await _loadProducts(isRefresh: true);
+                                                  }
+                                                },
+                                                borderRadius: BorderRadius.circular(10),
+                                                child: Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 32),
+                                                  child: Row(
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    mainAxisAlignment: MainAxisAlignment.center,
+                                                    children: [
+                                                      Container(
+                                                        padding: const EdgeInsets.all(3),
+                                                        decoration: BoxDecoration(
+                                                          color: Colors.white.withOpacity(0.2),
+                                                          borderRadius: BorderRadius.circular(6),
+                                                        ),
+                                                        child: const Icon(
+                                                          Icons.add_rounded,
+                                                          color: Colors.white,
+                                                          size: 14,
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 8),
+                                                      const Text(
+                                                        'Add Your First Product',
+                                                        style: TextStyle(
+                                                          color: Colors.white,
+                                                          fontSize: 13,
+                                                          fontWeight: FontWeight.w600,
+                                                          letterSpacing: 0.3,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                )
+                              : SliverPadding(
+                                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
+                                  sliver: SliverList(
+                                    delegate: SliverChildBuilderDelegate(
+                                      (context, index) {
+                                        final product = _filteredProducts[index];
+                                        return Padding(
+                                          padding: const EdgeInsets.only(bottom: 16),
+                                          child: _buildProductCard(product, index),
+                                        );
+                                      },
+                                      childCount: _filteredProducts.length,
+                                    ),
+                                  ),
+                                ),
                         ],
                       ),
                     ),

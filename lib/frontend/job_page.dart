@@ -112,9 +112,9 @@ class _JobPageState extends State<JobPage>
             },
           ),
 
-          // Floating navigation bar
+          // Floating navigation bar - positioned closer to bottom for compact design
           Positioned(
-            bottom: 30,
+            bottom: 20, // Reduced from 30 to 20 for more compact positioning
             left: 60,
             right: 60,
             child: AnimatedBuilder(
@@ -137,21 +137,21 @@ class _JobPageState extends State<JobPage>
 
   Widget _buildFloatingNavBar() {
     return Container(
-      height: 70,
+      height: 60, // Reduced from 70 to 60 for more compact design
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.95),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16), // Reduced from 20 to 16
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.12),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-            spreadRadius: 1,
+            color: Colors.black.withOpacity(0.08), // Reduced shadow opacity
+            blurRadius: 15, // Reduced from 20 to 15
+            offset: const Offset(0, 6), // Reduced from 10 to 6
+            spreadRadius: 0.5, // Reduced from 1 to 0.5
           ),
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
+            color: Colors.black.withOpacity(0.04), // Reduced from 0.06 to 0.04
+            blurRadius: 8, // Reduced from 10 to 8
+            offset: const Offset(0, 3), // Reduced from 5 to 3
           ),
         ],
         border: Border.all(
@@ -160,7 +160,7 @@ class _JobPageState extends State<JobPage>
         ),
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16), // Match container radius
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
           child: Row(
@@ -192,9 +192,9 @@ class _JobPageState extends State<JobPage>
                               width: 1,
                             )
                           : null,
-                      borderRadius: BorderRadius.circular(18),
+                      borderRadius: BorderRadius.circular(15), // Reduced from 18 to 15
                     ),
-                    margin: const EdgeInsets.all(4),
+                    margin: const EdgeInsets.all(3), // Reduced from 4 to 3
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -209,7 +209,7 @@ class _JobPageState extends State<JobPage>
                           ),
                           child: Icon(
                             tab['icon'],
-                            size: 20,
+                            size: 18, // Reduced from 20 to 18
                             color: isSelected ? color : Colors.grey.shade600,
                           ),
                         ),
@@ -217,7 +217,7 @@ class _JobPageState extends State<JobPage>
                         AnimatedDefaultTextStyle(
                           duration: const Duration(milliseconds: 300),
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: 11, // Reduced from 12 to 11
                             fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
                             color: isSelected ? color : Colors.grey.shade700,
                             letterSpacing: 0.2,
