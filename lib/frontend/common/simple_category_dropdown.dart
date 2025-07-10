@@ -185,16 +185,31 @@ class _SimpleCategoryDropdownState extends State<SimpleCategoryDropdown> {
       value: widget.selectedCategory,
       isExpanded: true,
       decoration: InputDecoration(
+        labelText: 'Category',
+        hintText: 'Select a category',
+        prefixIcon: Icon(Icons.category, size: 20),
+        filled: true,
+        fillColor: Colors.grey.shade50,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: Colors.grey[300]!),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade200),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: Colors.blue[600]!),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.blue.shade400, width: 2),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-        hintText: 'Select a category',
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.red.shade400, width: 2),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.red.shade400, width: 2),
+        ),
       ),
       items: availableCategories.map((category) {
         final categoryName = category['name'] as String;
@@ -220,6 +235,7 @@ class _SimpleCategoryDropdownState extends State<SimpleCategoryDropdown> {
       validator: widget.validator ?? (widget.isRequired 
           ? (value) => value == null || value.isEmpty ? 'Please select a category' : null
           : null),
+      autovalidateMode: AutovalidateMode.onUserInteraction,
       onChanged: (value) {
         widget.onChanged(value);
       },
