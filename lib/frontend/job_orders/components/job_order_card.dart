@@ -392,37 +392,59 @@ class JobOrderCard extends StatelessWidget {
                 ),
               ],
 
-              // Notes section (if notes exist)
-              if (data['notes'] != null && data['notes'].toString().trim().isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[50],
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: Colors.grey[200]!, width: 0.5),
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Icon(Icons.note_outlined, size: 12, color: Colors.grey[600]),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          data['notes'].toString(),
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.grey[700],
-                            fontStyle: FontStyle.italic,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
+              // Special Instructions section (always show)
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.grey[50],
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: Colors.grey[200]!, width: 0.5),
                 ),
-              ],
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.assignment_outlined, size: 12, color: Colors.grey[600]),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Special Instructions',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: Colors.grey[600],
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            (data['specialInstructions'] != null && data['specialInstructions'].toString().trim().isNotEmpty)
+                                ? data['specialInstructions'].toString()
+                                : (data['notes'] != null && data['notes'].toString().trim().isNotEmpty)
+                                    ? data['notes'].toString()
+                                    : 'No special instructions',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: ((data['specialInstructions'] != null && data['specialInstructions'].toString().trim().isNotEmpty) ||
+                                     (data['notes'] != null && data['notes'].toString().trim().isNotEmpty))
+                                  ? Colors.grey[700]
+                                  : Colors.grey[500],
+                              fontStyle: ((data['specialInstructions'] != null && data['specialInstructions'].toString().trim().isNotEmpty) ||
+                                         (data['notes'] != null && data['notes'].toString().trim().isNotEmpty))
+                                  ? FontStyle.italic
+                                  : FontStyle.normal,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
 
               const SizedBox(height: 12),
 
@@ -437,7 +459,7 @@ class JobOrderCard extends StatelessWidget {
                       label: const Text('Edit', style: TextStyle(fontSize: 12)),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.black87,
-                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        padding: const EdgeInsets.symmetric(vertical: 8),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                         side: BorderSide(color: Colors.grey[300]!),
                       ),
@@ -453,7 +475,7 @@ class JobOrderCard extends StatelessWidget {
                       label: const Text('Cancel', style: TextStyle(fontSize: 12)),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.red[600],
-                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        padding: const EdgeInsets.symmetric(vertical: 8),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                         side: BorderSide(color: Colors.red[300]!),
                       ),
@@ -483,7 +505,7 @@ class JobOrderCard extends StatelessWidget {
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.blue[600],
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 6),
+              padding: const EdgeInsets.symmetric(vertical: 8),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
             ),
           ),
@@ -493,11 +515,11 @@ class JobOrderCard extends StatelessWidget {
           child: ElevatedButton.icon(
             onPressed: onMarkAsDone,
             icon: const Icon(Icons.check, size: 14),
-            label: const Text('Mark as Done', style: TextStyle(fontSize: 12)),
+            label: const Text('Done', style: TextStyle(fontSize: 12)),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.green[600],
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 6),
+              padding: const EdgeInsets.symmetric(vertical: 8),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
             ),
           ),
@@ -511,7 +533,7 @@ class JobOrderCard extends StatelessWidget {
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.grey[600],
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 6),
+              padding: const EdgeInsets.symmetric(vertical: 8),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
             ),
           ),
@@ -519,7 +541,7 @@ class JobOrderCard extends StatelessWidget {
       case 'Archived':
         return Expanded(
           child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 6),
+            padding: const EdgeInsets.symmetric(vertical: 8),
             decoration: BoxDecoration(
               color: Colors.grey[50],
               borderRadius: BorderRadius.circular(6),
@@ -545,7 +567,7 @@ class JobOrderCard extends StatelessWidget {
       case 'Cancelled':
         return Expanded(
           child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 6),
+            padding: const EdgeInsets.symmetric(vertical: 8),
             decoration: BoxDecoration(
               color: Colors.red[50],
               borderRadius: BorderRadius.circular(6),
@@ -573,11 +595,11 @@ class JobOrderCard extends StatelessWidget {
           child: ElevatedButton.icon(
             onPressed: onMarkAsDone,
             icon: const Icon(Icons.check, size: 14),
-            label: const Text('Mark as Done', style: TextStyle(fontSize: 12)),
+            label: const Text('Done', style: TextStyle(fontSize: 12)),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.green[600],
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 6),
+              padding: const EdgeInsets.symmetric(vertical: 8),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
             ),
           ),
@@ -588,17 +610,17 @@ class JobOrderCard extends StatelessWidget {
   Color _getStatusColor(String status) {
     switch (status) {
       case 'Open':
-        return Colors.orange[600]!;
+        return Colors.blue[600]!;  // Blue for new/open items
       case 'In Progress':
-        return Colors.orange[500]!;
+        return Colors.orange[600]!;  // Orange for work in progress
       case 'Done':
-        return Colors.green[600]!;
+        return Colors.green[600]!;  // Green for completed
       case 'Archived':
-        return Colors.grey[600]!;
+        return Colors.grey[600]!;  // Grey for archived
       case 'Cancelled':
-        return Colors.red[600]!;
+        return Colors.red[600]!;  // Red for cancelled
       default:
-        return Colors.orange[400]!;
+        return Colors.indigo[400]!;  // Indigo for unknown status
     }
   }
 
@@ -658,22 +680,33 @@ class JobOrderCard extends StatelessWidget {
     );
   }
 
-  // Compact date formatting
+  // Improved date formatting with better readability
   String _formatCompactDate(DateTime date) {
     final now = DateTime.now();
     final difference = now.difference(date).inDays;
+    final isFuture = date.isAfter(now);
 
-    if (difference == 0) {
+    if (difference == 0 && !isFuture) {
       return 'Today';
-    } else if (difference == 1) {
+    } else if (difference == 1 && !isFuture) {
       return 'Yesterday';
-    } else if (difference < 7) {
+    } else if (difference == -1 && isFuture) {
+      return 'Tomorrow';
+    } else if (isFuture && difference.abs() < 7) {
+      return 'in ${difference.abs()}d';
+    } else if (difference < 7 && !isFuture) {
       return '${difference}d ago';
-    } else if (difference < 30) {
+    } else if (difference < 30 && !isFuture) {
       final weeks = (difference / 7).floor();
       return '${weeks}w ago';
+    } else if (isFuture && difference.abs() < 30) {
+      final weeks = (difference.abs() / 7).floor();
+      return 'in ${weeks}w';
     } else {
-      return '${date.month}/${date.day}/${date.year.toString().substring(2)}';
+      // Use more readable format: Jan 15, '24
+      final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return '${months[date.month - 1]} ${date.day}, \'${date.year.toString().substring(2)}';
     }
   }
 }
