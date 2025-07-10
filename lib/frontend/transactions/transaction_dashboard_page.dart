@@ -29,13 +29,17 @@ class _TransactionDashboardPageState extends State<TransactionDashboardPage> {
   List<Map<String, dynamic>> _fabrics = [];
   List<Map<String, dynamic>> _productProfits = [];
 
-  // Product details
-  List<Map<String, dynamic>> _products = [];
-
   // --- UI constants ---
   final _cardRadius = BorderRadius.circular(20);
   final _shadowColor = Colors.black.withOpacity(0.08);
   final _cardElevation = 8.0;
+
+  // State for modal visibility (removed speed dial)
+  // Controllers for manual entry
+  final _expenseAmountController = TextEditingController();
+  final _expenseDescriptionController = TextEditingController();
+  final _incomeAmountController = TextEditingController();
+  final _incomeDescriptionController = TextEditingController();
 
   @override
   void initState() {
@@ -46,6 +50,7 @@ class _TransactionDashboardPageState extends State<TransactionDashboardPage> {
   }
 
   Future<double> _fetchTotalSales() async {
+    // Get sales from salesLog
     final salesSnap = await FirebaseFirestore.instance
         .collection('salesLog')
         .where('soldBy', isEqualTo: userId)
@@ -57,11 +62,26 @@ class _TransactionDashboardPageState extends State<TransactionDashboardPage> {
       total += revenue;
       print('Sale record: revenue = $revenue');
     }
+
+    // Add manual income entries
+    final manualIncomeSnap = await FirebaseFirestore.instance
+        .collection('manualIncome')
+        .where('createdBy', isEqualTo: userId)
+        .get();
+    print('Found ${manualIncomeSnap.docs.length} manual income records');
+    for (final doc in manualIncomeSnap.docs) {
+      final amount = (doc.data()['amount'] as num?)?.toDouble() ?? 0.0;
+      total += amount;
+      print('Manual income: amount = $amount');
+    }
+
     return total;
   }
 
   Future<double> _fetchTotalExpenses() async {
     double totalExpense = 0.0;
+    
+    // Get fabric expenses
     final snapshot = await FirebaseFirestore.instance
         .collection('fabrics')
         .where('createdBy', isEqualTo: userId)
@@ -72,6 +92,19 @@ class _TransactionDashboardPageState extends State<TransactionDashboardPage> {
       final pricePerUnit = (data['pricePerUnit'] ?? 0) as num;
       totalExpense += quantity * pricePerUnit;
     }
+
+    // Add manual expense entries
+    final manualExpenseSnap = await FirebaseFirestore.instance
+        .collection('manualExpenses')
+        .where('createdBy', isEqualTo: userId)
+        .get();
+    print('Found ${manualExpenseSnap.docs.length} manual expense records');
+    for (final doc in manualExpenseSnap.docs) {
+      final amount = (doc.data()['amount'] as num?)?.toDouble() ?? 0.0;
+      totalExpense += amount;
+      print('Manual expense: amount = $amount');
+    }
+
     return totalExpense;
   }
 
@@ -163,7 +196,6 @@ class _TransactionDashboardPageState extends State<TransactionDashboardPage> {
 
     setState(() {
       _productProfits = productProfits;
-      _products = products;
       _totalProducts = totalProducts;
       _totalSold = totalSold;
       _totalJobOrders = totalJobOrders;
@@ -176,6 +208,10 @@ class _TransactionDashboardPageState extends State<TransactionDashboardPage> {
   @override
   void dispose() {
     _searchController.dispose();
+    _expenseAmountController.dispose();
+    _expenseDescriptionController.dispose();
+    _incomeAmountController.dispose();
+    _incomeDescriptionController.dispose();
     super.dispose();
   }
 
@@ -252,7 +288,7 @@ class _TransactionDashboardPageState extends State<TransactionDashboardPage> {
                                 Icon(Icons.trending_up, color: Colors.green[700], size: 24),
                                 const SizedBox(width: 8),
                                 Text(
-                                  'Sales: ₱${_totalSales?.toStringAsFixed(2) ?? '0.00'}',
+                                  'Income: ₱${_totalSales?.toStringAsFixed(2) ?? '0.00'}',
                                   style: const TextStyle(fontSize: 16, color: Colors.black87),
                                 ),
                               ],
@@ -274,7 +310,7 @@ class _TransactionDashboardPageState extends State<TransactionDashboardPage> {
                         Align(
                           alignment: Alignment.centerRight,
                           child: Text(
-                            'Total Profit = Sales - Expenses',
+                            'Total Profit = Income - Expenses',
                             style: TextStyle(fontSize: 13, color: Colors.grey[600]),
                           ),
                         ),
@@ -290,31 +326,210 @@ class _TransactionDashboardPageState extends State<TransactionDashboardPage> {
                         // First Stats Row
                         Row(
                           children: [
-                            _buildBigStatCard(
-                              icon: Icons.trending_up,
-                              label: 'Sales',
-                              value: '₱${_totalSales?.toStringAsFixed(2) ?? '0.00'}',
-                              color: Colors.green,
-                              gradientColors: [
-                                Colors.green.withOpacity(0.10),
-                                Colors.white,
-                              ],
-                              subtitle: 'Total Revenue',
+                            Expanded(
+                              child: Column(
+                                children: [
+                                  Container(
+                                    margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                                    padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [
+                                          Colors.green.withOpacity(0.10),
+                                          Colors.white,
+                                        ],
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                      ),
+                                      borderRadius: _cardRadius,
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: _shadowColor,
+                                          blurRadius: _cardElevation,
+                                          offset: const Offset(0, 4),
+                                        ),
+                                      ],
+                                      border: Border.all(color: Colors.green.withOpacity(0.08)),
+                                    ),
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(10),
+                                          decoration: BoxDecoration(
+                                            color: Colors.green.withOpacity(0.07),
+                                            borderRadius: BorderRadius.circular(14),
+                                          ),
+                                          child: Icon(Icons.trending_up, color: Colors.green.withOpacity(0.7), size: 32),
+                                        ),
+                                        const SizedBox(height: 16),
+                                        FittedBox(
+                                          child: Text(
+                                            '₱${_totalSales?.toStringAsFixed(2) ?? '0.00'}',
+                                            style: const TextStyle(
+                                              color: Colors.black87,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 24,
+                                              letterSpacing: 0.5,
+                                            ),
+                                            textAlign: TextAlign.center,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          'Income',
+                                          style: TextStyle(
+                                            color: Colors.green.withOpacity(0.7),
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                        const SizedBox(height: 3),
+                                        Text(
+                                          'Total Revenue',
+                                          style: TextStyle(
+                                            color: Colors.grey[600],
+                                            fontSize: 12,
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Container(
+                                    margin: const EdgeInsets.symmetric(horizontal: 6),
+                                    width: double.infinity,
+                                    child: ElevatedButton.icon(
+                                      onPressed: () => _showAddIncomeModal(),
+                                      icon: const Icon(Icons.add, size: 20),
+                                      label: const Text(
+                                        'Add Income',
+                                        style: TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.green[600],
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(vertical: 14),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(16),
+                                        ),
+                                        elevation: 3,
+                                        shadowColor: Colors.green.withOpacity(0.3),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                            _buildBigStatCard(
-                              icon: Icons.trending_down,
-                              label: 'Expenses',
-                              value: '₱${_totalExpenses?.toStringAsFixed(2) ?? '0.00'}',
-                              color: Colors.red,
-                              gradientColors: [
-                                Colors.red.withOpacity(0.10),
-                                Colors.white,
-                              ],
-                              subtitle: 'Total Costs',
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                children: [
+                                  Container(
+                                    margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                                    padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [
+                                          Colors.red.withOpacity(0.10),
+                                          Colors.white,
+                                        ],
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                      ),
+                                      borderRadius: _cardRadius,
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: _shadowColor,
+                                          blurRadius: _cardElevation,
+                                          offset: const Offset(0, 4),
+                                        ),
+                                      ],
+                                      border: Border.all(color: Colors.red.withOpacity(0.08)),
+                                    ),
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(10),
+                                          decoration: BoxDecoration(
+                                            color: Colors.red.withOpacity(0.07),
+                                            borderRadius: BorderRadius.circular(14),
+                                          ),
+                                          child: Icon(Icons.trending_down, color: Colors.red.withOpacity(0.7), size: 32),
+                                        ),
+                                        const SizedBox(height: 16),
+                                        FittedBox(
+                                          child: Text(
+                                            '₱${_totalExpenses?.toStringAsFixed(2) ?? '0.00'}',
+                                            style: const TextStyle(
+                                              color: Colors.black87,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 24,
+                                              letterSpacing: 0.5,
+                                            ),
+                                            textAlign: TextAlign.center,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          'Expenses',
+                                          style: TextStyle(
+                                            color: Colors.red.withOpacity(0.7),
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                        const SizedBox(height: 3),
+                                        Text(
+                                          'Total Costs',
+                                          style: TextStyle(
+                                            color: Colors.grey[600],
+                                            fontSize: 12,
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Container(
+                                    margin: const EdgeInsets.symmetric(horizontal: 6),
+                                    width: double.infinity,
+                                    child: ElevatedButton.icon(
+                                      onPressed: () => _showAddExpenseModal(),
+                                      icon: const Icon(Icons.remove, size: 20),
+                                      label: const Text(
+                                        'Add Expense',
+                                        style: TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.red[600],
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(vertical: 14),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(16),
+                                        ),
+                                        elevation: 3,
+                                        shadowColor: Colors.red.withOpacity(0.3),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 16),
                         // Second Stats Row
                         Row(
                           children: [
@@ -356,18 +571,33 @@ class _TransactionDashboardPageState extends State<TransactionDashboardPage> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 22),
+                  const SizedBox(height: 28),
 
                   // --- Product Breakdown Section ---
-                  const Text(
-                    'Product Breakdown',
-                    style: TextStyle(
-                      fontSize: 19,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 4,
+                          height: 24,
+                          decoration: BoxDecoration(
+                            color: Colors.blue[600],
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Text(
+                          'Product Breakdown',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 10),
                   
                   // Show debug info
                   Container(
@@ -439,16 +669,31 @@ class _TransactionDashboardPageState extends State<TransactionDashboardPage> {
                   ],
 
                   // --- Fabric Breakdown Section ---
-                  const SizedBox(height: 22),
-                  const Text(
-                    'Fabric Breakdown',
-                    style: TextStyle(
-                      fontSize: 19,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+                  const SizedBox(height: 32),
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 4,
+                          height: 24,
+                          decoration: BoxDecoration(
+                            color: Colors.orange[600],
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Text(
+                          'Fabric Breakdown',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 10),
                   if (_fabrics.where((f) => ((f['quantity'] ?? 0) as num) * ((f['pricePerUnit'] ?? 0) as num) > 0).isEmpty)
                     Card(
                       elevation: 1,
@@ -480,6 +725,294 @@ class _TransactionDashboardPageState extends State<TransactionDashboardPage> {
               ),
             ),
     );
+  }
+
+  // Add Expense Modal
+  void _showAddExpenseModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+        ),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.red[50],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(Icons.remove, color: Colors.red[600]),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Add Expense',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              TextField(
+                controller: _expenseAmountController,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: 'Amount (₱)',
+                  prefixIcon: const Icon(Icons.attach_money),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _expenseDescriptionController,
+                decoration: InputDecoration(
+                  labelText: 'Description',
+                  prefixIcon: const Icon(Icons.description),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () {
+                        _expenseAmountController.clear();
+                        _expenseDescriptionController.clear();
+                        Navigator.pop(context);
+                      },
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => _addExpense(),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red[600],
+                        foregroundColor: Colors.white,
+                      ),
+                      child: const Text('Add Expense'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Add Income Modal
+  void _showAddIncomeModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+        ),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.green[50],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(Icons.add, color: Colors.green[600]),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Add Income',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              TextField(
+                controller: _incomeAmountController,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: 'Amount (₱)',
+                  prefixIcon: const Icon(Icons.attach_money),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _incomeDescriptionController,
+                decoration: InputDecoration(
+                  labelText: 'Description',
+                  prefixIcon: const Icon(Icons.description),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () {
+                        _incomeAmountController.clear();
+                        _incomeDescriptionController.clear();
+                        Navigator.pop(context);
+                      },
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => _addIncome(),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green[600],
+                        foregroundColor: Colors.white,
+                      ),
+                      child: const Text('Add Income'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Add Expense to Database
+  Future<void> _addExpense() async {
+    final amount = double.tryParse(_expenseAmountController.text);
+    final description = _expenseDescriptionController.text.trim();
+
+    if (amount == null || amount <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid amount')),
+      );
+      return;
+    }
+
+    if (description.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a description')),
+      );
+      return;
+    }
+
+    try {
+      await FirebaseFirestore.instance.collection('manualExpenses').add({
+        'amount': amount,
+        'description': description,
+        'createdBy': userId,
+        'createdAt': FieldValue.serverTimestamp(),
+        'type': 'expense',
+      });
+
+      _expenseAmountController.clear();
+      _expenseDescriptionController.clear();
+      Navigator.pop(context);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Expense added successfully'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      // Refresh data
+      _loadProfit();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error adding expense: $e')),
+      );
+    }
+  }
+
+  // Add Income to Database
+  Future<void> _addIncome() async {
+    final amount = double.tryParse(_incomeAmountController.text);
+    final description = _incomeDescriptionController.text.trim();
+
+    if (amount == null || amount <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid amount')),
+      );
+      return;
+    }
+
+    if (description.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a description')),
+      );
+      return;
+    }
+
+    try {
+      await FirebaseFirestore.instance.collection('manualIncome').add({
+        'amount': amount,
+        'description': description,
+        'createdBy': userId,
+        'createdAt': FieldValue.serverTimestamp(),
+        'type': 'income',
+      });
+
+      _incomeAmountController.clear();
+      _incomeDescriptionController.clear();
+      Navigator.pop(context);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Income added successfully'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      // Refresh data
+      _loadProfit();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error adding income: $e')),
+      );
+    }
   }
 
   Widget _buildBigStatCard({
@@ -524,7 +1057,7 @@ class _TransactionDashboardPageState extends State<TransactionDashboardPage> {
             const SizedBox(height: 12),
             Text(
               value,
-              style: TextStyle(
+              style: const TextStyle(
                 color: Colors.black87,
                 fontWeight: FontWeight.bold,
                 fontSize: 22,
