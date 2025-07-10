@@ -72,11 +72,8 @@ class _JobOrderListPageState extends State<JobOrderListPage>
   }
 
   Future<void> _preloadData() async {
-    print('DEBUG: Starting to preload data...');
-
     // Fetch all users for ERDv8 compliance (createdBy, assignedTo, acceptedBy)
     final usersSnap = await FirebaseFirestore.instance.collection('users').get();
-    print('DEBUG: Found ${usersSnap.docs.length} users');
     userNames = {
       for (var doc in usersSnap.docs)
         doc.id: '${(doc.data()['firstName'] ?? '')} ${(doc.data()['lastName'] ?? '')}'.trim()
@@ -85,14 +82,12 @@ class _JobOrderListPageState extends State<JobOrderListPage>
     // Fetch categories for display names
     try {
       final categoriesData = await CategoryService.getAllProductCategories();
-      print('DEBUG: Found ${categoriesData.length} categories');
       categoryNames = {
         for (var category in categoriesData)
           category['name']: category['displayName'] ?? category['name']
       };
       categories = categoriesData; // Store categories list for filter
     } catch (e) {
-      print('DEBUG: Error loading categories: $e');
       // Use fallback category names
       categoryNames = {
         'top': 'Top',
@@ -117,7 +112,6 @@ class _JobOrderListPageState extends State<JobOrderListPage>
 
     // Fetch all products with full data for ERDv8 compliance
     final productsSnap = await FirebaseFirestore.instance.collection('products').get();
-    print('DEBUG: Found ${productsSnap.docs.length} products');
     productNames = {
       for (var doc in productsSnap.docs)
         doc.id: (doc.data()['name'] ?? '') as String
@@ -143,7 +137,6 @@ class _JobOrderListPageState extends State<JobOrderListPage>
       };
     }
 
-    print('DEBUG: Data preloaded successfully');
     setState(() {
       _dataLoaded = true;
     });
@@ -764,7 +757,6 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                                                           'cancelledAt': Timestamp.now(),
                                                         });
 
-                                                  print('Cancelled job order: $jobOrderId');
                                                   if (mounted) {
                                                     ScaffoldMessenger.of(context).showSnackBar(
                                                       SnackBar(
