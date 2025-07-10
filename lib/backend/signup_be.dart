@@ -5,6 +5,7 @@ class SignupBackend {
   static Future<UserCredential> registerUser({
     required String username,
     required String email,
+    required String fullname,
     required String password,
   }) async {
     // Create user account
@@ -19,6 +20,7 @@ class SignupBackend {
     // Create user document in Firestore
     await FirebaseFirestore.instance.collection('users').doc(userCredential.user?.uid).set({
       'username': username.trim(),
+      'fullname': fullname.trim(),
       'email': email.trim(),
       'createdAt': FieldValue.serverTimestamp(),
       'role': 'user',

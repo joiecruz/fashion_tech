@@ -13,6 +13,7 @@ class SignUpPage extends StatefulWidget {
 
 class _SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
+  final TextEditingController _fullnameController = TextEditingController();
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
@@ -38,6 +39,7 @@ class _SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateM
 
   @override
   void dispose() {
+    _fullnameController.dispose();
     _animationController.dispose();
     _usernameController.dispose();
     _emailController.dispose();
@@ -68,6 +70,7 @@ class _SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateM
       await SignupBackend.registerUser(
         username: _usernameController.text,
         email: _emailController.text,
+        fullname: _fullnameController.text,
         password: _passwordController.text,
       );
 
@@ -262,6 +265,45 @@ class _SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateM
                                     return null;
                                   },
                                 ),
+                                const SizedBox(height: 20),
+                              const Text(
+                                'Full Name',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 16,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              TextFormField(
+                                controller: _fullnameController,
+                                decoration: InputDecoration(
+                                  hintText: 'Enter your full name',
+                                  prefixIcon: Icon(Icons.person, color: Colors.grey.shade500),
+                                  filled: true,
+                                  fillColor: Colors.white,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                    borderSide: BorderSide(color: Colors.grey.shade200),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                    borderSide: BorderSide(color: Colors.blue.shade400, width: 2),
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                                ),
+                                validator: (value) {
+                                  if (value == null || value.isEmpty) {
+                                    return 'Please enter your full name';
+                                  }
+                                  return null;
+                                },
+                              ),
+
                                 const SizedBox(height: 20),
                                 const Text(
                                   'Email Address',
