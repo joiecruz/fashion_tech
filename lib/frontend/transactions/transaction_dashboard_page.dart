@@ -50,9 +50,12 @@ class _TransactionDashboardPageState extends State<TransactionDashboardPage> {
         .collection('salesLog')
         .where('soldBy', isEqualTo: userId)
         .get();
+    print('Found ${salesSnap.docs.length} sales records');
     double total = 0;
     for (final doc in salesSnap.docs) {
-      total += (doc.data()['totalRevenue'] as num?)?.toDouble() ?? 0.0;
+      final revenue = (doc.data()['totalRevenue'] as num?)?.toDouble() ?? 0.0;
+      total += revenue;
+      print('Sale record: revenue = $revenue');
     }
     return total;
   }
@@ -77,15 +80,18 @@ class _TransactionDashboardPageState extends State<TransactionDashboardPage> {
         .collection('fabrics')
         .where('createdBy', isEqualTo: userId)
         .get();
+    print('Found ${snapshot.docs.length} fabric records');
     setState(() {
       _fabrics = snapshot.docs.map((doc) {
         final data = doc.data();
-        return {
+        final fabric = {
           'name': data['name'] ?? 'Unnamed Fabric',
           'quantity': (data['quantity'] ?? 0) as num,
           'pricePerUnit': (data['pricePerUnit'] ?? 0) as num,
           'image': data['swatchImageURL'] ?? data['imageURL'] ?? data['imageBase64'] ?? '',
         };
+        print('Fabric: ${fabric['name']}, Qty: ${fabric['quantity']}, Price: ${fabric['pricePerUnit']}');
+        return fabric;
       }).toList();
     });
   }
@@ -105,10 +111,19 @@ class _TransactionDashboardPageState extends State<TransactionDashboardPage> {
   }
 
   Future<void> _loadProfit() async {
+    print('Starting data fetch for user: $userId');
+    
     final productProfits = await fetchUserProductProfits();
+    print('Fetched ${productProfits.length} products');
+    
     final totalSales = await _fetchTotalSales();
+    print('Total sales: $totalSales');
+    
     final totalExpenses = await _fetchTotalExpenses();
+    print('Total expenses: $totalExpenses');
+    
     final products = await _fetchProducts();
+    print('Fetched ${products.length} product details');
 
     // Calculate statistics and patch image if missing
     int totalProducts = productProfits.length;
@@ -117,6 +132,7 @@ class _TransactionDashboardPageState extends State<TransactionDashboardPage> {
     for (final p in productProfits) {
       totalSold += (p['totalQtySold'] ?? 0) as int;
       totalJobOrders += (p['jobOrderCount'] ?? 0) as int;
+      print('Product: ${p['name']}, Sold: ${p['totalQtySold']}, Revenue: ${p['totalRevenue']}');
 
       // Try to get image from product details
       String image = p['image'] ?? p['imageURL'] ?? p['imageUrl'] ?? p['imageBase64'] ?? '';
@@ -141,6 +157,9 @@ class _TransactionDashboardPageState extends State<TransactionDashboardPage> {
       }
       p['image'] = image;
     }
+
+    print('Total products: $totalProducts, Total sold: $totalSold, Total job orders: $totalJobOrders');
+    print('Fabrics with expenses: ${_fabrics.where((f) => ((f['quantity'] ?? 0) as num) * ((f['pricePerUnit'] ?? 0) as num) > 0).length}');
 
     setState(() {
       _productProfits = productProfits;
@@ -349,6 +368,21 @@ class _TransactionDashboardPageState extends State<TransactionDashboardPage> {
                     ),
                   ),
                   const SizedBox(height: 10),
+                  
+                  // Show debug info
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    margin: const EdgeInsets.only(bottom: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.blue[50],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      'Debug: ${_productProfits.length} total products, ${_productProfits.where((p) => (p['totalQtySold'] ?? 0) > 0).length} with sales',
+                      style: TextStyle(fontSize: 12, color: Colors.blue[800]),
+                    ),
+                  ),
+                  
                   if (_productProfits.where((p) => (p['totalQtySold'] ?? 0) > 0 && (p['totalRevenue'] ?? 0) != 0).isEmpty)
                     Card(
                       elevation: 1,
@@ -361,9 +395,10 @@ class _TransactionDashboardPageState extends State<TransactionDashboardPage> {
                           children: [
                             Icon(Icons.info_outline, color: Colors.grey[400], size: 48),
                             const SizedBox(height: 12),
-                            const Text(
-                              'No products with sales or profit found.',
-                              style: TextStyle(fontSize: 16, color: Colors.black54),
+                            Text(
+                              'No products with sales found.\nTotal products in database: ${_productProfits.length}',
+                              style: const TextStyle(fontSize: 16, color: Colors.black54),
+                              textAlign: TextAlign.center,
                             ),
                           ],
                         ),
@@ -376,6 +411,32 @@ class _TransactionDashboardPageState extends State<TransactionDashboardPage> {
                               padding: const EdgeInsets.symmetric(vertical: 10),
                               child: _buildProductBreakdownCard(p),
                             )),
+
+                  // Show all products for debugging
+                  if (_productProfits.isNotEmpty) ...[
+                    const SizedBox(height: 20),
+                    const Text(
+                      'All Products (Debug)',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    ..._productProfits.map((p) => Container(
+                      margin: const EdgeInsets.symmetric(vertical: 5),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '${p['name']} - Sold: ${p['totalQtySold']} - Revenue: ₱${(p['totalRevenue'] ?? 0).toStringAsFixed(2)}',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    )),
+                  ],
 
                   // --- Fabric Breakdown Section ---
                   const SizedBox(height: 22),
