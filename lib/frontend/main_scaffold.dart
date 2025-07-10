@@ -4,8 +4,8 @@ import 'home_dashboard.dart';
 import 'inventory_page.dart';
 import 'job_page.dart';
 import '../backend/login_be.dart';
-// Add this import for the profile page
 import 'users/profile_page.dart';
+import 'users/settings_page.dart'; // <-- Make sure this import is present
 import 'notifications/notification_page.dart';
 
 class MainScaffold extends StatefulWidget {
@@ -88,7 +88,14 @@ class _MainScaffoldState extends State<MainScaffold> {
               );
             },
           ),
-          
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (context) => const SettingsPage()),
+              );
+            },
+          ),
           PopupMenuButton<String>(
             onSelected: (value) async {
               if (value == 'profile') {
