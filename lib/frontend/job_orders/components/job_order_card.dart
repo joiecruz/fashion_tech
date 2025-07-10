@@ -12,6 +12,7 @@ class JobOrderCard extends StatelessWidget {
   final VoidCallback onEdit;
   final VoidCallback onDelete;
   final VoidCallback onMarkAsDone;
+  final VoidCallback? onUpdateStatus; // New callback for status updates
   final String status;
 
   const JobOrderCard({
@@ -25,6 +26,7 @@ class JobOrderCard extends StatelessWidget {
     required this.onEdit,
     required this.onDelete,
     required this.onMarkAsDone,
+    this.onUpdateStatus,
     required this.status,
   });
 
@@ -281,13 +283,20 @@ class JobOrderCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(4),
                           border: Border.all(color: Colors.blue[200]!, width: 0.5),
                         ),
-                        child: Text(
-                          productInfo['categoryName'] as String,
-                          style: TextStyle(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.blue[700],
-                          ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.category, size: 10, color: Colors.blue[700]),
+                            const SizedBox(width: 3),
+                            Text(
+                              productInfo['categoryName'] as String,
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.blue[700],
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       if (productInfo['isUpcycled'] == true) const SizedBox(width: 6),
@@ -374,6 +383,38 @@ class JobOrderCard extends StatelessWidget {
                 ),
               ],
 
+              // Notes section (if notes exist)
+              if (data['notes'] != null && data['notes'].toString().trim().isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[50],
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: Colors.grey[200]!, width: 0.5),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.note_outlined, size: 12, color: Colors.grey[600]),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          data['notes'].toString(),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey[700],
+                            fontStyle: FontStyle.italic,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+
               const SizedBox(height: 12),
 
               // Compact action buttons
@@ -411,47 +452,8 @@ class JobOrderCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 6),
 
-                  // Mark as Done / Completed indicator
-                  if (status != 'Done')
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: onMarkAsDone,
-                        icon: const Icon(Icons.check, size: 14),
-                        label: const Text('Mark as Done', style: TextStyle(fontSize: 12)),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green[600],
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 6),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                        ),
-                      ),
-                    )
-                  else
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.green[50],
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: Colors.green[200]!),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.check_circle, size: 14, color: Colors.green[600]),
-                            const SizedBox(width: 4),
-                            Text(
-                              'Completed',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.green[600],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
+                  // Dynamic Status Button
+                  _buildStatusButton(),
                 ],
               ),
             ],
@@ -459,6 +461,93 @@ class JobOrderCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Widget _buildStatusButton() {
+    switch (status) {
+      case 'Open':
+        return Expanded(
+          child: ElevatedButton.icon(
+            onPressed: onUpdateStatus,
+            icon: const Icon(Icons.play_arrow, size: 14),
+            label: const Text('Start Work', style: TextStyle(fontSize: 12)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue[600],
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+            ),
+          ),
+        );
+      case 'In Progress':
+        return Expanded(
+          child: ElevatedButton.icon(
+            onPressed: onMarkAsDone,
+            icon: const Icon(Icons.check, size: 14),
+            label: const Text('Mark as Done', style: TextStyle(fontSize: 12)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green[600],
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+            ),
+          ),
+        );
+      case 'Done':
+        return Expanded(
+          child: ElevatedButton.icon(
+            onPressed: onUpdateStatus,
+            icon: const Icon(Icons.archive, size: 14),
+            label: const Text('Archive', style: TextStyle(fontSize: 12)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.grey[600],
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+            ),
+          ),
+        );
+      case 'Archived':
+        return Expanded(
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.grey[50],
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: Colors.grey[200]!),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.archive, size: 14, color: Colors.grey[600]),
+                const SizedBox(width: 4),
+                Text(
+                  'Archived',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      default:
+        return Expanded(
+          child: ElevatedButton.icon(
+            onPressed: onMarkAsDone,
+            icon: const Icon(Icons.check, size: 14),
+            label: const Text('Mark as Done', style: TextStyle(fontSize: 12)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green[600],
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+            ),
+          ),
+        );
+    }
   }
 
   Color _getStatusColor(String status) {
@@ -469,6 +558,8 @@ class JobOrderCard extends StatelessWidget {
         return Colors.orange[500]!;
       case 'Done':
         return Colors.green[600]!;
+      case 'Archived':
+        return Colors.grey[600]!;
       default:
         return Colors.orange[400]!;
     }

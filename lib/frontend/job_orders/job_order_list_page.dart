@@ -17,6 +17,7 @@ class JobOrderListPage extends StatefulWidget {
 class _JobOrderListPageState extends State<JobOrderListPage>
     with SingleTickerProviderStateMixin {
   String _selectedStatus = 'All';
+  String _selectedCategory = 'All Categories';
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
 
@@ -25,6 +26,7 @@ class _JobOrderListPageState extends State<JobOrderListPage>
   Map<String, String> productNames = {};
   Map<String, Map<String, dynamic>> productData = {};
   Map<String, String> categoryNames = {}; // Add category cache
+  List<Map<String, dynamic>> categories = []; // Categories list for filter
   bool _dataLoaded = false;
   bool _isStatsExpanded = true;
   bool _isRefreshing = false;  // Add refresh state
@@ -79,12 +81,13 @@ class _JobOrderListPageState extends State<JobOrderListPage>
 
     // Fetch categories for display names
     try {
-      final categories = await CategoryService.getAllProductCategories();
-      print('DEBUG: Found ${categories.length} categories');
+      final categoriesData = await CategoryService.getAllProductCategories();
+      print('DEBUG: Found ${categoriesData.length} categories');
       categoryNames = {
-        for (var category in categories)
+        for (var category in categoriesData)
           category['name']: category['displayName'] ?? category['name']
       };
+      categories = categoriesData; // Store categories list for filter
     } catch (e) {
       print('DEBUG: Error loading categories: $e');
       // Use fallback category names
@@ -102,6 +105,11 @@ class _JobOrderListPageState extends State<JobOrderListPage>
         'formal': 'Formal Wear',
         'uncategorized': 'Uncategorized',
       };
+      // Create fallback categories list
+      categories = categoryNames.entries.map((entry) => {
+        'name': entry.key,
+        'displayName': entry.value,
+      }).toList();
     }
 
     // Fetch all products with full data for ERDv8 compliance
@@ -325,6 +333,7 @@ class _JobOrderListPageState extends State<JobOrderListPage>
             // Header with search and filters
             JobOrderFilters(
               selectedStatus: _selectedStatus,
+              selectedCategory: _selectedCategory,
               searchQuery: _searchQuery,
               searchController: _searchController,
               onStatusChanged: (String newValue) {
@@ -332,8 +341,14 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                   _selectedStatus = newValue;
                 });
               },
+              onCategoryChanged: (String newValue) {
+                setState(() {
+                  _selectedCategory = newValue;
+                });
+              },
               onRefresh: _refreshData,
               isRefreshing: _isRefreshing,
+              categories: categories,
             ),
 
             // Main content
@@ -402,6 +417,17 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                     jobOrders = jobOrders.where((doc) =>
                       (doc.data() as Map<String, dynamic>)['status'] == _selectedStatus
                     ).toList();
+                  }
+
+                  // Apply category filter
+                  if (_selectedCategory != 'All Categories') {
+                    jobOrders = jobOrders.where((doc) {
+                      final data = doc.data() as Map<String, dynamic>;
+                      final productID = data['productID'] ?? '';
+                      final productInfo = productData[productID] ?? {};
+                      final categoryDisplayName = productInfo['categoryName'] ?? '';
+                      return categoryDisplayName == _selectedCategory;
+                    }).toList();
                   }
 
                   // Apply search filter
@@ -733,6 +759,9 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                                               final jobOrderName = data['name'] ?? 'Unnamed Job Order';
                                               await jobOrderActions.markJobOrderAsDone(jobOrders[index].id, jobOrderName, data);
                                             },
+                                            onUpdateStatus: () async {
+                                              await _updateJobOrderStatus(jobOrders[index]);
+                                            },
                                           ),
                                         ),
                                       ),
@@ -754,5 +783,91 @@ class _JobOrderListPageState extends State<JobOrderListPage>
         ),
       ),
     );
+  }
+
+  // Handle dynamic status updates based on current status
+  Future<void> _updateJobOrderStatus(QueryDocumentSnapshot jobOrderDoc) async {
+    final data = jobOrderDoc.data() as Map<String, dynamic>;
+    final currentStatus = data['status'] ?? 'Open';
+    final jobOrderName = data['name'] ?? 'Unnamed Job Order';
+    
+    String newStatus;
+    String actionDescription;
+    
+    switch (currentStatus) {
+      case 'Open':
+        newStatus = 'In Progress';
+        actionDescription = 'started work on';
+        break;
+      case 'Done':
+        newStatus = 'Archived';
+        actionDescription = 'archived';
+        break;
+      default:
+        return; // No action for other statuses
+    }
+    
+    try {
+      await FirebaseFirestore.instance
+          .collection('jobOrders')
+          .doc(jobOrderDoc.id)
+          .update({
+            'status': newStatus,
+            'updatedAt': Timestamp.now(),
+            if (newStatus == 'Archived') 'archivedAt': Timestamp.now(),
+          });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(
+                  newStatus == 'In Progress' ? Icons.play_arrow : Icons.archive,
+                  color: Colors.white,
+                  size: 16,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Successfully $actionDescription "$jobOrderName"',
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: newStatus == 'In Progress' ? Colors.blue[600] : Colors.grey[600],
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.white, size: 16),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Failed to update status: ${e.toString()}',
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.red[600],
+            duration: const Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+        );
+      }
+    }
   }
 }

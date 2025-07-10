@@ -2,20 +2,26 @@ import 'package:flutter/material.dart';
 
 class JobOrderFilters extends StatelessWidget {
   final String selectedStatus;
+  final String selectedCategory;
   final String searchQuery;
   final TextEditingController searchController;
   final ValueChanged<String> onStatusChanged;
+  final ValueChanged<String> onCategoryChanged;
   final VoidCallback onRefresh;
   final bool isRefreshing;
+  final List<Map<String, dynamic>> categories;
 
   const JobOrderFilters({
     super.key,
     required this.selectedStatus,
+    required this.selectedCategory,
     required this.searchQuery,
     required this.searchController,
     required this.onStatusChanged,
+    required this.onCategoryChanged,
     required this.onRefresh,
     required this.isRefreshing,
+    required this.categories,
   });
 
   @override
@@ -61,11 +67,11 @@ class JobOrderFilters extends StatelessWidget {
           ),
           const SizedBox(height: 16),
 
-          // Status filter dropdown and refresh button
+          // Status and Category filter dropdowns with refresh button
           Row(
             children: [
               Text(
-                'Status:',
+                'Filters:',
                 style: TextStyle(
                   fontWeight: FontWeight.w600,
                   color: Colors.grey[700],
@@ -73,6 +79,8 @@ class JobOrderFilters extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               _buildStatusDropdown(),
+              const SizedBox(width: 12),
+              _buildCategoryDropdown(),
               const Spacer(),
               // Refresh button
               Tooltip(
@@ -114,7 +122,7 @@ class JobOrderFilters extends StatelessWidget {
   }
 
   Widget _buildStatusDropdown() {
-    final statusOptions = ['All', 'Open', 'In Progress', 'Done'];
+    final statusOptions = ['All', 'Open', 'In Progress', 'Done', 'Archived'];
 
     return PopupMenuButton<String>(
       onSelected: onStatusChanged,
@@ -200,6 +208,93 @@ class JobOrderFilters extends StatelessWidget {
     );
   }
 
+  Widget _buildCategoryDropdown() {
+    final categoryOptions = ['All Categories', ...categories.map((cat) => cat['displayName'] ?? cat['name'])];
+
+    return PopupMenuButton<String>(
+      onSelected: onCategoryChanged,
+      offset: const Offset(0, 6),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.white, Colors.grey[50]!],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.grey[300]!, width: 1),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 4,
+              offset: const Offset(0, 1),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(3),
+              decoration: BoxDecoration(
+                color: Colors.blue[600]!.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Icon(
+                Icons.category,
+                size: 12,
+                color: Colors.blue[600],
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              selectedCategory,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[800],
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.2,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(
+              Icons.keyboard_arrow_down_rounded,
+              size: 14,
+              color: Colors.grey[600],
+            ),
+          ],
+        ),
+      ),
+      itemBuilder: (BuildContext context) {
+        return categoryOptions.map<PopupMenuEntry<String>>((option) {
+          return PopupMenuItem<String>(
+            value: option,
+            child: Row(
+              children: [
+                Icon(
+                  Icons.category,
+                  size: 14,
+                  color: Colors.blue[600],
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  option,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[800],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList();
+      },
+    );
+  }
+
   Color _getStatusColor(String status) {
     switch (status) {
       case 'Open':
@@ -208,6 +303,8 @@ class JobOrderFilters extends StatelessWidget {
         return Colors.orange[500]!;
       case 'Done':
         return Colors.green[600]!;
+      case 'Archived':
+        return Colors.grey[600]!;
       default:
         return Colors.orange[400]!;
     }
@@ -221,6 +318,8 @@ class JobOrderFilters extends StatelessWidget {
         return Icons.trending_up;
       case 'Done':
         return Icons.check_circle;
+      case 'Archived':
+        return Icons.archive;
       default:
         return Icons.filter_list;
     }
