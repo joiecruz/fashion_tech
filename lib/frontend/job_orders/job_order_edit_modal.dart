@@ -223,7 +223,6 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
   }
 
   Future<void> _fetchJobOrderData() async {
-    print('[DEBUG] _fetchJobOrderData called for jobOrderId: ${widget.jobOrderId}');
     try {
       final jobOrderDoc = await FirebaseFirestore.instance
           .collection('jobOrders')
@@ -237,7 +236,6 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
         });
         return;
       }
-      print('[DEBUG] Job order data loaded successfully. Name: ${jobOrder['name']}');
       _jobOrderNameController.text = jobOrder['name'] ?? '';
       _customerNameController.text = jobOrder['customerName'] ?? '';
       _orderDateController.text = _timestampToDateString(jobOrder['orderDate']);
@@ -250,9 +248,6 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
       _jobStatus = jobOrder['status'] ?? 'In Progress';
       _originalJobStatus = _jobStatus; // Store original status to detect "Mark as Done"
       _selectedCategory = jobOrder['categoryID'] ?? jobOrder['category'] ?? 'uncategorized'; // ERDv9: Load categoryID field with fallback
-      print('[DEBUG] Loaded job status from database: "${_jobStatus}"');
-      print('[DEBUG] Original job status set to: "${_originalJobStatus}"');
-      print('[DEBUG] Loaded category from database: "${_selectedCategory}" (categoryID: ${jobOrder['categoryID']}, category: ${jobOrder['category']})');
 
       // Fetch all jobOrderDetails for this job order
       final detailsSnapshot = await FirebaseFirestore.instance
@@ -269,8 +264,6 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
         final color = data['color'] ?? ''; // ERDv9: Use color field, handle legacy data
         final quantity = data['quantity'] ?? 0;
         
-        print('[DEBUG] Processing detail ${doc.id}: size=$size, color=$color, quantity=$quantity');
-        
         // Create a unique key for each size-color combination
         final variantKey = '${size}_$color';
         
@@ -286,13 +279,10 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
           existingVariant.fabrics.add(fabric);
           // Update quantity if this detail has a higher quantity (they should all be the same for the same variant)
           if (quantity > existingVariant.quantity) {
-            print('[DEBUG] Updating variant $variantKey quantity from ${existingVariant.quantity} to $quantity');
             existingVariant.quantity = quantity;
           }
-          print('[DEBUG] Added fabric to existing variant $variantKey, now has ${existingVariant.fabrics.length} fabrics');
         } else {
           // Create new variant
-          print('[DEBUG] Creating new variant $variantKey with quantity $quantity');
           variantMap[variantKey] = FormProductVariant(
             id: doc.id, // Use the first document ID for this variant
             productID: jobOrder['productID'] ?? '',
@@ -317,9 +307,7 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
         _variants = variants;
         _loadingJobOrder = false;
       });
-      print('[DEBUG] _fetchJobOrderData completed successfully. Found ${variants.length} variants from ${detailsSnapshot.docs.length} detail records');
     } catch (e) {
-      print('[ERROR] Failed to fetch job order data: $e');
       setState(() {
         _loadingJobOrder = false;
       });
@@ -1130,11 +1118,6 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
     required Function(String?) onChanged,
     String? Function(String?)? validator,
   }) {
-    // Debug: Check if value is in items
-    if (!items.contains(value)) {
-      print('[DEBUG] Dropdown value "$value" not found in items: $items. Using first item: ${items.isNotEmpty ? items.first : 'null'}');
-    }
-    
     return DropdownButtonFormField<String>(
       value: items.contains(value) ? value : (items.isNotEmpty ? items.first : null),
       items: items
@@ -1267,21 +1250,17 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
     // Create new jobOrderDetail documents for each fabric in each variant
     for (int i = 0; i < _variants.length; i++) {
       final variant = _variants[i];
-      print('[DEBUG] Processing variant $i: size=${variant.size}, color=${variant.colorID}, quantity=${variant.quantity}');
       
       // Skip variants without proper data
       if (variant.fabrics.isEmpty) {
-        print('[WARNING] Variant $i has no fabrics, skipping...');
         continue;
       }
 
       // Create a separate jobOrderDetail document for each fabric in this variant
       for (int j = 0; j < variant.fabrics.length; j++) {
         final fabric = variant.fabrics[j];
-        print('[DEBUG] Creating detail for fabric $j: ${fabric.fabricId} - ${fabric.yardageUsed} yards');
         
         if (fabric.fabricId.isEmpty) {
-          print('[WARNING] Fabric $j has empty fabricId, skipping...');
           continue;
         }
 
@@ -1306,35 +1285,10 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
 
     // Commit all changes in a single batch
     await batch.commit();
-    print('[DEBUG] All jobOrderDetail documents updated successfully.');
   }
 
   Future<void> _updateJobOrder() async {
-    print('[DEBUG] _updateJobOrder called');
-    print('[DEBUG] jobOrderId: ${widget.jobOrderId}');
-    print('[DEBUG] jobOrderName: "${_jobOrderNameController.text}"');
-    print('[DEBUG] customerName: "${_customerNameController.text}"');
-    print('[DEBUG] orderDate: "${_orderDateController.text}"');
-    print('[DEBUG] dueDate: "${_dueDateController.text}"');
-    print('[DEBUG] assignedTo: "${_assignedToController.text}"');
-    print('[DEBUG] quantity: "${_quantityController.text}"');
-    print('[DEBUG] price: "${_priceController.text}"');
-    print('[DEBUG] specialInstructions: "${_specialInstructionsController.text}"');
-    print('[DEBUG] isUpcycled: $_isUpcycled');
-    print('[DEBUG] jobStatus: $_jobStatus');
-    print('[DEBUG] _variants.length: ${_variants.length}');
-    
-    for (int i = 0; i < _variants.length; i++) {
-      final v = _variants[i];
-      print('[DEBUG] Variant $i: id=${v.id}, size=${v.size}, color=${v.color}, quantity=${v.quantity}, fabrics=${v.fabrics.length}');
-      for (int j = 0; j < v.fabrics.length; j++) {
-        final f = v.fabrics[j];
-        print('[DEBUG]   Fabric $j: id=${f.fabricId}, name=${f.fabricName}, yardage=${f.yardageUsed}');
-      }
-    }
-
     if (!_formKey.currentState!.validate()) {
-      print('[DEBUG] Form validation failed');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Row(

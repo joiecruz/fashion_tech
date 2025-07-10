@@ -60,31 +60,30 @@ class _InventoryPageState extends State<InventoryPage>
     );
 
     _scaleAnimation = Tween<double>(
-      begin: 0.0,
+      begin: 1.0, // Start at full scale instead of 0.0
       end: 1.0,
     ).animate(CurvedAnimation(
       parent: _animationController,
-      curve: Curves.elasticOut,
+      curve: Curves.easeInOut, // Use simpler curve
     ));
 
     _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 1),
+      begin: Offset.zero, // Start at normal position
       end: Offset.zero,
     ).animate(CurvedAnimation(
       parent: _animationController,
-      curve: Curves.easeOutBack,
+      curve: Curves.easeInOut,
     ));
 
-    // Start animation after a short delay
-    Future.delayed(const Duration(milliseconds: 500), () {
-      if (mounted) {
-        _animationController.forward();
-        // Notify parent of initial tab
-        if (widget.onTabChanged != null) {
-          widget.onTabChanged!(_tabs[_selectedTab]['label']);
-        }
-      }
-    });
+    // Start animation immediately without delay
+    _animationController.forward();
+    
+    // Notify parent of initial tab immediately
+    if (widget.onTabChanged != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        widget.onTabChanged!(_tabs[_selectedTab]['label']);
+      });
+    }
   }
 
   @override

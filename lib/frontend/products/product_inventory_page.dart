@@ -3,7 +3,7 @@ import 'add_product_modal.dart';
 import 'product_detail_page.dart';
 import 'edit_product_modal.dart';
 import 'package:fashion_tech/backend/fetch_products.dart';
-import 'package:fashion_tech/frontend/profit/sell_modal.dart';
+import 'package:fashion_tech/frontend/transactions/sell_modal.dart';
 import 'package:fashion_tech/services/category_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:convert';
@@ -117,7 +117,6 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
         });
       }
     } catch (e) {
-      print('Error loading categories: $e');
       // Use fallback categories
       if (mounted) {
         setState(() {
@@ -225,7 +224,6 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
         );
       }
     } catch (e) {
-      print('Error loading products: $e');
       setState(() {
         if (isRefresh) {
           _isRefreshing = false;
@@ -805,8 +803,6 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
   }
 
   Widget _buildProductCard(Map<String, dynamic> product, int index) {
-    print('Product imageURL: ${product['imageURL']} | imageUrl: ${product['imageUrl']}');
-
     final bool canSell = product['variants'] != null &&
         (product['variants'] as List)
             .whereType<Map<String, dynamic>>()

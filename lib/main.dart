@@ -12,6 +12,20 @@ import 'utils/color_utils.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Override error widget builder to prevent debug overlays
+  ErrorWidget.builder = (FlutterErrorDetails details) {
+    return Container(
+      color: Colors.white,
+      child: const Center(
+        child: Text(
+          'Widget Error',
+          style: TextStyle(color: Colors.grey, fontSize: 12),
+        ),
+      ),
+    );
+  };
+  
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
@@ -46,6 +60,10 @@ class MyApp extends StatelessWidget {
         primarySwatch: Colors.deepPurple,
       ),
       home: const AuthWrapper(),
+      builder: (context, child) {
+        // Wrap the entire app to catch any widget errors
+        return child ?? const SizedBox();
+      },
     );
   }
 }

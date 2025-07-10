@@ -33,21 +33,22 @@ class JobOrderCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final data = doc.data() as Map<String, dynamic>;
+    try {
+      final data = doc.data() as Map<String, dynamic>;
 
-    // ERDv8 JobOrder fields
-    final String jobOrderID = doc.id;
-    final String jobOrderName = data['name'] ?? 'Unnamed Job Order';
-    final String productID = data['productID'] ?? '';
-    final int quantity = data['quantity'] ?? 0;
-    final String customerName = data['customerName'] ?? '';
-    final String status = data['status'] ?? 'Open';
-    final Timestamp? dueDateTimestamp = data['dueDate'] as Timestamp?;
-    final String assignedTo = data['assignedTo'] ?? '';
-    final Timestamp? createdAtTimestamp = data['createdAt'] as Timestamp?;
+      // ERDv8 JobOrder fields
+      final String jobOrderID = doc.id;
+      final String jobOrderName = data['name'] ?? 'Unnamed Job Order';
+      final String productID = data['productID'] ?? '';
+      final int quantity = data['quantity'] ?? 0;
+      final String customerName = data['customerName'] ?? '';
+      final String status = data['status'] ?? 'Open';
+      final Timestamp? dueDateTimestamp = data['dueDate'] as Timestamp?;
+      final String assignedTo = data['assignedTo'] ?? '';
+      final Timestamp? createdAtTimestamp = data['createdAt'] as Timestamp?;
 
-    // Convert timestamps
-    final DateTime? dueDate = dueDateTimestamp?.toDate();
+      // Convert timestamps
+      final DateTime? dueDate = dueDateTimestamp?.toDate();
     final DateTime? createdAt = createdAtTimestamp?.toDate();
 
     // Get related data
@@ -492,6 +493,46 @@ class JobOrderCard extends StatelessWidget {
         ),
       ),
     );
+    } catch (e) {
+      // Return error widget if build fails
+      return Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.red.shade50,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.red.shade200),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.error_outline, color: Colors.red.shade600, size: 24),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Error Loading Job Order',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: Colors.red.shade800,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Job Order ID: ${doc.id}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.red.shade600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   Widget _buildStatusButton() {

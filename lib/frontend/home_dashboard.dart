@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:fashion_tech/frontend/profit/profit_checker.dart';
+import 'package:fashion_tech/frontend/transactions/transaction_dashboard_page.dart';
 import 'package:fashion_tech/frontend/products/product_inventory_page.dart';
 import 'package:fashion_tech/frontend/logs/productLogs.dart';
 import 'package:fashion_tech/frontend/logs/jobOrderLogs.dart';
@@ -275,7 +275,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
                                   onPressed: () {
                                     Navigator.push(
                                       context,
-                                      MaterialPageRoute(builder: (context) => const ProfitReportPage()),
+                                      MaterialPageRoute(builder: (context) => const TransactionDashboardPage()),
                                     );
                                   },
                                   style: ElevatedButton.styleFrom(
