@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../common/color_selector.dart';
+import '../job_order_detail_page.dart';
 
 class JobOrderCard extends StatelessWidget {
   final QueryDocumentSnapshot doc;
@@ -103,7 +104,15 @@ class JobOrderCard extends StatelessWidget {
       ),
       child: InkWell(
         onTap: () {
-          print('Navigate to job order details: $jobOrderID');
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => JobOrderDetailPage(
+                jobOrderId: jobOrderID,
+                initialData: data,
+              ),
+            ),
+          );
         },
         borderRadius: BorderRadius.circular(12),
         child: Padding(
@@ -436,12 +445,12 @@ class JobOrderCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 6),
 
-                  // Delete button
+                  // Cancel button
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: onDelete,
-                      icon: const Icon(Icons.delete, size: 14),
-                      label: const Text('Delete', style: TextStyle(fontSize: 12)),
+                      icon: const Icon(Icons.cancel, size: 14),
+                      label: const Text('Cancel', style: TextStyle(fontSize: 12)),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.red[600],
                         padding: const EdgeInsets.symmetric(vertical: 6),
@@ -533,6 +542,32 @@ class JobOrderCard extends StatelessWidget {
             ),
           ),
         );
+      case 'Cancelled':
+        return Expanded(
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.red[50],
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: Colors.red[200]!),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.cancel, size: 14, color: Colors.red[600]),
+                const SizedBox(width: 4),
+                Text(
+                  'Cancelled',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.red[600],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
       default:
         return Expanded(
           child: ElevatedButton.icon(
@@ -560,6 +595,8 @@ class JobOrderCard extends StatelessWidget {
         return Colors.green[600]!;
       case 'Archived':
         return Colors.grey[600]!;
+      case 'Cancelled':
+        return Colors.red[600]!;
       default:
         return Colors.orange[400]!;
     }

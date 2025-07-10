@@ -707,57 +707,25 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
           icon: Icons.recycling,
         ),
         const SizedBox(height: 16),
-        _buildCategoryField(),
+        SimpleCategoryDropdown(
+          selectedCategory: _selectedCategory,
+          onChanged: (value) {
+            setState(() {
+              _selectedCategory = value ?? 'uncategorized';
+            });
+          },
+          isRequired: false,
+        ),
         const SizedBox(height: 16),
         _buildDropdownField(
           value: _jobStatus,
           label: 'Job Status',
           icon: Icons.flag,
-          items: ['Open', 'In Progress', 'Done', 'Cancelled'],
+          items: ['Open', 'In Progress', 'Done', 'Cancelled', 'Archived'],
           onChanged: (val) => setState(() => _jobStatus = val ?? 'In Progress'),
         ),
       ],
       key: _additionalDetailsSectionKey,
-    );
-  }
-
-  Widget _buildCategoryField() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.category, color: Colors.blue[600], size: 20),
-              const SizedBox(width: 8),
-              Text(
-                'Product Category',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey[800],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          SimpleCategoryDropdown(
-            selectedCategory: _selectedCategory,
-            onChanged: (value) {
-              setState(() {
-                _selectedCategory = value ?? 'uncategorized';
-              });
-            },
-            isRequired: false,
-          ),
-        ],
-      ),
     );
   }
 

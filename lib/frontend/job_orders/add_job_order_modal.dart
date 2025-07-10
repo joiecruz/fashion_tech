@@ -871,11 +871,11 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
           value: _jobStatus,
           label: 'Job Status',
           icon: Icons.flag,
-          items: ['Open', 'In Progress', 'Done'],
+          items: ['Open', 'In Progress', 'Done', 'Cancelled', 'Archived'],
           onChanged: (val) => setState(() => _jobStatus = val ?? 'In Progress'),
           validator: (val) {
             if (val?.isEmpty ?? true) return 'Job status is required';
-            if (!['Open', 'In Progress', 'Done'].contains(val)) {
+            if (!['Open', 'In Progress', 'Done', 'Cancelled', 'Archived'].contains(val)) {
               return 'Please select a valid status';
             }
             return null;

@@ -412,6 +412,13 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                   var jobOrders = snapshot.data!.docs;
                   _updateStats(jobOrders);
 
+                  // Hide archived orders by default unless specifically filtered
+                  if (_selectedStatus != 'Archived') {
+                    jobOrders = jobOrders.where((doc) =>
+                      (doc.data() as Map<String, dynamic>)['status'] != 'Archived'
+                    ).toList();
+                  }
+
                   // Apply status filter
                   if (_selectedStatus != 'All') {
                     jobOrders = jobOrders.where((doc) =>
@@ -721,16 +728,16 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                                               final confirm = await showDialog<bool>(
                                                 context: context,
                                                 builder: (context) => AlertDialog(
-                                                  title: const Text('Delete Job Order'),
-                                                  content: Text('Delete "$jobOrderName"? This cannot be undone.'),
+                                                  title: const Text('Cancel Job Order'),
+                                                  content: Text('Cancel "$jobOrderName"? This action can be undone by editing the order.'),
                                                   actions: [
                                                     TextButton(
                                                       onPressed: () => Navigator.pop(context, false),
-                                                      child: const Text('Cancel'),
+                                                      child: const Text('Keep Active'),
                                                     ),
                                                     TextButton(
                                                       onPressed: () => Navigator.pop(context, true),
-                                                      child: const Text('Delete', style: TextStyle(color: Colors.red)),
+                                                      child: const Text('Cancel Order', style: TextStyle(color: Colors.red)),
                                                     ),
                                                   ],
                                                 ),
@@ -740,18 +747,36 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                                                 await FirebaseFirestore.instance
                                                       .collection('jobOrders')
                                                       .doc(jobOrders[index].id)
-                                                      .delete();
+                                                      .update({
+                                                        'status': 'Cancelled',
+                                                        'updatedAt': Timestamp.now(),
+                                                        'cancelledAt': Timestamp.now(),
+                                                      });
 
-                                                print('Delete job order: ${jobOrders[index].id}');
-                                                ScaffoldMessenger.of(context).showSnackBar(
-                                                  SnackBar(
-                                                    backgroundColor: Colors.green,
-                                                    content: Text(
-                                                      'Successfully Deleted "$jobOrderName"',
-                                                      style: const TextStyle(color: Colors.white),
+                                                print('Cancelled job order: ${jobOrders[index].id}');
+                                                if (mounted) {
+                                                  ScaffoldMessenger.of(context).showSnackBar(
+                                                    SnackBar(
+                                                      content: Row(
+                                                        children: [
+                                                          const Icon(Icons.cancel, color: Colors.white, size: 16),
+                                                          const SizedBox(width: 8),
+                                                          Expanded(
+                                                            child: Text(
+                                                              'Cancelled "$jobOrderName"',
+                                                              style: const TextStyle(color: Colors.white),
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                      backgroundColor: Colors.red[600],
+                                                      duration: const Duration(seconds: 2),
+                                                      behavior: SnackBarBehavior.floating,
+                                                      margin: const EdgeInsets.all(16),
+                                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                                                     ),
-                                                  ),
-                                                );
+                                                  );
+                                                }
                                               }
                                             },
                                             onMarkAsDone: () async {

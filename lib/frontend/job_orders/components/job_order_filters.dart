@@ -68,53 +68,56 @@ class JobOrderFilters extends StatelessWidget {
           const SizedBox(height: 16),
 
           // Status and Category filter dropdowns with refresh button
-          Row(
-            children: [
-              Text(
-                'Filters:',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey[700],
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                Text(
+                  'Filters:',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey[700],
+                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              _buildStatusDropdown(),
-              const SizedBox(width: 12),
-              _buildCategoryDropdown(),
-              const Spacer(),
-              // Refresh button
-              Tooltip(
-                message: 'Refresh job orders',
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(8),
-                    onTap: isRefreshing ? null : onRefresh,
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      child: isRefreshing
-                          ? SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(Colors.orange[600]!),
+                const SizedBox(width: 12),
+                _buildStatusDropdown(),
+                const SizedBox(width: 12),
+                _buildCategoryDropdown(),
+                const SizedBox(width: 12),
+                // Refresh button
+                Tooltip(
+                  message: 'Refresh job orders',
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: isRefreshing ? null : onRefresh,
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        child: isRefreshing
+                            ? SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.orange[600]!),
+                                ),
+                              )
+                            : AnimatedRotation(
+                                turns: isRefreshing ? 1 : 0,
+                                duration: const Duration(milliseconds: 500),
+                                child: Icon(
+                                  Icons.refresh,
+                                  color: Colors.orange[600],
+                                  size: 20,
+                                ),
                               ),
-                            )
-                          : AnimatedRotation(
-                              turns: isRefreshing ? 1 : 0,
-                              duration: const Duration(milliseconds: 500),
-                              child: Icon(
-                                Icons.refresh,
-                                color: Colors.orange[600],
-                                size: 20,
-                              ),
-                            ),
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
@@ -122,7 +125,7 @@ class JobOrderFilters extends StatelessWidget {
   }
 
   Widget _buildStatusDropdown() {
-    final statusOptions = ['All', 'Open', 'In Progress', 'Done', 'Archived'];
+    final statusOptions = ['All', 'Open', 'In Progress', 'Done', 'Cancelled', 'Archived'];
 
     return PopupMenuButton<String>(
       onSelected: onStatusChanged,
@@ -243,19 +246,22 @@ class JobOrderFilters extends StatelessWidget {
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Icon(
-                Icons.category,
+                _getCategoryIcon(selectedCategory),
                 size: 12,
                 color: Colors.blue[600],
               ),
             ),
             const SizedBox(width: 6),
-            Text(
-              selectedCategory,
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey[800],
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.2,
+            Flexible(
+              child: Text(
+                selectedCategory,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey[800],
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.2,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
             const SizedBox(width: 4),
@@ -274,17 +280,20 @@ class JobOrderFilters extends StatelessWidget {
             child: Row(
               children: [
                 Icon(
-                  Icons.category,
+                  _getCategoryIcon(option),
                   size: 14,
                   color: Colors.blue[600],
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  option,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[800],
-                    fontWeight: FontWeight.w500,
+                Flexible(
+                  child: Text(
+                    option,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[800],
+                      fontWeight: FontWeight.w500,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
@@ -295,6 +304,72 @@ class JobOrderFilters extends StatelessWidget {
     );
   }
 
+  IconData _getCategoryIcon(String categoryName) {
+    switch (categoryName.toLowerCase()) {
+      case 'all categories':
+        return Icons.category;
+      case 'top':
+      case 'tops':
+        return Icons.checkroom;
+      case 'bottom':
+      case 'bottoms':
+        return Icons.straighten;
+      case 'outerwear':
+        return Icons.ac_unit;
+      case 'dress':
+      case 'dresses':
+        return Icons.woman;
+      case 'activewear':
+      case 'sportswear':
+        return Icons.sports;
+      case 'underwear':
+      case 'underwear & intimates':
+      case 'intimates':
+        return Icons.favorite;
+      case 'sleepwear':
+      case 'pajamas':
+        return Icons.bedtime;
+      case 'swimwear':
+        return Icons.pool;
+      case 'footwear':
+      case 'shoes':
+        return Icons.directions_walk;
+      case 'accessories':
+        return Icons.watch;
+      case 'bags':
+      case 'handbags':
+        return Icons.shopping_bag;
+      case 'jewelry':
+        return Icons.diamond;
+      case 'hats':
+      case 'caps':
+        return Icons.mood;
+      case 'belts':
+        return Icons.link;
+      case 'formal':
+      case 'formal wear':
+        return Icons.star;
+      case 'casual':
+        return Icons.weekend;
+      case 'business':
+        return Icons.business_center;
+      case 'vintage':
+        return Icons.auto_awesome;
+      case 'plus size':
+        return Icons.accessibility_new;
+      case 'maternity':
+        return Icons.pregnant_woman;
+      case 'kids':
+      case 'children':
+        return Icons.child_care;
+      case 'baby':
+        return Icons.baby_changing_station;
+      case 'uncategorized':
+      default:
+        return Icons.category_outlined;
+    }
+  }
+
   Color _getStatusColor(String status) {
     switch (status) {
       case 'Open':
@@ -303,6 +378,8 @@ class JobOrderFilters extends StatelessWidget {
         return Colors.orange[500]!;
       case 'Done':
         return Colors.green[600]!;
+      case 'Cancelled':
+        return Colors.red[600]!;
       case 'Archived':
         return Colors.grey[600]!;
       default:
@@ -318,6 +395,8 @@ class JobOrderFilters extends StatelessWidget {
         return Icons.trending_up;
       case 'Done':
         return Icons.check_circle;
+      case 'Cancelled':
+        return Icons.cancel;
       case 'Archived':
         return Icons.archive;
       default:
