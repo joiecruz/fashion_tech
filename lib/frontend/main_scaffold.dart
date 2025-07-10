@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'home_dashboard.dart';
 import 'inventory_page.dart';
-import 'job_orders/job_order_list_page.dart';
+import 'job_page.dart';
 import '../backend/login_be.dart';
 
 class MainScaffold extends StatefulWidget {
@@ -14,11 +14,12 @@ class MainScaffold extends StatefulWidget {
 class _MainScaffoldState extends State<MainScaffold> {
   int _selectedIndex = 0;
   String _inventorySubtab = 'Products';
+  String _jobSubtab = 'Orders';
 
   final List<String> _titles = [
     'Home',
     'Inventory',
-    'Orders',
+    'Job',
   ];
 
   void _onInventoryTabChanged(String subtab) {
@@ -27,9 +28,17 @@ class _MainScaffoldState extends State<MainScaffold> {
     });
   }
 
+  void _onJobTabChanged(String subtab) {
+    setState(() {
+      _jobSubtab = subtab;
+    });
+  }
+
   String get _currentTitle {
     if (_selectedIndex == 1) {
       return 'Inventory | $_inventorySubtab';
+    } else if (_selectedIndex == 2) {
+      return 'Job | $_jobSubtab';
     }
     return _titles[_selectedIndex];
   }
@@ -39,7 +48,7 @@ class _MainScaffoldState extends State<MainScaffold> {
     final List<Widget> pages = [
       const HomeDashboard(),
       InventoryPage(onTabChanged: _onInventoryTabChanged),
-      const JobOrderListPage(),
+      JobPage(onTabChanged: _onJobTabChanged),
     ];
 
     return Scaffold(
@@ -105,7 +114,7 @@ class _MainScaffoldState extends State<MainScaffold> {
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
           BottomNavigationBarItem(icon: Icon(Icons.inventory), label: 'Inventory'),
-          BottomNavigationBarItem(icon: Icon(Icons.assignment), label: 'Orders'),
+          BottomNavigationBarItem(icon: Icon(Icons.work), label: 'Job'),
         ],
       ),
     );
