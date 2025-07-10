@@ -265,7 +265,7 @@ Future<void> _deleteFabricById(String fabricId) async {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: Colors.grey.shade50,
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : FadeTransition(
@@ -339,10 +339,18 @@ Future<void> _deleteFabricById(String fabricId) async {
                       ),
                     ),
                   ),
-                  // Scrollable Content
+                  // Scrollable Content with Pull-to-Refresh
                   Expanded(
-                    child: CustomScrollView(
-                      slivers: [
+                    child: RefreshIndicator(
+                      onRefresh: () => _refreshFabrics(),
+                      color: Colors.green.shade600,
+                      backgroundColor: Colors.white,
+                      strokeWidth: 3.0,
+                      displacement: 50,
+                      edgeOffset: 0,
+                      child: CustomScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        slivers: [
                         // Collapsible Stats Cards
                         SliverToBoxAdapter(
                           child: Container(
@@ -362,7 +370,7 @@ Future<void> _deleteFabricById(String fabricId) async {
                                     decoration: BoxDecoration(
                                       color: Colors.grey[50],
                                       border: Border(
-                                        bottom: BorderSide(color: Colors.grey[200]!, width: 1),
+                                        bottom: BorderSide(color: Colors.grey.shade200, width: 1),
                                       ),
                                     ),
                                     child: Row(
@@ -435,21 +443,21 @@ Future<void> _deleteFabricById(String fabricId) async {
                                           children: [
                                             _buildCompactStatCard(
                                               icon: Icons.palette_outlined,
-                                              iconColor: Colors.blue[600]!,
+                                              iconColor: Colors.blue.shade600,
                                               title: 'Total Fabrics',
                                               value: _allFabrics.length.toString(),
                                             ),
                                             const SizedBox(width: 8),
                                             _buildCompactStatCard(
                                               icon: Icons.warning_outlined,
-                                              iconColor: Colors.red[600]!,
+                                              iconColor: Colors.red.shade600,
                                               title: 'Low Stock',
                                               value: _getLowStockCount(_allFabrics).toString(),
                                             ),
                                             const SizedBox(width: 8),
                                             _buildCompactStatCard(
                                               icon: Icons.attach_money,
-                                              iconColor: Colors.green[600]!,
+                                              iconColor: Colors.green.shade600,
                                               title: 'Total Expense',
                                               value: _formatCurrency(_getTotalExpense(_allFabrics)),
                                               isWide: true,
@@ -473,14 +481,14 @@ Future<void> _deleteFabricById(String fabricId) async {
                               height: 42,
                               decoration: BoxDecoration(
                                 gradient: LinearGradient(
-                                  colors: [Colors.green[600]!, Colors.green[700]!],
+                                  colors: [Colors.green.shade600, Colors.green.shade700],
                                   begin: Alignment.centerLeft,
                                   end: Alignment.centerRight,
                                 ),
                                 borderRadius: BorderRadius.circular(10),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.green[600]!.withOpacity(0.25),
+                                    color: Colors.green.shade600.withOpacity(0.25),
                                     blurRadius: 6,
                                     offset: const Offset(0, 2),
                                   ),
@@ -545,6 +553,7 @@ Future<void> _deleteFabricById(String fabricId) async {
                         ),
                       ],
                     ),
+                  ),
                   ),
                 ],
               ),
@@ -652,10 +661,10 @@ Future<void> _deleteFabricById(String fabricId) async {
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
                 border: isOutOfStock 
-                    ? Border.all(color: Colors.red[400]!, width: 2)
+                    ? Border.all(color: Colors.red.shade400, width: 2)
                     : isLowStock 
-                        ? Border.all(color: Colors.orange[400]!, width: 1.5)
-                        : Border.all(color: Colors.grey[200]!, width: 1),
+                        ? Border.all(color: Colors.orange.shade400, width: 1.5)
+                        : Border.all(color: Colors.grey.shade200, width: 1),
                 boxShadow: [
                   BoxShadow(
                     color: isOutOfStock 
@@ -767,7 +776,7 @@ Future<void> _deleteFabricById(String fabricId) async {
                                           color: isOutOfStock ? Colors.red[50] : Colors.orange[50],
                                           borderRadius: BorderRadius.circular(12),
                                           border: Border.all(
-                                            color: isOutOfStock ? Colors.red[200]! : Colors.orange[200]!,
+                                            color: isOutOfStock ? Colors.red.shade200 : Colors.orange.shade200,
                                           ),
                                         ),
                                         child: Text(
@@ -864,7 +873,7 @@ Future<void> _deleteFabricById(String fabricId) async {
                                       decoration: BoxDecoration(
                                         color: Colors.grey[50],
                                         borderRadius: BorderRadius.circular(8),
-                                        border: Border.all(color: Colors.grey[200]!),
+                                        border: Border.all(color: Colors.grey.shade200),
                                       ),
                                       child: Row(
                                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -876,7 +885,7 @@ Future<void> _deleteFabricById(String fabricId) async {
                                             size: 14,
                                             color: snapshot.hasData && snapshot.data!.isNotEmpty
                                                 ? _getLogIconColor(snapshot.data!.first.changeType)
-                                                : Colors.blue[600]!,
+                                                : Colors.blue.shade600,
                                           ),
                                           const SizedBox(width: 6),
                                           Expanded(
@@ -1052,10 +1061,10 @@ Future<void> _deleteFabricById(String fabricId) async {
                                 borderRadius: BorderRadius.circular(8),
                                 border: Border.all(
                                   color: isOutOfStock 
-                                      ? Colors.red[200]!
+                                      ? Colors.red.shade200
                                       : isLowStock 
-                                          ? Colors.orange[200]!
-                                          : Colors.blue[200]!,
+                                          ? Colors.orange.shade200
+                                          : Colors.blue.shade200,
                                 ),
                               ),
                               child: Text(
@@ -1151,7 +1160,7 @@ Future<void> _deleteFabricById(String fabricId) async {
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            side: BorderSide(color: Colors.grey[300]!),
+                            side: BorderSide(color: Colors.grey.shade300),
                           ),
                           icon: const Icon(Icons.edit, size: 16),
                           label: const Text('Edit', style: TextStyle(fontWeight: FontWeight.w600)),
@@ -1172,7 +1181,7 @@ Future<void> _deleteFabricById(String fabricId) async {
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            side: BorderSide(color: Colors.grey[300]!),
+                            side: BorderSide(color: Colors.grey.shade300),
                           ),
                           icon: const Icon(Icons.shopping_cart, size: 16),
                           label: const Text('Order', style: TextStyle(fontWeight: FontWeight.w600)),
@@ -1196,8 +1205,8 @@ Future<void> _deleteFabricById(String fabricId) async {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            Colors.grey[200]!,
-            Colors.grey[100]!,
+            Colors.grey.shade200,
+            Colors.grey.shade100,
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -1423,5 +1432,61 @@ Future<void> _deleteFabricById(String fabricId) async {
         }).toList();
       },
     );
+  }
+
+  Future<void> _refreshFabrics() async {
+    try {
+      // Show success feedback for manual refresh
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white, size: 16),
+                const SizedBox(width: 8),
+                Text('${_allFabrics.length} fabrics refreshed'),
+              ],
+            ),
+            backgroundColor: Colors.green.shade600,
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+        );
+      }
+      
+      // The stream subscription will automatically update the data
+      // We can also trigger a manual refresh if needed
+      await Future.delayed(const Duration(milliseconds: 500)); // Small delay for better UX
+      
+    } catch (e) {
+      print('Error refreshing fabrics: $e');
+      
+      // Show error feedback
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.white, size: 16),
+                const SizedBox(width: 8),
+                const Text('Failed to refresh fabrics'),
+              ],
+            ),
+            backgroundColor: Colors.red.shade600,
+            duration: const Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            action: SnackBarAction(
+              label: 'Retry',
+              textColor: Colors.white,
+              onPressed: () => _refreshFabrics(),
+            ),
+          ),
+        );
+      }
+    }
   }
 }
