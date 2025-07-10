@@ -54,21 +54,27 @@ class _HomeDashboardState extends State<HomeDashboard> {
   Future<int> _getTotalStock() async {
     if (_currentUserId == null) return 0;
     
-    final snapshot = await FirebaseFirestore.instance
-        .collection('products')
-        .where('createdBy', isEqualTo: _currentUserId)
-        .where('deletedAt', isNull: true)
-        .get();
-        
-    int totalStock = 0;
-    for (var doc in snapshot.docs) {
-      final data = doc.data();
-      final qty = data['stock'];
-      if (qty != null) {
-        totalStock += (qty as num).toInt();
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('products')
+          .where('createdBy', isEqualTo: _currentUserId)
+          .where('deletedAt', isNull: true)
+          .get();
+          
+      int totalStock = 0;
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        final qty = data['stock'];
+        if (qty != null) {
+          totalStock += (qty as num).toInt();
+        }
       }
+      return totalStock;
+    } catch (e) {
+      // Don't show error for empty data or permission issues
+      print('Note: Could not load total stock (this is normal for new users): $e');
+      return 0;
     }
-    return totalStock;
   }
 
   @override
@@ -127,7 +133,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
                           : const Stream.empty(),
                       builder: (context, snapshot) {
                         double totalYards = 0.0;
-                        if (snapshot.hasData) {
+                        if (snapshot.hasData && !snapshot.hasError) {
                           for (var doc in snapshot.data!.docs) {
                             final data = doc.data() as Map<String, dynamic>;
                             final quantity = data['quantity'];
@@ -161,7 +167,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
                               .snapshots()
                           : const Stream.empty(),
                       builder: (context, snapshot) {
-                        int totalProducts = snapshot.hasData ? snapshot.data!.docs.length : 0;
+                        int totalProducts = (snapshot.hasData && !snapshot.hasError) ? snapshot.data!.docs.length : 0;
                         return _modernStatCard(
                           icon: Icons.inventory_2,
                           color: Colors.indigo,
@@ -232,11 +238,18 @@ class _HomeDashboardState extends State<HomeDashboard> {
                           ? FirebaseFirestore.instance
                               .collection('activity')
                               .where('createdBy', isEqualTo: _currentUserId)
-                              .orderBy('timestamp', descending: true)
                               .limit(5)
                               .snapshots()
                           : const Stream.empty(),
                       builder: (context, snapshot) {
+                        if (snapshot.hasError) {
+                          // Don't show error for new users or permission issues
+                          return const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 16),
+                            child: Text('No recent activity.', style: TextStyle(color: Colors.black54)),
+                          );
+                        }
+                        
                         final activities = snapshot.data?.docs ?? [];
                         if (activities.isEmpty) {
                           return const Padding(
@@ -244,6 +257,17 @@ class _HomeDashboardState extends State<HomeDashboard> {
                             child: Text('No recent activity.', style: TextStyle(color: Colors.black54)),
                           );
                         }
+                        
+                        // Sort activities by timestamp on client side to avoid index issues
+                        activities.sort((a, b) {
+                          final aTime = (a.data() as Map<String, dynamic>)['timestamp'];
+                          final bTime = (b.data() as Map<String, dynamic>)['timestamp'];
+                          if (aTime == null && bTime == null) return 0;
+                          if (aTime == null) return 1;
+                          if (bTime == null) return -1;
+                          return bTime.compareTo(aTime);
+                        });
+                        
                         return Column(
                           children: activities.map((doc) {
                             return _ActivityRow(
@@ -355,22 +379,41 @@ class _HomeDashboardState extends State<HomeDashboard> {
                     _sectionTitle('Fabric Insights', Icons.insights),
                     const SizedBox(height: 8),
                     StreamBuilder<QuerySnapshot>(
-                      stream: FirebaseFirestore.instance
-                          .collection('fabrics')
-                          .orderBy('quantity', descending: true)
-                          .limit(3)
-                          .snapshots(),
+                      stream: _currentUserId != null 
+                          ? FirebaseFirestore.instance
+                              .collection('fabrics')
+                              .where('createdBy', isEqualTo: _currentUserId)
+                              .limit(3)
+                              .snapshots()
+                          : const Stream.empty(),
                       builder: (context, snapshot) {
                         if (snapshot.connectionState == ConnectionState.waiting) {
                           return const Center(child: CircularProgressIndicator());
                         }
+                        
+                        if (snapshot.hasError) {
+                          // Don't show error for new users or permission issues
+                          return const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 16),
+                            child: Text('Start adding fabrics to see insights here.', style: TextStyle(color: Colors.black54)),
+                          );
+                        }
+                        
                         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                           return const Padding(
                             padding: EdgeInsets.symmetric(vertical: 16),
                             child: Text('No fabric data found.', style: TextStyle(color: Colors.black54)),
                           );
                         }
-                        final fabrics = snapshot.data!.docs;
+                        
+                        // Sort on client side to avoid index issues
+                        final fabrics = snapshot.data!.docs.toList();
+                        fabrics.sort((a, b) {
+                          final aQty = (a.data() as Map<String, dynamic>)['quantity'] ?? 0;
+                          final bQty = (b.data() as Map<String, dynamic>)['quantity'] ?? 0;
+                          return (bQty as num).compareTo(aQty as num);
+                        });
+                        
                         return Column(
                           children: fabrics.map((doc) {
                             final fabric = doc.data() as Map<String, dynamic>;
