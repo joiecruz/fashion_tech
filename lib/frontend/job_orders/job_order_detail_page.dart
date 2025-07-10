@@ -612,32 +612,8 @@ class _JobOrderDetailPageState extends State<JobOrderDetailPage>
                 _buildTabBarCard(),
                 const SizedBox(height: 16),
                 _buildTabContent(),
-                const SizedBox(height: 100), // Bottom padding for FAB
               ],
             ),
-          ),
-        ],
-      ),
-      floatingActionButton: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Delete button
-          FloatingActionButton(
-            onPressed: _showDeleteConfirmation,
-            backgroundColor: Colors.red[600],
-            foregroundColor: Colors.white,
-            heroTag: "delete_job_order",
-            child: const Icon(Icons.delete),
-          ),
-          const SizedBox(height: 12),
-          // Edit button
-          FloatingActionButton.extended(
-            onPressed: _openEditModal,
-            backgroundColor: Colors.orange[600],
-            foregroundColor: Colors.white,
-            heroTag: "edit_job_order",
-            icon: const Icon(Icons.edit),
-            label: const Text('Edit'),
           ),
         ],
       ),
@@ -661,6 +637,40 @@ class _JobOrderDetailPageState extends State<JobOrderDetailPage>
         ),
         onPressed: () => Navigator.pop(context),
       ),
+      actions: [
+        // Edit button
+        Container(
+          margin: const EdgeInsets.only(right: 8),
+          child: IconButton(
+            icon: Container(
+              decoration: BoxDecoration(
+                color: Colors.orange[600]!.withOpacity(0.9),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              padding: const EdgeInsets.all(8),
+              child: const Icon(Icons.edit, color: Colors.white, size: 20),
+            ),
+            onPressed: _openEditModal,
+            tooltip: 'Edit Job Order',
+          ),
+        ),
+        // Delete button
+        Container(
+          margin: const EdgeInsets.only(right: 16),
+          child: IconButton(
+            icon: Container(
+              decoration: BoxDecoration(
+                color: Colors.red[600]!.withOpacity(0.9),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              padding: const EdgeInsets.all(8),
+              child: const Icon(Icons.delete, color: Colors.white, size: 20),
+            ),
+            onPressed: _showDeleteConfirmation,
+            tooltip: 'Delete Job Order',
+          ),
+        ),
+      ],
       flexibleSpace: FlexibleSpaceBar(
         background: Container(
           decoration: BoxDecoration(
@@ -1068,7 +1078,7 @@ class _JobOrderDetailPageState extends State<JobOrderDetailPage>
               children: [
                 if (variants.isNotEmpty) ...[
                   // Variants section
-                  _buildDetailSection('Product Variants', [
+                  _buildDetailSection('Job Order Variants & Materials', [
                     ...variants.map((variant) => _buildVariantCard(variant)),
                   ]),
                   const SizedBox(height: 20),
@@ -1180,23 +1190,54 @@ class _JobOrderDetailPageState extends State<JobOrderDetailPage>
 
       final List<Map<String, dynamic>> variants = [];
       final Map<String, double> totalFabricUsage = {};
+      final Map<String, String> fabricNames = {}; // Cache for fabric names
 
       for (final doc in jobOrderDetailsQuery.docs) {
         final data = doc.data();
+        final fabricID = data['fabricID'] ?? '';
         
-        // Add to variants list
+        // Fetch fabric name if we have a fabricID and haven't cached it yet
+        String fabricName = data['fabricName'] ?? '';
+        if (fabricID.isNotEmpty && fabricName.isEmpty && !fabricNames.containsKey(fabricID)) {
+          try {
+            final fabricDoc = await FirebaseFirestore.instance
+                .collection('fabrics')
+                .doc(fabricID)
+                .get();
+            
+            if (fabricDoc.exists) {
+              final fabricData = fabricDoc.data()!;
+              fabricName = fabricData['name'] ?? fabricData['fabricName'] ?? 'Unknown Fabric';
+              fabricNames[fabricID] = fabricName; // Cache for future use
+            }
+          } catch (e) {
+            print('Error fetching fabric $fabricID: $e');
+            fabricName = 'Unknown Fabric';
+          }
+        } else if (fabricNames.containsKey(fabricID)) {
+          fabricName = fabricNames[fabricID]!;
+        }
+        
+        // If still no fabric name, use fallback
+        if (fabricName.isEmpty) {
+          fabricName = 'Unknown Fabric';
+        }
+        
+        // Add to variants list with proper labeling
         variants.add({
           'id': doc.id,
-          'fabricID': data['fabricID'] ?? '',
-          'fabricName': data['fabricName'] ?? 'Unknown Fabric',
+          'fabricID': fabricID,
+          'fabricName': fabricName,
           'yardageUsed': (data['yardageUsed'] ?? 0).toDouble(),
+          'quantity': data['quantity'] ?? 1, // Add quantity for variant
           'color': data['color'] ?? '',
           'size': data['size'] ?? '',
           'notes': data['notes'] ?? '',
+          'variantID': data['variantID'] ?? '',
         });
 
         // Aggregate fabric usage
-        final fabricKey = '${data['fabricName'] ?? 'Unknown'}_${data['color'] ?? ''}';
+        final fabricKey = '${fabricName}_${data['color'] ?? ''}';
         final yardage = (data['yardageUsed'] ?? 0).toDouble();
         totalFabricUsage[fabricKey] = (totalFabricUsage[fabricKey] ?? 0) + yardage;
       }
@@ -1212,6 +1253,8 @@ class _JobOrderDetailPageState extends State<JobOrderDetailPage>
 
   /// Builds a card for each variant showing its material details
   Widget _buildVariantCard(Map<String, dynamic> variant) {
+    final quantity = variant['quantity'] ?? 1;
+    
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -1230,18 +1273,18 @@ class _JobOrderDetailPageState extends State<JobOrderDetailPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header with fabric name and usage
+          // Header with variant label and quantity
           Row(
             children: [
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.green[100],
+                  color: Colors.indigo[100],
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
                   Icons.inventory,
-                  color: Colors.green[600],
+                  color: Colors.indigo[600],
                   size: 20,
                 ),
               ),
@@ -1250,37 +1293,44 @@ class _JobOrderDetailPageState extends State<JobOrderDetailPage>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      variant['fabricName'],
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black87,
-                      ),
+                    Row(
+                      children: [
+                        Text(
+                          'Variant',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.indigo[600],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.indigo[50],
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.indigo[200]!),
+                          ),
+                          child: Text(
+                            'Qty: $quantity',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.indigo[700],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                    Text(
-                      'Fabric ID: ${variant['fabricID']}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey[600],
+                    if (variant['variantID'].isNotEmpty)
+                      Text(
+                        'ID: ${variant['variantID']}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[600],
+                        ),
                       ),
-                    ),
                   ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.orange[100],
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  '${variant['yardageUsed'].toStringAsFixed(1)} yards',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.orange[700],
-                    fontSize: 14,
-                  ),
                 ),
               ),
             ],
@@ -1288,7 +1338,63 @@ class _JobOrderDetailPageState extends State<JobOrderDetailPage>
           
           const SizedBox(height: 16),
           
-          // Variant details
+          // Fabric information
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.green[50],
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.green[200]!),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.texture, color: Colors.green[600], size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Fabric Material',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.green[700],
+                        ),
+                      ),
+                      Text(
+                        variant['fabricName'],
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.orange[100],
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Text(
+                    '${variant['yardageUsed'].toStringAsFixed(1)} yards',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.orange[700],
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          const SizedBox(height: 12),
+          
+          // Variant specifications
           Row(
             children: [
               Expanded(
@@ -1301,7 +1407,7 @@ class _JobOrderDetailPageState extends State<JobOrderDetailPage>
                   colorValue: variant['color'],
                 ),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 12),
               Expanded(
                 child: _buildVariantDetailItem(
                   icon: Icons.straighten,
@@ -1333,7 +1439,7 @@ class _JobOrderDetailPageState extends State<JobOrderDetailPage>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Notes',
+                          'Variant Notes',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
@@ -1619,17 +1725,17 @@ class _JobOrderDetailPageState extends State<JobOrderDetailPage>
   Color _getStatusColor(String status) {
     switch (status) {
       case 'Open':
-        return Colors.orange[600]!;
+        return Colors.blue[600]!;  // Blue for new/open items
       case 'In Progress':
-        return Colors.orange[500]!;
+        return Colors.orange[600]!;  // Orange for work in progress
       case 'Done':
-        return Colors.green[600]!;
+        return Colors.green[600]!;  // Green for completed
       case 'Archived':
-        return Colors.grey[600]!;
+        return Colors.grey[600]!;  // Grey for archived
       case 'Cancelled':
-        return Colors.red[600]!;
+        return Colors.red[600]!;  // Red for cancelled
       default:
-        return Colors.orange[400]!;
+        return Colors.indigo[400]!;  // Indigo for unknown status
     }
   }
 

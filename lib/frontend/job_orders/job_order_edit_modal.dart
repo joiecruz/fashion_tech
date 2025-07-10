@@ -6,6 +6,7 @@ import 'models/form_models.dart';
 import 'widgets/variant_card.dart';
 import 'widgets/variant_breakdown_summary.dart';
 import 'widgets/fabric_suppliers_section.dart';
+import 'components/job_order_actions.dart';
 
 class JobOrderEditModal extends StatefulWidget {
   final String jobOrderId;
@@ -53,6 +54,7 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
   final FocusNode _specialInstructionsFocus = FocusNode();
   bool _isUpcycled = false;
   String _jobStatus = 'In Progress';
+  String _originalJobStatus = 'In Progress'; // Track original status to detect "Mark as Done"
   String _selectedCategory = 'uncategorized'; // Add category field
   List<FormProductVariant> _variants = [];
 
@@ -246,8 +248,10 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
       _specialInstructionsController.text = jobOrder['specialInstructions'] ?? '';
       _isUpcycled = jobOrder['isUpcycled'] ?? false;
       _jobStatus = jobOrder['status'] ?? 'In Progress';
+      _originalJobStatus = _jobStatus; // Store original status to detect "Mark as Done"
       _selectedCategory = jobOrder['categoryID'] ?? jobOrder['category'] ?? 'uncategorized'; // ERDv9: Load categoryID field with fallback
       print('[DEBUG] Loaded job status from database: "${_jobStatus}"');
+      print('[DEBUG] Original job status set to: "${_originalJobStatus}"');
       print('[DEBUG] Loaded category from database: "${_selectedCategory}" (categoryID: ${jobOrder['categoryID']}, category: ${jobOrder['category']})');
 
       // Fetch all jobOrderDetails for this job order
@@ -1244,6 +1248,67 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
     });
   }
 
+  /// Helper method to update job order variants in database
+  Future<void> _updateVariants() async {
+    final detailsRef = FirebaseFirestore.instance.collection('jobOrderDetails');
+    
+    // Get all existing job order details
+    final existingDetails = await detailsRef
+        .where('jobOrderID', isEqualTo: widget.jobOrderId)
+        .get();
+    print('[DEBUG] Found ${existingDetails.docs.length} existing jobOrderDetails.');
+
+    // Delete all existing details first (we'll recreate them based on current variants)
+    final batch = FirebaseFirestore.instance.batch();
+    for (final doc in existingDetails.docs) {
+      batch.delete(doc.reference);
+    }
+
+    // Create new jobOrderDetail documents for each fabric in each variant
+    for (int i = 0; i < _variants.length; i++) {
+      final variant = _variants[i];
+      print('[DEBUG] Processing variant $i: size=${variant.size}, color=${variant.colorID}, quantity=${variant.quantity}');
+      
+      // Skip variants without proper data
+      if (variant.fabrics.isEmpty) {
+        print('[WARNING] Variant $i has no fabrics, skipping...');
+        continue;
+      }
+
+      // Create a separate jobOrderDetail document for each fabric in this variant
+      for (int j = 0; j < variant.fabrics.length; j++) {
+        final fabric = variant.fabrics[j];
+        print('[DEBUG] Creating detail for fabric $j: ${fabric.fabricId} - ${fabric.yardageUsed} yards');
+        
+        if (fabric.fabricId.isEmpty) {
+          print('[WARNING] Fabric $j has empty fabricId, skipping...');
+          continue;
+        }
+
+        final variantData = {
+          'jobOrderID': widget.jobOrderId,
+          'size': variant.size,
+          'color': variant.colorID, // ERDv9: Use colorID consistently
+          'quantity': variant.quantity, // Same quantity for all fabrics in this variant
+          'fabricID': fabric.fabricId,
+          'fabricName': fabric.fabricName,
+          'yardageUsed': fabric.yardageUsed,
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        };
+
+        // Create new document for each fabric
+        final newDocRef = detailsRef.doc(); // Generate new document ID
+        batch.set(newDocRef, variantData);
+        print('[DEBUG] Queued creation of detail document: ${newDocRef.id}');
+      }
+    }
+
+    // Commit all changes in a single batch
+    await batch.commit();
+    print('[DEBUG] All jobOrderDetail documents updated successfully.');
+  }
+
   Future<void> _updateJobOrder() async {
     print('[DEBUG] _updateJobOrder called');
     print('[DEBUG] jobOrderId: ${widget.jobOrderId}');
@@ -1289,12 +1354,71 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
       return;
     }
 
-    // Show confirmation dialog
+    // Check if status is changing to Done for special confirmation
+    bool isMarkingAsDone = (_originalJobStatus != 'Done' && _jobStatus == 'Done');
+
+    // Show confirmation dialog with special message for Mark as Done
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Update Job Order'),
-        content: const Text('Are you sure you want to update this job order?'),
+        title: Row(
+          children: [
+            Icon(
+              isMarkingAsDone ? Icons.check_circle : Icons.edit,
+              color: isMarkingAsDone ? Colors.green[600] : Colors.blue[600],
+              size: 24,
+            ),
+            const SizedBox(width: 8),
+            Text(isMarkingAsDone ? 'Complete Job Order' : 'Update Job Order'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              isMarkingAsDone 
+                  ? 'Are you sure you want to mark this job order as done?'
+                  : 'Are you sure you want to update this job order?',
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
+            if (isMarkingAsDone) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue[200]!),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.inventory, size: 16, color: Colors.blue[600]),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Product Conversion',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.blue[700],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'This will automatically convert the job order to a product in your inventory. You\'ll be prompted to choose how to handle the new product.',
+                      style: TextStyle(fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -1303,10 +1427,10 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
           ElevatedButton(
             onPressed: () => Navigator.of(context).pop(true),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green[600],
+              backgroundColor: isMarkingAsDone ? Colors.green[600] : Colors.blue[600],
               foregroundColor: Colors.white,
             ),
-            child: const Text('Update'),
+            child: Text(isMarkingAsDone ? 'Complete Job Order' : 'Update'),
           ),
         ],
       ),
@@ -1347,95 +1471,144 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
       print('[DEBUG] Parsed values - quantity: $quantity, price: $price');
       print('[DEBUG] Parsed dates - order: $orderDate, due: $dueDate');
 
-      // First, update the main job order document
-      print('[DEBUG] Updating main job order document...');
-      await FirebaseFirestore.instance
-          .collection('jobOrders')
-          .doc(widget.jobOrderId)
-          .update({
-        'name': _jobOrderNameController.text.trim(),
-        'customerName': _customerNameController.text.trim(),
-        'orderDate': orderDate != null ? Timestamp.fromDate(orderDate) : null,
-        'dueDate': dueDate != null ? Timestamp.fromDate(dueDate) : null,
-        'assignedTo': _assignedToController.text.trim(),
-        'quantity': quantity,
-        'price': price,
-        'specialInstructions': _specialInstructionsController.text.trim(),
-        'isUpcycled': _isUpcycled,
-        'status': _jobStatus,
-        'categoryID': _selectedCategory, // ERDv9: Store categoryID instead of category
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-      print('[DEBUG] Main job order document updated successfully.');
+      // Check if status changed from non-Done to Done (Mark as Done functionality)
+      bool shouldTriggerProductConversion = (_originalJobStatus != 'Done' && _jobStatus == 'Done');
+      print('[DEBUG] Status change detected: ${_originalJobStatus} -> ${_jobStatus}, trigger conversion: $shouldTriggerProductConversion');
 
-      // Handle variants update - COMPLETELY REWRITTEN FOR PROPER MULTI-FABRIC SUPPORT
-      final detailsRef = FirebaseFirestore.instance.collection('jobOrderDetails');
-      
-      // Get all existing job order details
-      final existingDetails = await detailsRef
-          .where('jobOrderID', isEqualTo: widget.jobOrderId)
-          .get();
-      print('[DEBUG] Found ${existingDetails.docs.length} existing jobOrderDetails.');
-
-      // Delete all existing details first (we'll recreate them based on current variants)
-      final batch = FirebaseFirestore.instance.batch();
-      for (final doc in existingDetails.docs) {
-        batch.delete(doc.reference);
-      }
-
-      // Create new jobOrderDetail documents for each fabric in each variant
-      for (int i = 0; i < _variants.length; i++) {
-        final variant = _variants[i];
-        print('[DEBUG] Processing variant $i: size=${variant.size}, color=${variant.colorID}, quantity=${variant.quantity}');
-        
-        // Skip variants without proper data
-        if (variant.fabrics.isEmpty) {
-          print('[WARNING] Variant $i has no fabrics, skipping...');
-          continue;
-        }
-
-        // Create a separate jobOrderDetail document for each fabric in this variant
-        for (int j = 0; j < variant.fabrics.length; j++) {
-          final fabric = variant.fabrics[j];
-          print('[DEBUG] Creating detail for fabric $j: ${fabric.fabricId} - ${fabric.yardageUsed} yards');
+      // If marking as done, handle product conversion FIRST (before any database changes)
+      if (shouldTriggerProductConversion) {
+        print('[DEBUG] Handling product conversion before making any database changes...');
+        try {
+          // Update variants first BEFORE product conversion (since conversion needs current variant data)
+          await _updateVariants();
           
-          if (fabric.fabricId.isEmpty) {
-            print('[WARNING] Fabric $j has empty fabricId, skipping...');
-            continue;
-          }
-
-          final variantData = {
-            'jobOrderID': widget.jobOrderId,
-            'size': variant.size,
-            'color': variant.colorID, // ERDv9: Use colorID consistently
-            'quantity': variant.quantity, // Same quantity for all fabrics in this variant
-            'fabricID': fabric.fabricId,
-            'fabricName': fabric.fabricName,
-            'yardageUsed': fabric.yardageUsed,
-            'createdAt': FieldValue.serverTimestamp(),
+          // Update job order fields (except status) before product conversion
+          await FirebaseFirestore.instance
+              .collection('jobOrders')
+              .doc(widget.jobOrderId)
+              .update({
+            'name': _jobOrderNameController.text.trim(),
+            'customerName': _customerNameController.text.trim(),
+            'orderDate': orderDate != null ? Timestamp.fromDate(orderDate) : null,
+            'dueDate': dueDate != null ? Timestamp.fromDate(dueDate) : null,
+            'assignedTo': _assignedToController.text.trim(),
+            'quantity': quantity,
+            'price': price,
+            'specialInstructions': _specialInstructionsController.text.trim(),
+            'isUpcycled': _isUpcycled,
+            // Note: NOT updating status here - markJobOrderAsDone will handle it
+            'categoryID': _selectedCategory,
             'updatedAt': FieldValue.serverTimestamp(),
-          };
+          });
+          print('[DEBUG] Job order fields updated (except status)');
+          
+          // Fetch updated job order data for product conversion
+          final updatedJobOrderDoc = await FirebaseFirestore.instance
+              .collection('jobOrders')
+              .doc(widget.jobOrderId)
+              .get();
+          
+          final updatedJobOrderData = updatedJobOrderDoc.data()!;
+          
+          // Fetch updated job order details for product conversion
+          final updatedJobOrderDetails = await FirebaseFirestore.instance
+              .collection('jobOrderDetails')
+              .where('jobOrderID', isEqualTo: widget.jobOrderId)
+              .get();
 
-          // Create new document for each fabric
-          final newDocRef = detailsRef.doc(); // Generate new document ID
-          batch.set(newDocRef, variantData);
-          print('[DEBUG] Queued creation of detail document: ${newDocRef.id}');
+          if (updatedJobOrderDetails.docs.isNotEmpty && mounted) {
+            // Create JobOrderActions instance for product conversion
+            final jobOrderActions = JobOrderActions(
+              context: context,
+              productData: {}, // Empty product data map for new conversion
+              onDataRefresh: () {}, // Empty callback since we're in a modal
+            );
+
+            // Trigger the mark as done process (which includes product conversion)
+            // This will update the status to 'Done' internally if successful
+            await jobOrderActions.markJobOrderAsDone(
+              widget.jobOrderId,
+              updatedJobOrderData['name'] ?? 'Unnamed Job Order',
+              updatedJobOrderData,
+            );
+            
+            print('[DEBUG] Product conversion completed successfully - job order marked as done');
+            
+          } else {
+            print('[WARNING] No job order details found for product conversion');
+            throw Exception('No job order details found for product conversion');
+          }
+        } catch (e) {
+          print('[ERROR] Failed to complete product conversion: $e');
+          
+          // If product conversion failed or was cancelled, revert status to original
+          _jobStatus = _originalJobStatus;
+          
+          if (mounted) {
+            setState(() {}); // Update UI to show reverted status
+            
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    const Icon(Icons.info, color: Colors.white, size: 20),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text('Job order update cancelled. Product conversion was not completed.'),
+                    ),
+                  ],
+                ),
+                backgroundColor: Colors.blue[600],
+                duration: const Duration(seconds: 4),
+                behavior: SnackBarBehavior.floating,
+                margin: const EdgeInsets.all(16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+            );
+          }
+          
+          // Exit early - don't proceed with any updates
+          return;
         }
+      } else {
+        // Regular update (not marking as done)
+        print('[DEBUG] Performing regular update...');
+        
+        // Update the main job order document
+        await FirebaseFirestore.instance
+            .collection('jobOrders')
+            .doc(widget.jobOrderId)
+            .update({
+          'name': _jobOrderNameController.text.trim(),
+          'customerName': _customerNameController.text.trim(),
+          'orderDate': orderDate != null ? Timestamp.fromDate(orderDate) : null,
+          'dueDate': dueDate != null ? Timestamp.fromDate(dueDate) : null,
+          'assignedTo': _assignedToController.text.trim(),
+          'quantity': quantity,
+          'price': price,
+          'specialInstructions': _specialInstructionsController.text.trim(),
+          'isUpcycled': _isUpcycled,
+          'status': _jobStatus,
+          'categoryID': _selectedCategory,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        print('[DEBUG] Main job order document updated successfully.');
+        
+        // Update variants
+        await _updateVariants();
       }
-
-      // Commit all changes in a single batch
-      await batch.commit();
-      print('[DEBUG] All jobOrderDetail documents updated successfully.');
 
       // Show success message
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Row(
+            content: Row(
               children: [
-                Icon(Icons.check_circle, color: Colors.white, size: 20),
-                SizedBox(width: 8),
-                Text('Job order updated successfully!'),
+                const Icon(Icons.check_circle, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                Text(_originalJobStatus != 'Done' && _jobStatus == 'Done'
+                    ? 'Job order completed and converted to product successfully!'
+                    : 'Job order updated successfully!'),
               ],
             ),
             backgroundColor: Colors.green[600],
