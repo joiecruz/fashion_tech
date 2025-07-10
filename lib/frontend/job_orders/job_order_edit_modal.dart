@@ -1369,7 +1369,12 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
               size: 24,
             ),
             const SizedBox(width: 8),
-            Text(isMarkingAsDone ? 'Complete Job Order' : 'Update Job Order'),
+            Expanded(
+              child: Text(
+                isMarkingAsDone ? 'Complete Job Order' : 'Update Job Order',
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           ],
         ),
         content: Column(
@@ -1526,39 +1531,68 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
 
             // Trigger the mark as done process (which includes product conversion)
             // This will update the status to 'Done' internally if successful
-            await jobOrderActions.markJobOrderAsDone(
+            final success = await jobOrderActions.markJobOrderAsDone(
               widget.jobOrderId,
               updatedJobOrderData['name'] ?? 'Unnamed Job Order',
               updatedJobOrderData,
             );
             
-            print('[DEBUG] Product conversion completed successfully - job order marked as done');
+            if (success) {
+              print('[DEBUG] Product conversion completed successfully - job order marked as done');
+            } else {
+              print('[DEBUG] Product conversion was cancelled or failed');
+              // User cancelled or conversion failed - revert status and keep modal open
+              _jobStatus = _originalJobStatus;
+              setState(() => _saving = false);
+              return; // Exit early without showing notification or closing modal
+            }
             
           } else {
             print('[WARNING] No job order details found for product conversion');
-            throw Exception('No job order details found for product conversion');
+            // Revert status and keep modal open
+            _jobStatus = _originalJobStatus;
+            setState(() => _saving = false);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Row(
+                  children: [
+                    Icon(Icons.warning, color: Colors.white, size: 20),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text('No job order details found for product conversion.'),
+                    ),
+                  ],
+                ),
+                backgroundColor: Colors.orange[600],
+                duration: const Duration(seconds: 3),
+                behavior: SnackBarBehavior.floating,
+                margin: const EdgeInsets.all(16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+            );
+            return;
           }
         } catch (e) {
           print('[ERROR] Failed to complete product conversion: $e');
           
-          // If product conversion failed or was cancelled, revert status to original
+          // If product conversion failed, revert status to original
           _jobStatus = _originalJobStatus;
           
           if (mounted) {
-            setState(() {}); // Update UI to show reverted status
+            setState(() => _saving = false); // Reset saving state to keep modal open
             
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Row(
                   children: [
-                    const Icon(Icons.info, color: Colors.white, size: 20),
+                    const Icon(Icons.error, color: Colors.white, size: 20),
                     const SizedBox(width: 8),
                     const Expanded(
-                      child: Text('Job order update cancelled. Product conversion was not completed.'),
+                      child: Text('Failed to complete product conversion.'),
                     ),
                   ],
                 ),
-                backgroundColor: Colors.blue[600],
+                backgroundColor: Colors.red[600],
                 duration: const Duration(seconds: 4),
                 behavior: SnackBarBehavior.floating,
                 margin: const EdgeInsets.all(16),
@@ -1567,7 +1601,7 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
             );
           }
           
-          // Exit early - don't proceed with any updates
+          // Exit early - don't proceed with any updates, but keep modal open
           return;
         }
       } else {

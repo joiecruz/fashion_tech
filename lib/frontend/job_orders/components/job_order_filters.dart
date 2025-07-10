@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../common/gradient_search_bar.dart';
 
 class JobOrderFilters extends StatelessWidget {
   final String selectedStatus;
@@ -41,29 +42,16 @@ class JobOrderFilters extends StatelessWidget {
       child: Column(
         children: [
           // Search bar
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.orange[50]!, Colors.grey[100]!],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.orange[200]!.withOpacity(0.3)),
-            ),
-            child: TextField(
-              controller: searchController,
-              decoration: InputDecoration(
-                hintText: 'Search job orders by name, customer, or assignee...',
-                hintStyle: TextStyle(color: Colors.grey[600]),
-                prefixIcon: Icon(Icons.search, color: Colors.grey[600]),
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 16,
-                ),
-              ),
-            ),
+          GradientSearchBar(
+            controller: searchController,
+            hintText: 'Search job orders by name, customer, or assignee...',
+            primaryColor: Colors.orange,
+            onChanged: (value) {
+              // The parent widget will handle the search through the controller
+            },
+            onClear: () {
+              searchController.clear();
+            },
           ),
           const SizedBox(height: 16),
 
@@ -85,36 +73,12 @@ class JobOrderFilters extends StatelessWidget {
                 _buildCategoryDropdown(),
                 const SizedBox(width: 12),
                 // Refresh button
-                Tooltip(
-                  message: 'Refresh job orders',
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(8),
-                      onTap: isRefreshing ? null : onRefresh,
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        child: isRefreshing
-                            ? SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.orange[600]!),
-                                ),
-                              )
-                            : AnimatedRotation(
-                                turns: isRefreshing ? 1 : 0,
-                                duration: const Duration(milliseconds: 500),
-                                child: Icon(
-                                  Icons.refresh,
-                                  color: Colors.orange[600],
-                                  size: 20,
-                                ),
-                              ),
-                      ),
-                    ),
-                  ),
+                GradientFilterChip(
+                  label: 'Refresh',
+                  isSelected: false,
+                  onTap: isRefreshing ? () {} : onRefresh,
+                  primaryColor: Colors.orange,
+                  icon: isRefreshing ? null : Icons.refresh,
                 ),
               ],
             ),
@@ -242,13 +206,13 @@ class JobOrderFilters extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(3),
               decoration: BoxDecoration(
-                color: Colors.blue[600]!.withOpacity(0.2),
+                color: Colors.orange[600]!.withOpacity(0.2),
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Icon(
-                _getCategoryIcon(selectedCategory),
+                selectedCategory == 'All Categories' ? Icons.category : _getCategoryIcon(selectedCategory),
                 size: 12,
-                color: Colors.blue[600],
+                color: Colors.orange[600],
               ),
             ),
             const SizedBox(width: 6),
@@ -280,20 +244,17 @@ class JobOrderFilters extends StatelessWidget {
             child: Row(
               children: [
                 Icon(
-                  _getCategoryIcon(option),
+                  option == 'All Categories' ? Icons.category : _getCategoryIcon(option),
                   size: 14,
-                  color: Colors.blue[600],
+                  color: Colors.orange[600],
                 ),
                 const SizedBox(width: 8),
-                Flexible(
-                  child: Text(
-                    option,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[800],
-                      fontWeight: FontWeight.w500,
-                    ),
-                    overflow: TextOverflow.ellipsis,
+                Text(
+                  option,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[800],
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ],

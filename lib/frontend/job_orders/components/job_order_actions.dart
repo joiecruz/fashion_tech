@@ -14,7 +14,7 @@ class JobOrderActions {
   });
 
   // Mark job order as done with product handling
-  Future<void> markJobOrderAsDone(String jobOrderID, String jobOrderName, Map<String, dynamic> jobOrderData) async {
+  Future<bool> markJobOrderAsDone(String jobOrderID, String jobOrderName, Map<String, dynamic> jobOrderData) async {
     print('[DEBUG] Starting mark as done process for job order: $jobOrderID');
     
     try {
@@ -34,7 +34,7 @@ class JobOrderActions {
           Colors.orange[600]!,
           Icons.warning,
         );
-        return;
+        return false;
       }
 
       // Step 2: Show product handling dialog BEFORE marking as done
@@ -49,7 +49,7 @@ class JobOrderActions {
       
       if (productResult == null) {
         print('[DEBUG] User cancelled product handling dialog');
-        return;
+        return false; // Return false to indicate cancellation
       }
 
       print('[DEBUG] User selected product action: ${productResult.action}');
@@ -73,7 +73,7 @@ class JobOrderActions {
           Colors.red[600]!,
           Icons.error_outline,
         );
-        return;
+        return false;
       }
 
       // Step 4: Mark job order as done in database
@@ -112,6 +112,8 @@ class JobOrderActions {
         Icons.check_circle,
       );
 
+      return true; // Return true to indicate success
+
     } catch (e) {
       print('[ERROR] Failed to mark job order as done: $e');
       _showSnackBar(
@@ -119,6 +121,7 @@ class JobOrderActions {
         Colors.red[600]!,
         Icons.error_outline,
       );
+      return false; // Return false to indicate failure
     }
   }
 

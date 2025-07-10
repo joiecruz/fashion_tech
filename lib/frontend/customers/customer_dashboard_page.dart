@@ -3,6 +3,7 @@ import '../../models/customer.dart';
 import '../../services/customer_service.dart';
 import 'customer_detail_page.dart';
 import 'add_customer_modal.dart';
+import '../common/gradient_search_bar.dart';
 
 class CustomerDashboardPage extends StatefulWidget {
   const CustomerDashboardPage({Key? key}) : super(key: key);
@@ -112,7 +113,7 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
                 Text('${customers.length} customers refreshed'),
               ],
             ),
-            backgroundColor: Colors.pink[600],
+            backgroundColor: Colors.pink.shade600,
             duration: const Duration(seconds: 2),
             behavior: SnackBarBehavior.floating,
             margin: const EdgeInsets.all(16),
@@ -140,7 +141,7 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
                 Text(isRefresh ? 'Failed to refresh customers' : 'Failed to load customers'),
               ],
             ),
-            backgroundColor: Colors.red[600],
+            backgroundColor: Colors.red.shade600,
             duration: const Duration(seconds: 3),
             behavior: SnackBarBehavior.floating,
             margin: const EdgeInsets.all(16),
@@ -168,10 +169,100 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
     return ['All', ...locations];
   }
 
+  Widget _buildLocationDropdown() {
+    return PopupMenuButton<String>(
+      onSelected: (String newValue) {
+        setState(() {
+          _selectedLocation = newValue;
+          _onSearchChanged();
+        });
+      },
+      offset: const Offset(0, 6),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.white, Colors.grey.shade50],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.grey.shade300, width: 1),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 4,
+              offset: const Offset(0, 1),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(3),
+              decoration: BoxDecoration(
+                color: Colors.pink.shade100,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Icon(
+                Icons.location_on_rounded,
+                size: 12,
+                color: Colors.pink.shade700,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              _selectedLocation,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade800,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.2,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(
+              Icons.keyboard_arrow_down_rounded,
+              size: 14,
+              color: Colors.grey.shade600,
+            ),
+          ],
+        ),
+      ),
+      itemBuilder: (BuildContext context) {
+        return _uniqueLocations.map((String option) {
+          return PopupMenuItem<String>(
+            value: option,
+            child: Row(
+              children: [
+                Icon(
+                  option == 'All' ? Icons.grid_view_rounded : Icons.location_on_rounded,
+                  size: 14,
+                  color: Colors.pink.shade600,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  option,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: option == _selectedLocation ? FontWeight.w600 : FontWeight.w400,
+                    color: option == _selectedLocation ? Colors.pink.shade700 : Colors.grey.shade800,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList();
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: Colors.grey.shade50,
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : FadeTransition(
@@ -182,21 +273,16 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
                   Container(
                     color: Colors.white,
                     padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.grey[100],
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: TextField(
-                        controller: _searchController,
-                        decoration: InputDecoration(
-                          hintText: 'Search customers...',
-                          hintStyle: TextStyle(color: Colors.grey[500]),
-                          prefixIcon: Icon(Icons.search, color: Colors.grey[500]),
-                          border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        ),
-                      ),
+                    child: CompactGradientSearchBar(
+                      controller: _searchController,
+                      hintText: 'Search customers...',
+                      primaryColor: Colors.pink,
+                      onChanged: (value) {
+                        // Search is handled through the controller
+                      },
+                      onClear: () {
+                        _searchController.clear();
+                      },
                     ),
                   ),
                   // Sticky Filter Chips
@@ -210,14 +296,28 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
                         scrollDirection: Axis.horizontal,
                         child: Row(
                           children: [
-                            _buildFilterChip('Location', _selectedLocation, _uniqueLocations),
+                            Text(
+                              'Filters:',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey.shade700,
+                              ),
+                            ),
                             const SizedBox(width: 12),
-                            _buildToggleChip('Has Email', _hasEmailOnly, (value) {
-                              setState(() {
-                                _hasEmailOnly = value;
-                                _onSearchChanged();
-                              });
-                            }),
+                            _buildLocationDropdown(),
+                            const SizedBox(width: 12),
+                            GradientFilterChip(
+                              label: 'Has Email',
+                              isSelected: _hasEmailOnly,
+                              onTap: () {
+                                setState(() {
+                                  _hasEmailOnly = !_hasEmailOnly;
+                                  _onSearchChanged();
+                                });
+                              },
+                              primaryColor: Colors.pink,
+                              icon: Icons.email_rounded,
+                            ),
                           ],
                         ),
                       ),
@@ -227,7 +327,7 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
                   Expanded(
                     child: RefreshIndicator(
                       onRefresh: () => _loadData(isRefresh: true),
-                      color: Colors.pink[600],
+                      color: Colors.pink.shade600,
                       backgroundColor: Colors.white,
                       strokeWidth: 3.0,
                       displacement: 50,
@@ -252,9 +352,9 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
                                       width: double.infinity,
                                       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                                       decoration: BoxDecoration(
-                                        color: Colors.grey[50],
+                                        color: Colors.grey.shade50,
                                         border: Border(
-                                          bottom: BorderSide(color: Colors.grey[200]!, width: 1),
+                                          bottom: BorderSide(color: Colors.grey.shade200, width: 1),
                                         ),
                                       ),
                                       child: Row(
@@ -264,7 +364,7 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
                                             children: [
                                               Icon(
                                                 Icons.analytics_outlined,
-                                                color: Colors.grey[600],
+                                                color: Colors.grey.shade600,
                                                 size: 20,
                                               ),
                                               const SizedBox(width: 8),
@@ -273,7 +373,7 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
                                                 style: TextStyle(
                                                   fontSize: 16,
                                                   fontWeight: FontWeight.w600,
-                                                  color: Colors.grey[800],
+                                                  color: Colors.grey.shade800,
                                                 ),
                                               ),
                                             ],
@@ -286,7 +386,7 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
                                                     '${_totalCustomers} customers • ${_customersWithEmail} with email',
                                                     style: TextStyle(
                                                       fontSize: 12,
-                                                      color: Colors.grey[600],
+                                                      color: Colors.grey.shade600,
                                                     ),
                                                     overflow: TextOverflow.ellipsis,
                                                     maxLines: 1,
@@ -299,7 +399,7 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
                                                 duration: const Duration(milliseconds: 200),
                                                 child: Icon(
                                                   Icons.keyboard_arrow_down,
-                                                  color: Colors.grey[600],
+                                                  color: Colors.grey.shade600,
                                                   size: 20,
                                                 ),
                                               ),
@@ -327,31 +427,28 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
                                             children: [
                                               _buildCompactStatCard(
                                                 icon: Icons.people_outline,
-                                                iconColor: Colors.pink[600]!,
+                                                iconColor: Colors.pink.shade600,
                                                 title: 'Total Customers',
                                                 value: _totalCustomers.toString(),
                                               ),
-                                              const SizedBox(width: 8),
-                                              _buildCompactStatCard(
-                                                icon: Icons.work_outline,
-                                                iconColor: Colors.blue[600]!,
-                                                title: 'Active Orders',
-                                                value: _summaryData['active_job_orders'].toString(),
-                                              ),
-                                              const SizedBox(width: 8),
-                                              _buildCompactStatCard(
-                                                icon: Icons.email_outlined,
-                                                iconColor: Colors.orange[600]!,
-                                                title: 'With Email',
-                                                value: _customersWithEmail.toString(),
-                                              ),
-                                              const SizedBox(width: 8),
-                                              _buildCompactStatCard(
-                                                icon: Icons.location_on_outlined,
-                                                iconColor: Colors.green[600]!,
-                                                title: 'Locations',
-                                                value: (_uniqueLocations.length - 1).toString(), // -1 for 'All'
-                                              ),
+                                              const SizedBox(width: 8),                              _buildCompactStatCard(
+                                icon: Icons.work_outline,
+                                iconColor: Colors.blue.shade600,
+                                title: 'Active Orders',
+                                value: _summaryData['active_job_orders'].toString(),
+                              ),
+                                              const SizedBox(width: 8),                              _buildCompactStatCard(
+                                icon: Icons.email_outlined,
+                                iconColor: Colors.orange.shade600,
+                                title: 'With Email',
+                                value: _customersWithEmail.toString(),
+                              ),
+                                              const SizedBox(width: 8),                              _buildCompactStatCard(
+                                icon: Icons.location_on_outlined,
+                                iconColor: Colors.green.shade600,
+                                title: 'Locations',
+                                value: (_uniqueLocations.length - 1).toString(), // -1 for 'All'
+                              ),
                                             ],
                                           ),
                                         ),
@@ -371,14 +468,14 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
                                 height: 42,
                                 decoration: BoxDecoration(
                                   gradient: LinearGradient(
-                                    colors: [Colors.pink[600]!, Colors.pink[700]!],
+                                    colors: [Colors.pink.shade600, Colors.pink.shade700],
                                     begin: Alignment.centerLeft,
                                     end: Alignment.centerRight,
                                   ),
                                   borderRadius: BorderRadius.circular(10),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.pink[600]!.withOpacity(0.25),
+                                      color: Colors.pink.shade600.withOpacity(0.25),
                                       blurRadius: 6,
                                       offset: const Offset(0, 2),
                                     ),
@@ -514,168 +611,6 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
     );
   }
 
-  Widget _buildToggleChip(String label, bool isSelected, Function(bool) onToggle) {
-    return GestureDetector(
-      onTap: () => onToggle(!isSelected),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeInOut,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          gradient: isSelected
-              ? LinearGradient(
-                  colors: [Colors.pink[600]!, Colors.pink[700]!],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                )
-              : LinearGradient(
-                  colors: [Colors.white, Colors.grey[50]!],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                ),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? Colors.pink[600]! : Colors.grey[300]!,
-            width: 1,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: isSelected
-                  ? Colors.pink[600]!.withOpacity(0.25)
-                  : Colors.black.withOpacity(0.06),
-              blurRadius: isSelected ? 6 : 4,
-              offset: Offset(0, isSelected ? 2 : 1),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.all(3),
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? Colors.white.withOpacity(0.2)
-                    : Colors.blue[100],
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Icon(
-                isSelected
-                    ? Icons.check_circle_rounded
-                    : Icons.email_rounded,
-                size: 12,
-                color: isSelected
-                    ? Colors.white
-                    : Colors.blue[700],
-              ),
-            ),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                color: isSelected ? Colors.white : Colors.grey[800],
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.2,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFilterChip(String label, String value, List<String> options) {
-    return PopupMenuButton<String>(
-      onSelected: (String newValue) {
-        setState(() {
-          _selectedLocation = newValue;
-          _onSearchChanged();
-        });
-      },
-      offset: const Offset(0, 6),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Colors.white, Colors.grey[50]!],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.grey[300]!, width: 1),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.06),
-              blurRadius: 4,
-              offset: const Offset(0, 1),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(3),
-              decoration: BoxDecoration(
-                color: Colors.pink[100],
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Icon(
-                Icons.location_on_rounded,
-                size: 12,
-                color: Colors.pink[700],
-              ),
-            ),
-            const SizedBox(width: 6),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey[800],
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.2,
-              ),
-            ),
-            const SizedBox(width: 4),
-            Icon(
-              Icons.keyboard_arrow_down_rounded,
-              size: 14,
-              color: Colors.grey[600],
-            ),
-          ],
-        ),
-      ),
-      itemBuilder: (BuildContext context) {
-        return options.map((String option) {
-          return PopupMenuItem<String>(
-            value: option,
-            child: Row(
-              children: [
-                Icon(
-                  option == 'All' ? Icons.grid_view_rounded : Icons.location_on_rounded,
-                  size: 14,
-                  color: Colors.grey[600],
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  option,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: option == value ? FontWeight.w600 : FontWeight.w400,
-                    color: option == value ? Colors.pink[700] : Colors.grey[800],
-                  ),
-                ),
-              ],
-            ),
-          );
-        }).toList();
-      },
-    );
-  }
-
   Widget _buildCustomerCard(Customer customer, int index) {
     return TweenAnimationBuilder<double>(
       duration: Duration(milliseconds: 300 + (index * 100)),
@@ -713,7 +648,7 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
                             height: 60,
                             decoration: BoxDecoration(
                               gradient: LinearGradient(
-                                colors: [Colors.pink[100]!, Colors.pink[200]!],
+                                colors: [Colors.pink.shade100, Colors.pink.shade200],
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
                               ),
@@ -721,7 +656,7 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
                             ),
                             child: Icon(
                               Icons.person_rounded,
-                              color: Colors.pink[700],
+                              color: Colors.pink.shade700,
                               size: 30,
                             ),
                           ),
@@ -743,20 +678,19 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
                                       ),
                                     ),
                                     // Status indicators
-                                    if (customer.email != null && customer.email!.isNotEmpty)
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                        decoration: BoxDecoration(
-                                          color: Colors.blue[100],
-                                          borderRadius: BorderRadius.circular(12),
-                                        ),
+                                    if (customer.email != null && customer.email!.isNotEmpty)                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: Colors.blue.shade100,
+                                            borderRadius: BorderRadius.circular(12),
+                                          ),
                                         child: Row(
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
                                             Icon(
                                               Icons.email,
                                               size: 10,
-                                              color: Colors.blue[700],
+                                              color: Colors.blue.shade700,
                                             ),
                                             const SizedBox(width: 4),
                                             Text(
@@ -764,7 +698,7 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
                                               style: TextStyle(
                                                 fontSize: 10,
                                                 fontWeight: FontWeight.w600,
-                                                color: Colors.blue[700],
+                                                color: Colors.blue.shade700,
                                               ),
                                             ),
                                           ],
@@ -773,54 +707,51 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
                                   ],
                                 ),
                                 const SizedBox(height: 4),
-                                if (customer.contactNum.isNotEmpty)
-                                  Row(
-                                    children: [
-                                      Icon(Icons.phone, size: 14, color: Colors.grey[600]),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        customer.contactNum,
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          color: Colors.grey[600],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                if (customer.email != null && customer.email!.isNotEmpty)
-                                  Row(
-                                    children: [
-                                      Icon(Icons.email_outlined, size: 14, color: Colors.grey[600]),
-                                      const SizedBox(width: 4),
-                                      Expanded(
-                                        child: Text(
-                                          customer.email!,
+                                if (customer.contactNum.isNotEmpty)                                    Row(
+                                      children: [
+                                        Icon(Icons.phone, size: 14, color: Colors.grey.shade600),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          customer.contactNum,
                                           style: TextStyle(
                                             fontSize: 14,
-                                            color: Colors.grey[600],
+                                            color: Colors.grey.shade600,
                                           ),
-                                          overflow: TextOverflow.ellipsis,
                                         ),
-                                      ),
-                                    ],
-                                  ),
-                                if (customer.address != null && customer.address!.isNotEmpty)
-                                  Row(
-                                    children: [
-                                      Icon(Icons.location_on, size: 14, color: Colors.grey[600]),
-                                      const SizedBox(width: 4),
-                                      Expanded(
-                                        child: Text(
-                                          customer.address!,
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            color: Colors.grey[600],
+                                      ],
+                                    ),
+                                if (customer.email != null && customer.email!.isNotEmpty)                                    Row(
+                                      children: [
+                                        Icon(Icons.email_outlined, size: 14, color: Colors.grey.shade600),
+                                        const SizedBox(width: 4),
+                                        Expanded(
+                                          child: Text(
+                                            customer.email!,
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              color: Colors.grey.shade600,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
                                           ),
-                                          overflow: TextOverflow.ellipsis,
                                         ),
-                                      ),
-                                    ],
-                                  ),
+                                      ],
+                                    ),
+                                if (customer.address != null && customer.address!.isNotEmpty)                                    Row(
+                                      children: [
+                                        Icon(Icons.location_on, size: 14, color: Colors.grey.shade600),
+                                        const SizedBox(width: 4),
+                                        Expanded(
+                                          child: Text(
+                                            customer.address!,
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              color: Colors.grey.shade600,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                               ],
                             ),
                           ),
@@ -833,9 +764,9 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
                           width: double.infinity,
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: Colors.grey[50],
+                            color: Colors.grey.shade50,
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.grey[200]!),
+                            border: Border.all(color: Colors.grey.shade200),
                           ),
                           child: Text(
                             customer.notes!.length > 100 
@@ -843,7 +774,7 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
                                 : customer.notes!,
                             style: TextStyle(
                               fontSize: 12,
-                              color: Colors.grey[700],
+                              color: Colors.grey.shade700,
                               fontStyle: FontStyle.italic,
                             ),
                           ),
@@ -857,7 +788,7 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
                             child: ElevatedButton.icon(
                               onPressed: () => _editCustomer(customer),
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.orange[600],
+                                backgroundColor: Colors.orange.shade600,
                                 foregroundColor: Colors.white,
                                 padding: const EdgeInsets.symmetric(vertical: 12),
                                 shape: RoundedRectangleBorder(
@@ -873,7 +804,7 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
                             child: ElevatedButton.icon(
                               onPressed: () => _deleteCustomer(customer),
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.red[600],
+                                backgroundColor: Colors.red.shade600,
                                 foregroundColor: Colors.white,
                                 padding: const EdgeInsets.symmetric(vertical: 12),
                                 shape: RoundedRectangleBorder(
@@ -894,7 +825,7 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(8),
                                 ),
-                                side: BorderSide(color: Colors.grey[300]!),
+                                side: BorderSide(color: Colors.grey.shade300),
                               ),
                               icon: const Icon(Icons.visibility, size: 16),
                               label: const Text('View', style: TextStyle(fontWeight: FontWeight.w600)),
@@ -923,7 +854,7 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [Colors.pink[100]!, Colors.pink[200]!],
+                colors: [Colors.pink.shade100, Colors.pink.shade200],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -932,7 +863,7 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
             child: Icon(
               Icons.people_outline,
               size: 48,
-              color: Colors.pink[700],
+              color: Colors.pink.shade700,
             ),
           ),
           const SizedBox(height: 24),
@@ -941,7 +872,7 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.w600,
-              color: Colors.grey[700],
+              color: Colors.grey.shade700,
             ),
           ),
           const SizedBox(height: 8),
@@ -951,7 +882,7 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
                 : 'Try adjusting your search terms or filters',
             style: TextStyle(
               fontSize: 14,
-              color: Colors.grey[500],
+              color: Colors.grey.shade500,
             ),
             textAlign: TextAlign.center,
           ),
@@ -960,14 +891,14 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
             Container(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [Colors.pink[600]!, Colors.pink[700]!],
+                  colors: [Colors.pink.shade600, Colors.pink.shade700],
                   begin: Alignment.centerLeft,
                   end: Alignment.centerRight,
                 ),
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.pink[600]!.withOpacity(0.3),
+                    color: Colors.pink.shade600.withOpacity(0.3),
                     blurRadius: 8,
                     offset: const Offset(0, 4),
                   ),
@@ -1029,7 +960,7 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
             onPressed: () => Navigator.pop(context, true),
             style: TextButton.styleFrom(
               foregroundColor: Colors.red,
-              backgroundColor: Colors.red[50],
+              backgroundColor: Colors.red.shade50,
             ),
             child: const Text('Delete'),
           ),
@@ -1052,7 +983,7 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
                     Text('${customer.fullName} deleted successfully'),
                   ],
                 ),
-                backgroundColor: Colors.green[600],
+                backgroundColor: Colors.green.shade600,
                 duration: const Duration(seconds: 2),
                 behavior: SnackBarBehavior.floating,
                 margin: const EdgeInsets.all(16),
@@ -1073,9 +1004,8 @@ class _CustomerDashboardPageState extends State<CustomerDashboardPage>
                   const SizedBox(width: 8),
                   Text('Failed to delete customer: ${e.toString()}'),
                 ],
-              ),
-              backgroundColor: Colors.red[600],
-              duration: const Duration(seconds: 3),
+              ),            backgroundColor: Colors.red.shade600,
+            duration: const Duration(seconds: 3),
               behavior: SnackBarBehavior.floating,
               margin: const EdgeInsets.all(16),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),

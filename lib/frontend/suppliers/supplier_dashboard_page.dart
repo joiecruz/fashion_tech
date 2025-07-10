@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'supplier_detail_page.dart';
 import 'add_supplier_modal.dart';
 import 'package:fashion_tech/backend/fetch_suppliers.dart';
+import '../common/gradient_search_bar.dart';
 
 class SupplierDashboardPage extends StatefulWidget {
   const SupplierDashboardPage({Key? key}) : super(key: key);
@@ -163,6 +164,96 @@ class _SupplierDashboardPageState extends State<SupplierDashboardPage>
     return ['All', ...locations];
   }
 
+  Widget _buildLocationDropdown() {
+    return PopupMenuButton<String>(
+      onSelected: (String newValue) {
+        setState(() {
+          _selectedLocation = newValue;
+          _filterSuppliers();
+        });
+      },
+      offset: const Offset(0, 6),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.white, Colors.grey[50]!],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.grey[300]!, width: 1),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 4,
+              offset: const Offset(0, 1),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(3),
+              decoration: BoxDecoration(
+                color: Colors.purple[100],
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Icon(
+                Icons.location_on_rounded,
+                size: 12,
+                color: Colors.purple[700],
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              _selectedLocation,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[800],
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.2,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(
+              Icons.keyboard_arrow_down_rounded,
+              size: 14,
+              color: Colors.grey[600],
+            ),
+          ],
+        ),
+      ),
+      itemBuilder: (BuildContext context) {
+        return _uniqueLocations.map((String option) {
+          return PopupMenuItem<String>(
+            value: option,
+            child: Row(
+              children: [
+                Icon(
+                  option == 'All' ? Icons.grid_view_rounded : Icons.location_on_rounded,
+                  size: 14,
+                  color: Colors.purple[600],
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  option,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: option == _selectedLocation ? FontWeight.w600 : FontWeight.w400,
+                    color: option == _selectedLocation ? Colors.purple[700] : Colors.grey[800],
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList();
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -177,21 +268,16 @@ class _SupplierDashboardPageState extends State<SupplierDashboardPage>
                   Container(
                     color: Colors.white,
                     padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.grey[100],
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: TextField(
-                        controller: _searchController,
-                        decoration: InputDecoration(
-                          hintText: 'Search suppliers...',
-                          hintStyle: TextStyle(color: Colors.grey[500]),
-                          prefixIcon: Icon(Icons.search, color: Colors.grey[500]),
-                          border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        ),
-                      ),
+                    child: CompactGradientSearchBar(
+                      controller: _searchController,
+                      hintText: 'Search suppliers...',
+                      primaryColor: Colors.purple,
+                      onChanged: (value) {
+                        // Search is handled through the controller
+                      },
+                      onClear: () {
+                        _searchController.clear();
+                      },
                     ),
                   ),
                   // Sticky Filter Chips
@@ -205,14 +291,28 @@ class _SupplierDashboardPageState extends State<SupplierDashboardPage>
                         scrollDirection: Axis.horizontal,
                         child: Row(
                           children: [
-                            _buildFilterChip('Location', _selectedLocation, _uniqueLocations),
+                            Text(
+                              'Filters:',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey[700],
+                              ),
+                            ),
                             const SizedBox(width: 12),
-                            _buildToggleChip('Has Email', _hasEmailOnly, (value) {
-                              setState(() {
-                                _hasEmailOnly = value;
-                                _filterSuppliers();
-                              });
-                            }),
+                            _buildLocationDropdown(),
+                            const SizedBox(width: 12),
+                            GradientFilterChip(
+                              label: 'Has Email',
+                              isSelected: _hasEmailOnly,
+                              onTap: () {
+                                setState(() {
+                                  _hasEmailOnly = !_hasEmailOnly;
+                                  _filterSuppliers();
+                                });
+                              },
+                              primaryColor: Colors.purple,
+                              icon: Icons.email,
+                            ),
                           ],
                         ),
                       ),
@@ -515,168 +615,6 @@ class _SupplierDashboardPageState extends State<SupplierDashboardPage>
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildFilterChip(String label, String value, List<String> options) {
-    return PopupMenuButton<String>(
-      onSelected: (String newValue) {
-        setState(() {
-          _selectedLocation = newValue;
-          _filterSuppliers();
-        });
-      },
-      offset: const Offset(0, 6),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Colors.white, Colors.grey[50]!],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.grey[300]!, width: 1),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.06),
-              blurRadius: 4,
-              offset: const Offset(0, 1),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(3),
-              decoration: BoxDecoration(
-                color: Colors.purple[100],
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Icon(
-                Icons.location_on_rounded,
-                size: 12,
-                color: Colors.purple[700],
-              ),
-            ),
-            const SizedBox(width: 6),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey[800],
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.2,
-              ),
-            ),
-            const SizedBox(width: 4),
-            Icon(
-              Icons.keyboard_arrow_down_rounded,
-              size: 14,
-              color: Colors.grey[600],
-            ),
-          ],
-        ),
-      ),
-      itemBuilder: (BuildContext context) {
-        return options.map((String option) {
-          return PopupMenuItem<String>(
-            value: option,
-            child: Row(
-              children: [
-                Icon(
-                  option == 'All' ? Icons.grid_view_rounded : Icons.location_on_rounded,
-                  size: 14,
-                  color: Colors.grey[600],
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  option,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: option == value ? FontWeight.w600 : FontWeight.w400,
-                    color: option == value ? Colors.purple[700] : Colors.grey[800],
-                  ),
-                ),
-              ],
-            ),
-          );
-        }).toList();
-      },
-    );
-  }
-
-  Widget _buildToggleChip(String label, bool isSelected, Function(bool) onToggle) {
-    return GestureDetector(
-      onTap: () => onToggle(!isSelected),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeInOut,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          gradient: isSelected
-              ? LinearGradient(
-                  colors: [Colors.purple[600]!, Colors.purple[700]!],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                )
-              : LinearGradient(
-                  colors: [Colors.white, Colors.grey[50]!],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                ),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? Colors.purple[600]! : Colors.grey[300]!,
-            width: 1,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: isSelected
-                  ? Colors.purple[600]!.withOpacity(0.25)
-                  : Colors.black.withOpacity(0.06),
-              blurRadius: isSelected ? 6 : 4,
-              offset: Offset(0, isSelected ? 2 : 1),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.all(3),
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? Colors.white.withOpacity(0.2)
-                    : Colors.blue[100],
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Icon(
-                isSelected
-                    ? Icons.check_circle_rounded
-                    : Icons.email_rounded,
-                size: 12,
-                color: isSelected
-                    ? Colors.white
-                    : Colors.blue[700],
-              ),
-            ),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                color: isSelected ? Colors.white : Colors.grey[800],
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.2,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

@@ -8,6 +8,7 @@ import 'dart:async';
 import '../../services/fabric_operations_service.dart';
 import '../../services/fabric_log_service.dart';
 import '../../models/fabric_log.dart';
+import '../common/gradient_search_bar.dart';
 
 class FabricLogbookPage extends StatefulWidget {
   const FabricLogbookPage({super.key});
@@ -243,173 +244,6 @@ Future<void> _deleteFabricById(String fabricId) async {
     );
   }
 
-  Widget _buildFilterChip(String label, String value, List<String> options) {
-    return PopupMenuButton<String>(
-      onSelected: (String newValue) {
-        setState(() {
-          _selectedType = newValue;
-        });
-        _applyFilters();
-      },
-      offset: const Offset(0, 6),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Colors.white, Colors.grey[50]!],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.grey[300]!, width: 1),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.06),
-              blurRadius: 4,
-              offset: const Offset(0, 1),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(3),
-              decoration: BoxDecoration(
-                color: Colors.blue[100],
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Icon(
-                Icons.category_rounded,
-                size: 12,
-                color: Colors.blue[700],
-              ),
-            ),
-            const SizedBox(width: 6),
-            Text(
-              value == 'All' ? value : value.toUpperCase(),
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey[800],
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.2,
-              ),
-            ),
-            const SizedBox(width: 4),
-            Icon(
-              Icons.keyboard_arrow_down_rounded,
-              size: 14,
-              color: Colors.grey[600],
-            ),
-          ],
-        ),
-      ),
-      itemBuilder: (BuildContext context) {
-        return options.map((String option) {
-          String displayOption = option == 'All' ? option : option.toUpperCase();
-          return PopupMenuItem<String>(
-            value: option,
-            child: Row(
-              children: [
-                Icon(
-                  option == 'All' ? Icons.grid_view_rounded : Icons.label_rounded,
-                  size: 14,
-                  color: Colors.grey[600],
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  displayOption,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: option == value ? FontWeight.w600 : FontWeight.w400,
-                    color: option == value ? Colors.blue[700] : Colors.grey[800],
-                  ),
-                ),
-              ],
-            ),
-          );
-        }).toList();
-      },
-    );
-  }
-
-  Widget _buildToggleChip(String label, bool isSelected, Function(bool) onToggle) {
-    return GestureDetector(
-      onTap: () => onToggle(!isSelected),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeInOut,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          gradient: isSelected
-              ? LinearGradient(
-                  colors: label == 'Upcycled' 
-                      ? [Colors.green[600]!, Colors.green[700]!]
-                      : [Colors.red[600]!, Colors.red[700]!],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                )
-              : LinearGradient(
-                  colors: [Colors.white, Colors.grey[50]!],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                ),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected 
-                ? (label == 'Upcycled' ? Colors.green[600]! : Colors.red[600]!)
-                : Colors.grey[300]!,
-            width: 1,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: isSelected
-                  ? (label == 'Upcycled' ? Colors.green[600]! : Colors.red[600]!).withOpacity(0.25)
-                  : Colors.black.withOpacity(0.06),
-              blurRadius: isSelected ? 6 : 4,
-              offset: Offset(0, isSelected ? 2 : 1),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.all(3),
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? Colors.white.withOpacity(0.2)
-                    : (label == 'Upcycled' ? Colors.green[100] : Colors.red[100]),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Icon(
-                isSelected
-                    ? Icons.check_circle_rounded
-                    : (label == 'Upcycled' ? Icons.eco_rounded : Icons.warning_amber_rounded),
-                size: 12,
-                color: isSelected
-                    ? Colors.white
-                    : (label == 'Upcycled' ? Colors.green[700] : Colors.red[700]),
-              ),
-            ),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                color: isSelected ? Colors.white : Colors.grey[800],
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.2,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   String _formatDate(DateTime date) {
     final now = DateTime.now();
     final difference = now.difference(date);
@@ -442,29 +276,16 @@ Future<void> _deleteFabricById(String fabricId) async {
                   Container(
                     color: Colors.white,
                     padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.grey[100],
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: TextField(
-                        controller: _searchController,
-                        decoration: InputDecoration(
-                          hintText: 'Search fabrics by name, type, or color...',
-                          hintStyle: TextStyle(color: Colors.grey[500]),
-                          prefixIcon: Icon(Icons.search, color: Colors.grey[500]),
-                          suffixIcon: _searchController.text.isNotEmpty
-                              ? IconButton(
-                                  icon: Icon(Icons.clear, color: Colors.grey[500]),
-                                  onPressed: () {
-                                    _searchController.clear();
-                                  },
-                                )
-                              : null,
-                          border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        ),
-                      ),
+                    child: CompactGradientSearchBar(
+                      controller: _searchController,
+                      hintText: 'Search fabrics by name, type, or color...',
+                      primaryColor: Colors.green,
+                      onChanged: (value) {
+                        // Search is handled through the controller
+                      },
+                      onClear: () {
+                        _searchController.clear();
+                      },
                     ),
                   ),
                   // Sticky Filter Chips - Full Width
@@ -478,21 +299,41 @@ Future<void> _deleteFabricById(String fabricId) async {
                         scrollDirection: Axis.horizontal,
                         child: Row(
                           children: [
-                            _buildFilterChip('Type', _selectedType, ['All', 'Cotton', 'Silk', 'Wool', 'Linen', 'Polyester', 'Blend']),
+                            Text(
+                              'Filters:',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey[700],
+                              ),
+                            ),
                             const SizedBox(width: 12),
-                            _buildToggleChip('Upcycled', _showUpcycledOnly, (value) {
-                              setState(() {
-                                _showUpcycledOnly = value;
-                              });
-                              _applyFilters();
-                            }),
+                            _buildTypeDropdown(),
                             const SizedBox(width: 12),
-                            _buildToggleChip('Low Stock', _showLowStockOnly, (value) {
-                              setState(() {
-                                _showLowStockOnly = value;
-                              });
-                              _applyFilters();
-                            }),
+                            GradientFilterChip(
+                              label: 'Upcycled',
+                              isSelected: _showUpcycledOnly,
+                              onTap: () {
+                                setState(() {
+                                  _showUpcycledOnly = !_showUpcycledOnly;
+                                });
+                                _applyFilters();
+                              },
+                              primaryColor: Colors.green,
+                              icon: Icons.eco_rounded,
+                            ),
+                            const SizedBox(width: 12),
+                            GradientFilterChip(
+                              label: 'Low Stock',
+                              isSelected: _showLowStockOnly,
+                              onTap: () {
+                                setState(() {
+                                  _showLowStockOnly = !_showLowStockOnly;
+                                });
+                                _applyFilters();
+                              },
+                              primaryColor: Colors.green,
+                              icon: Icons.warning_rounded,
+                            ),
                           ],
                         ),
                       ),
@@ -1489,5 +1330,98 @@ Future<void> _deleteFabricById(String fabricId) async {
       default:
         return Colors.grey[600]!;
     }
+  }
+
+  Widget _buildTypeDropdown() {
+    final typeOptions = ['All', 'Cotton', 'Silk', 'Wool', 'Linen', 'Polyester', 'Blend', 'Denim', 'Leather', 'Lace', 'Velvet', 'Chiffon'];
+
+    return PopupMenuButton<String>(
+      onSelected: (String newValue) {
+        setState(() {
+          _selectedType = newValue;
+        });
+        _applyFilters();
+      },
+      offset: const Offset(0, 6),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.white, Colors.grey[50]!],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.grey[300]!, width: 1),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 4,
+              offset: const Offset(0, 1),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(3),
+              decoration: BoxDecoration(
+                color: Colors.green[100],
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Icon(
+                Icons.category_rounded,
+                size: 12,
+                color: Colors.green[700],
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              _selectedType == 'All' ? 'All Types' : _selectedType.toUpperCase(),
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[800],
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.2,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(
+              Icons.keyboard_arrow_down_rounded,
+              size: 14,
+              color: Colors.grey[600],
+            ),
+          ],
+        ),
+      ),
+      itemBuilder: (BuildContext context) {
+        return typeOptions.map((String option) {
+          final displayName = option == 'All' ? 'All Types' : option;
+          return PopupMenuItem<String>(
+            value: option,
+            child: Row(
+              children: [
+                Icon(
+                  option == 'All' ? Icons.grid_view_rounded : Icons.category_rounded,
+                  size: 14,
+                  color: Colors.green[600],
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  displayName,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: option == _selectedType ? FontWeight.w600 : FontWeight.w400,
+                    color: option == _selectedType ? Colors.green[700] : Colors.grey[800],
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList();
+      },
+    );
   }
 }
