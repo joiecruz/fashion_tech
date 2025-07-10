@@ -36,6 +36,7 @@ dependencies:
   firebase_storage: ^12.4.7   # For fabric swatch uploads
   firebase_analytics: ^11.5.0 # Optional, for tracking
   image_picker: ^1.0.0
+  flutter_local_notifications: ^17.1.2
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.

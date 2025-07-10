@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'home_dashboard.dart';
 import 'inventory_page.dart';
 import 'job_page.dart';
 import '../backend/login_be.dart';
+// Add this import for the profile page
+import 'users/profile_page.dart';
+import 'notifications/notification_page.dart';
 
 class MainScaffold extends StatefulWidget {
   const MainScaffold({Key? key}) : super(key: key);
@@ -51,6 +55,15 @@ class _MainScaffoldState extends State<MainScaffold> {
       JobPage(onTabChanged: _onJobTabChanged),
     ];
 
+    // Fetch current user for avatar and profile
+    final user = FirebaseAuth.instance.currentUser;
+    final String? photoUrl = user?.photoURL;
+    final String initials = (user?.displayName != null && user!.displayName!.isNotEmpty)
+        ? user.displayName!.trim().split(' ').map((e) => e.isNotEmpty ? e[0] : '').take(2).join().toUpperCase()
+        : (user?.email != null && user!.email!.isNotEmpty)
+            ? user.email![0].toUpperCase()
+            : 'U';
+
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -64,16 +77,40 @@ class _MainScaffoldState extends State<MainScaffold> {
         actions: [
           IconButton(
             icon: const Icon(Icons.notifications_none),
-            onPressed: () {},
+            onPressed: () {
+              showModalBottomSheet(
+                context: context,
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+                ),
+                isScrollControlled: true,
+                builder: (context) => const NotificationsModal(),
+              );
+            },
           ),
+          
           PopupMenuButton<String>(
             onSelected: (value) async {
-              if (value == 'logout') {
+              if (value == 'profile') {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (context) => const ProfilePage()),
+                );
+              } else if (value == 'logout') {
                 await LoginBackend.signOut();
                 // AuthWrapper will handle redirect to login
               }
             },
             itemBuilder: (BuildContext context) => [
+              const PopupMenuItem<String>(
+                value: 'profile',
+                child: Row(
+                  children: [
+                    Icon(Icons.account_circle, size: 18),
+                    SizedBox(width: 8),
+                    Text('View Profile'),
+                  ],
+                ),
+              ),
               const PopupMenuItem<String>(
                 value: 'logout',
                 child: Row(
@@ -87,10 +124,21 @@ class _MainScaffoldState extends State<MainScaffold> {
             ],
             child: Padding(
               padding: const EdgeInsets.only(right: 12),
-              child: CircleAvatar(
-                backgroundColor: Colors.teal,
-                child: Text('FL', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              ),
+              child: photoUrl != null
+                  ? CircleAvatar(
+                      backgroundImage: NetworkImage(photoUrl),
+                      backgroundColor: Colors.grey[200],
+                    )
+                  : CircleAvatar(
+                      backgroundColor: Colors.teal,
+                      child: Text(
+                        initials,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
             ),
           ),
         ],
