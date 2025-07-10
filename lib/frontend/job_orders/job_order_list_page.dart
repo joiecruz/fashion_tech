@@ -31,6 +31,9 @@ class _JobOrderListPageState extends State<JobOrderListPage>
   bool _isStatsExpanded = true;
   bool _isRefreshing = false;  // Add refresh state
 
+  // Track ongoing operations to prevent spam clicking
+  final Set<String> _ongoingOperations = {};
+
   // Animation
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -722,70 +725,103 @@ class _JobOrderListPageState extends State<JobOrderListPage>
                                               );
                                             },
                                             onDelete: () async {
-                                              final data = jobOrders[index].data() as Map<String, dynamic>;
-                                              final jobOrderName = data['name'] ?? 'Unnamed Job Order';
+                                              final jobOrderId = jobOrders[index].id;
                                               
-                                              final confirm = await showDialog<bool>(
-                                                context: context,
-                                                builder: (context) => AlertDialog(
-                                                  title: const Text('Cancel Job Order'),
-                                                  content: Text('Cancel "$jobOrderName"? This action can be undone by editing the order.'),
-                                                  actions: [
-                                                    TextButton(
-                                                      onPressed: () => Navigator.pop(context, false),
-                                                      child: const Text('Keep Active'),
-                                                    ),
-                                                    TextButton(
-                                                      onPressed: () => Navigator.pop(context, true),
-                                                      child: const Text('Cancel Order', style: TextStyle(color: Colors.red)),
-                                                    ),
-                                                  ],
-                                                ),
-                                              );
-
-                                              if (confirm == true) {
-                                                await FirebaseFirestore.instance
-                                                      .collection('jobOrders')
-                                                      .doc(jobOrders[index].id)
-                                                      .update({
-                                                        'status': 'Cancelled',
-                                                        'updatedAt': Timestamp.now(),
-                                                        'cancelledAt': Timestamp.now(),
-                                                      });
-
-                                                print('Cancelled job order: ${jobOrders[index].id}');
-                                                if (mounted) {
-                                                  ScaffoldMessenger.of(context).showSnackBar(
-                                                    SnackBar(
-                                                      content: Row(
-                                                        children: [
-                                                          const Icon(Icons.cancel, color: Colors.white, size: 16),
-                                                          const SizedBox(width: 8),
-                                                          Expanded(
-                                                            child: Text(
-                                                              'Cancelled "$jobOrderName"',
-                                                              style: const TextStyle(color: Colors.white),
-                                                            ),
-                                                          ),
-                                                        ],
+                                              // Prevent spam clicking
+                                              if (_ongoingOperations.contains('delete_$jobOrderId')) return;
+                                              
+                                              _ongoingOperations.add('delete_$jobOrderId');
+                                              
+                                              try {
+                                                final data = jobOrders[index].data() as Map<String, dynamic>;
+                                                final jobOrderName = data['name'] ?? 'Unnamed Job Order';
+                                                
+                                                final confirm = await showDialog<bool>(
+                                                  context: context,
+                                                  builder: (context) => AlertDialog(
+                                                    title: const Text('Cancel Job Order'),
+                                                    content: Text('Cancel "$jobOrderName"? This action can be undone by editing the order.'),
+                                                    actions: [
+                                                      TextButton(
+                                                        onPressed: () => Navigator.pop(context, false),
+                                                        child: const Text('Keep Active'),
                                                       ),
-                                                      backgroundColor: Colors.red[600],
-                                                      duration: const Duration(seconds: 2),
-                                                      behavior: SnackBarBehavior.floating,
-                                                      margin: const EdgeInsets.all(16),
-                                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                                    ),
-                                                  );
+                                                      TextButton(
+                                                        onPressed: () => Navigator.pop(context, true),
+                                                        child: const Text('Cancel Order', style: TextStyle(color: Colors.red)),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                );
+
+                                                if (confirm == true) {
+                                                  await FirebaseFirestore.instance
+                                                        .collection('jobOrders')
+                                                        .doc(jobOrderId)
+                                                        .update({
+                                                          'status': 'Cancelled',
+                                                          'updatedAt': Timestamp.now(),
+                                                          'cancelledAt': Timestamp.now(),
+                                                        });
+
+                                                  print('Cancelled job order: $jobOrderId');
+                                                  if (mounted) {
+                                                    ScaffoldMessenger.of(context).showSnackBar(
+                                                      SnackBar(
+                                                        content: Row(
+                                                          children: [
+                                                            const Icon(Icons.cancel, color: Colors.white, size: 16),
+                                                            const SizedBox(width: 8),
+                                                            Expanded(
+                                                              child: Text(
+                                                                'Cancelled "$jobOrderName"',
+                                                                style: const TextStyle(color: Colors.white),
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                        backgroundColor: Colors.red[600],
+                                                        duration: const Duration(seconds: 2),
+                                                        behavior: SnackBarBehavior.floating,
+                                                        margin: const EdgeInsets.all(16),
+                                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                                      ),
+                                                    );
+                                                  }
                                                 }
+                                              } finally {
+                                                _ongoingOperations.remove('delete_$jobOrderId');
                                               }
                                             },
                                             onMarkAsDone: () async {
-                                              final data = jobOrders[index].data() as Map<String, dynamic>;
-                                              final jobOrderName = data['name'] ?? 'Unnamed Job Order';
-                                              await jobOrderActions.markJobOrderAsDone(jobOrders[index].id, jobOrderName, data);
+                                              final jobOrderId = jobOrders[index].id;
+                                              
+                                              // Prevent spam clicking
+                                              if (_ongoingOperations.contains('markDone_$jobOrderId')) return;
+                                              
+                                              _ongoingOperations.add('markDone_$jobOrderId');
+                                              
+                                              try {
+                                                final data = jobOrders[index].data() as Map<String, dynamic>;
+                                                final jobOrderName = data['name'] ?? 'Unnamed Job Order';
+                                                await jobOrderActions.markJobOrderAsDone(jobOrderId, jobOrderName, data);
+                                              } finally {
+                                                _ongoingOperations.remove('markDone_$jobOrderId');
+                                              }
                                             },
                                             onUpdateStatus: () async {
-                                              await _updateJobOrderStatus(jobOrders[index]);
+                                              final jobOrderId = jobOrders[index].id;
+                                              
+                                              // Prevent spam clicking
+                                              if (_ongoingOperations.contains('updateStatus_$jobOrderId')) return;
+                                              
+                                              _ongoingOperations.add('updateStatus_$jobOrderId');
+                                              
+                                              try {
+                                                await _updateJobOrderStatus(jobOrders[index]);
+                                              } finally {
+                                                _ongoingOperations.remove('updateStatus_$jobOrderId');
+                                              }
                                             },
                                           ),
                                         ),

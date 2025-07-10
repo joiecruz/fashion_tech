@@ -102,6 +102,422 @@ class _JobOrderDetailPageState extends State<JobOrderDetailPage>
     }
   }
 
+  /// Shows a confirmation dialog for deleting the job order
+  /// Includes fabric return functionality if fabrics were allocated
+  Future<void> _showDeleteConfirmation() async {
+    // Check if job order has fabric allocations
+    final fabricAllocations = await _getFabricAllocations();
+    
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.warning, color: Colors.red[600], size: 24),
+            const SizedBox(width: 8),
+            const Text('Delete Job Order'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Are you sure you want to delete "${_jobOrderData['name']}"?',
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red[200]!),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.warning_outlined, size: 16, color: Colors.red[600]),
+                      const SizedBox(width: 6),
+                      Text(
+                        'This action cannot be undone',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: Colors.red[700],
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    '• All job order details will be permanently deleted\n'
+                    '• Associated variants will be removed\n'
+                    '• Timeline history will be lost',
+                    style: TextStyle(fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+            if (fabricAllocations.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue[200]!),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.inventory_2, size: 16, color: Colors.blue[600]),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Fabric Return Available',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: Colors.blue[700],
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Allocated fabrics can be returned to inventory if not used.',
+                      style: TextStyle(fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red[600],
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      if (fabricAllocations.isNotEmpty) {
+        await _showFabricReturnDialog(fabricAllocations);
+      } else {
+        await _deleteJobOrder();
+      }
+    }
+  }
+
+  /// Gets fabric allocations for the job order
+  Future<List<Map<String, dynamic>>> _getFabricAllocations() async {
+    try {
+      final jobOrderDetailsQuery = await FirebaseFirestore.instance
+          .collection('jobOrderDetails')
+          .where('jobOrderID', isEqualTo: widget.jobOrderId)
+          .get();
+
+      return jobOrderDetailsQuery.docs.map((doc) {
+        final data = doc.data();
+        return {
+          'id': doc.id,
+          'fabricID': data['fabricID'],
+          'fabricName': data['fabricName'] ?? 'Unknown Fabric',
+          'yardageUsed': data['yardageUsed'] ?? 0.0,
+          'color': data['color'] ?? '',
+          'size': data['size'] ?? '',
+        };
+      }).toList();
+    } catch (e) {
+      print('Error fetching fabric allocations: $e');
+      return [];
+    }
+  }
+
+  /// Shows fabric return dialog if fabrics were allocated
+  Future<void> _showFabricReturnDialog(List<Map<String, dynamic>> fabricAllocations) async {
+    final Map<String, double> returnAmounts = {};
+    
+    // Initialize with full allocated amounts
+    for (final allocation in fabricAllocations) {
+      final key = '${allocation['fabricID']}_${allocation['color']}';
+      returnAmounts[key] = (allocation['yardageUsed'] as num).toDouble();
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Return Fabrics to Inventory'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Select fabrics to return to inventory:',
+                  style: TextStyle(fontWeight: FontWeight.w500),
+                ),
+                const SizedBox(height: 16),
+                Flexible(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: fabricAllocations.length,
+                    itemBuilder: (context, index) {
+                      final allocation = fabricAllocations[index];
+                      final key = '${allocation['fabricID']}_${allocation['color']}';
+                      final maxAmount = (allocation['yardageUsed'] as num).toDouble();
+                      
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                allocation['fabricName'],
+                                style: const TextStyle(fontWeight: FontWeight.w600),
+                              ),
+                              Text(
+                                'Color: ${allocation['color']} • Size: ${allocation['size']}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  const Text('Return: '),
+                                  Expanded(
+                                    child: Slider(
+                                      value: returnAmounts[key] ?? 0,
+                                      min: 0,
+                                      max: maxAmount,
+                                      divisions: (maxAmount * 10).round(),
+                                      label: '${returnAmounts[key]?.toStringAsFixed(1)} yards',
+                                      onChanged: (value) {
+                                        setState(() {
+                                          returnAmounts[key] = value;
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                  SizedBox(
+                                    width: 80,
+                                    child: TextFormField(
+                                      initialValue: returnAmounts[key]?.toStringAsFixed(1),
+                                      keyboardType: TextInputType.number,
+                                      decoration: const InputDecoration(
+                                        contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        border: OutlineInputBorder(),
+                                      ),
+                                      onChanged: (value) {
+                                        final parsed = double.tryParse(value);
+                                        if (parsed != null && parsed >= 0 && parsed <= maxAmount) {
+                                          setState(() {
+                                            returnAmounts[key] = parsed;
+                                          });
+                                        }
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              Text(
+                                'Max: ${maxAmount.toStringAsFixed(1)} yards',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey[500],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red[600],
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Delete & Return Fabrics'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed == true) {
+      await _deleteJobOrderWithFabricReturn(fabricAllocations, returnAmounts);
+    }
+  }
+
+  /// Deletes the job order and returns specified fabrics to inventory
+  Future<void> _deleteJobOrderWithFabricReturn(
+    List<Map<String, dynamic>> fabricAllocations,
+    Map<String, double> returnAmounts,
+  ) async {
+    try {
+      final batch = FirebaseFirestore.instance.batch();
+      
+      // Delete job order details
+      for (final allocation in fabricAllocations) {
+        final detailRef = FirebaseFirestore.instance
+            .collection('jobOrderDetails')
+            .doc(allocation['id']);
+        batch.delete(detailRef);
+        
+        // Return fabric to inventory
+        final key = '${allocation['fabricID']}_${allocation['color']}';
+        final returnAmount = returnAmounts[key] ?? 0;
+        
+        if (returnAmount > 0) {
+          final fabricRef = FirebaseFirestore.instance
+              .collection('fabrics')
+              .doc(allocation['fabricID']);
+          
+          batch.update(fabricRef, {
+            'quantity': FieldValue.increment(returnAmount),
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        }
+      }
+      
+      // Delete the job order
+      final jobOrderRef = FirebaseFirestore.instance
+          .collection('jobOrders')
+          .doc(widget.jobOrderId);
+      batch.delete(jobOrderRef);
+      
+      await batch.commit();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white, size: 16),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Job order deleted and fabrics returned to inventory',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.green[600],
+            duration: const Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+        );
+        
+        Navigator.pop(context, true); // Return to previous screen
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error deleting job order: $e'),
+            backgroundColor: Colors.red[600],
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
+  /// Simple job order deletion without fabric considerations
+  Future<void> _deleteJobOrder() async {
+    try {
+      final batch = FirebaseFirestore.instance.batch();
+      
+      // Delete job order details
+      final jobOrderDetailsQuery = await FirebaseFirestore.instance
+          .collection('jobOrderDetails')
+          .where('jobOrderID', isEqualTo: widget.jobOrderId)
+          .get();
+      
+      for (final doc in jobOrderDetailsQuery.docs) {
+        batch.delete(doc.reference);
+      }
+      
+      // Delete the job order
+      final jobOrderRef = FirebaseFirestore.instance
+          .collection('jobOrders')
+          .doc(widget.jobOrderId);
+      batch.delete(jobOrderRef);
+      
+      await batch.commit();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white, size: 16),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Job order deleted successfully',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.green[600],
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+        );
+        
+        Navigator.pop(context, true); // Return to previous screen
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error deleting job order: $e'),
+            backgroundColor: Colors.red[600],
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _openEditModal() async {
     final result = await showModalBottomSheet(
       context: context,
@@ -202,12 +618,28 @@ class _JobOrderDetailPageState extends State<JobOrderDetailPage>
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _openEditModal,
-        backgroundColor: Colors.orange[600],
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.edit),
-        label: const Text('Edit Job Order'),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Delete button
+          FloatingActionButton(
+            onPressed: _showDeleteConfirmation,
+            backgroundColor: Colors.red[600],
+            foregroundColor: Colors.white,
+            heroTag: "delete_job_order",
+            child: const Icon(Icons.delete),
+          ),
+          const SizedBox(height: 12),
+          // Edit button
+          FloatingActionButton.extended(
+            onPressed: _openEditModal,
+            backgroundColor: Colors.orange[600],
+            foregroundColor: Colors.white,
+            heroTag: "edit_job_order",
+            icon: const Icon(Icons.edit),
+            label: const Text('Edit'),
+          ),
+        ],
       ),
     );
   }
@@ -593,59 +1025,400 @@ class _JobOrderDetailPageState extends State<JobOrderDetailPage>
   }
 
   Widget _buildMaterialsTab() {
-    final fabricName = _jobOrderData['fabricName'] ?? '';
-    final color = _jobOrderData['color'] ?? '';
-    final size = _jobOrderData['size'] ?? '';
-
     return Padding(
       padding: const EdgeInsets.all(20),
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (fabricName.isNotEmpty || color.isNotEmpty || size.isNotEmpty) ...[
-              _buildDetailSection('Materials & Specifications', [
-                if (fabricName.isNotEmpty)
-                  _buildDetailRow('Fabric', fabricName),
-                if (color.isNotEmpty)
-                  _buildColorRow('Color', color),
-                if (size.isNotEmpty)
-                  _buildDetailRow('Size', size),
-              ]),
-            ] else ...[
-              Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.inventory_2_outlined,
-                      size: 64,
-                      color: Colors.grey[400],
+      child: FutureBuilder<Map<String, dynamic>>(
+        future: _loadMaterialsData(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(
+              child: CircularProgressIndicator(),
+            );
+          }
+
+          if (snapshot.hasError) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.error_outline, size: 48, color: Colors.red[400]),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Error loading materials data',
+                    style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    snapshot.error.toString(),
+                    style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            );
+          }
+
+          final materialsData = snapshot.data!;
+          final variants = materialsData['variants'] as List<Map<String, dynamic>>;
+          final totalFabricUsage = materialsData['totalUsage'] as Map<String, double>;
+
+          return SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (variants.isNotEmpty) ...[
+                  // Variants section
+                  _buildDetailSection('Product Variants', [
+                    ...variants.map((variant) => _buildVariantCard(variant)),
+                  ]),
+                  const SizedBox(height: 20),
+                  
+                  // Total fabric usage summary
+                  if (totalFabricUsage.isNotEmpty) ...[
+                    _buildDetailSection('Total Fabric Usage Summary', [
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [Colors.blue[50]!, Colors.blue[100]!],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.blue[200]!),
+                        ),
+                        child: Column(
+                          children: totalFabricUsage.entries.map((entry) {
+                            final parts = entry.key.split('_');
+                            final fabricName = parts[0];
+                            final color = parts.length > 1 ? parts[1] : '';
+                            
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.inventory_2, size: 16, color: Colors.blue[600]),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      '$fabricName${color.isNotEmpty ? ' ($color)' : ''}',
+                                      style: const TextStyle(fontWeight: FontWeight.w500),
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: Colors.blue[600],
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      '${entry.value.toStringAsFixed(1)} yards',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ]),
+                  ],
+                ] else ...[
+                  // Empty state
+                  Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.inventory_2_outlined,
+                          size: 64,
+                          color: Colors.grey[400],
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'No Material Information',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Material details and variants will appear here when available.',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[500],
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 16),
+                  ),
+                ],
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  /// Loads materials data including variants and fabric usage
+  Future<Map<String, dynamic>> _loadMaterialsData() async {
+    try {
+      // Fetch job order details (variants)
+      final jobOrderDetailsQuery = await FirebaseFirestore.instance
+          .collection('jobOrderDetails')
+          .where('jobOrderID', isEqualTo: widget.jobOrderId)
+          .get();
+
+      final List<Map<String, dynamic>> variants = [];
+      final Map<String, double> totalFabricUsage = {};
+
+      for (final doc in jobOrderDetailsQuery.docs) {
+        final data = doc.data();
+        
+        // Add to variants list
+        variants.add({
+          'id': doc.id,
+          'fabricID': data['fabricID'] ?? '',
+          'fabricName': data['fabricName'] ?? 'Unknown Fabric',
+          'yardageUsed': (data['yardageUsed'] ?? 0).toDouble(),
+          'color': data['color'] ?? '',
+          'size': data['size'] ?? '',
+          'notes': data['notes'] ?? '',
+        });
+
+        // Aggregate fabric usage
+        final fabricKey = '${data['fabricName'] ?? 'Unknown'}_${data['color'] ?? ''}';
+        final yardage = (data['yardageUsed'] ?? 0).toDouble();
+        totalFabricUsage[fabricKey] = (totalFabricUsage[fabricKey] ?? 0) + yardage;
+      }
+
+      return {
+        'variants': variants,
+        'totalUsage': totalFabricUsage,
+      };
+    } catch (e) {
+      throw Exception('Failed to load materials data: $e');
+    }
+  }
+
+  /// Builds a card for each variant showing its material details
+  Widget _buildVariantCard(Map<String, dynamic> variant) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header with fabric name and usage
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.green[100],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.inventory,
+                  color: Colors.green[600],
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Text(
-                      'No Material Information',
-                      style: TextStyle(
-                        fontSize: 18,
+                      variant['fabricName'],
+                      style: const TextStyle(
+                        fontSize: 16,
                         fontWeight: FontWeight.w600,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    Text(
+                      'Fabric ID: ${variant['fabricID']}',
+                      style: TextStyle(
+                        fontSize: 12,
                         color: Colors.grey[600],
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Material details will appear here when available.',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey[500],
-                      ),
-                      textAlign: TextAlign.center,
                     ),
                   ],
                 ),
               ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.orange[100],
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '${variant['yardageUsed'].toStringAsFixed(1)} yards',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.orange[700],
+                    fontSize: 14,
+                  ),
+                ),
+              ),
             ],
+          ),
+          
+          const SizedBox(height: 16),
+          
+          // Variant details
+          Row(
+            children: [
+              Expanded(
+                child: _buildVariantDetailItem(
+                  icon: Icons.palette,
+                  label: 'Color',
+                  value: variant['color'].isEmpty ? 'Not specified' : variant['color'],
+                  color: Colors.blue[600]!,
+                  isColor: variant['color'].isNotEmpty,
+                  colorValue: variant['color'],
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _buildVariantDetailItem(
+                  icon: Icons.straighten,
+                  label: 'Size',
+                  value: variant['size'].isEmpty ? 'Not specified' : variant['size'],
+                  color: Colors.purple[600]!,
+                ),
+              ),
+            ],
+          ),
+          
+          // Notes if available
+          if (variant['notes'].toString().trim().isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey[200]!),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.note_outlined, size: 16, color: Colors.grey[600]),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Notes',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey[700],
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          variant['notes'].toString(),
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey[700],
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
-        ),
+        ],
+      ),
+    );
+  }
+
+  /// Builds a detail item for variant information
+  Widget _buildVariantDetailItem({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+    bool isColor = false,
+    String? colorValue,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 16, color: color),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              if (isColor && colorValue != null && colorValue.isNotEmpty) ...[
+                ColorDisplay(
+                  colorId: colorValue,
+                  colorName: colorValue,
+                  size: 16,
+                ),
+                const SizedBox(width: 8),
+              ],
+              Expanded(
+                child: Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.black87,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

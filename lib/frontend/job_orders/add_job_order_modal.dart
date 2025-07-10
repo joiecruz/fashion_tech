@@ -77,7 +77,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
   bool _loadingCustomers = true;
   
   bool _isUpcycled = false;
-  String _jobStatus = 'In Progress';
+  String _jobStatus = 'Open'; // Changed default status to Open
   String _selectedCategory = 'uncategorized'; // Add category field
   List<FormProductVariant> _variants = [];
 
@@ -89,6 +89,9 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
   bool _loadingFabricSuppliers = true;
 
   Map<String, double> _fabricAllocated = {};
+
+  // Spam protection for CRUD operations
+  bool _isSaving = false;
 
   // Track expanded/collapsed state for each section
   Map<String, bool> _sectionExpanded = {
@@ -1055,9 +1058,9 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
 
   Widget _buildSaveButton() {
     return ElevatedButton(
-      onPressed: _saveJobOrder,
+      onPressed: _isSaving ? null : _saveJobOrder, // Disable when saving to prevent spam
       style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.green,
+        backgroundColor: _isSaving ? Colors.grey : Colors.green,
         foregroundColor: Colors.white,
         minimumSize: const Size.fromHeight(56),
         shape: RoundedRectangleBorder(
@@ -1068,15 +1071,34 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.save, size: 20),
-          SizedBox(width: 8),
-          Text(
-            'Save Job Order',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
+          if (_isSaving) ...[
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
             ),
-          ),
+            SizedBox(width: 8),
+            Text(
+              'Saving...',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ] else ...[
+            Icon(Icons.save, size: 20),
+            SizedBox(width: 8),
+            Text(
+              'Save Job Order',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -1778,6 +1800,13 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
   /// - Fabric quantities are decremented based on total yardageUsed across all variants
   /// - Validation prevents job order creation if insufficient fabric inventory
   Future<void> _saveJobOrder() async {
+    // Prevent spam clicking
+    if (_isSaving) return;
+    
+    setState(() {
+      _isSaving = true;
+    });
+
     try {
       // Validate the form first
       final errors = _validateForm();
@@ -1978,6 +2007,13 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
           actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
         ),
       );
+    } finally {
+      // Always reset the saving state
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
     }
   }
 
