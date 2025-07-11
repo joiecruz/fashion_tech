@@ -8,7 +8,7 @@ import '../models/fabric_log.dart';
 class FabricLoggingDebugWidget extends StatefulWidget {
   final String fabricId;
   
-  const FabricLoggingDebugWidget({Key? key, required this.fabricId}) : super(key: key);
+  const FabricLoggingDebugWidget({super.key, required this.fabricId});
 
   @override
   State<FabricLoggingDebugWidget> createState() => _FabricLoggingDebugWidgetState();
@@ -83,7 +83,7 @@ class _FabricLoggingDebugWidgetState extends State<FabricLoggingDebugWidget> {
                                 ),
                                 SizedBox(width: 8),
                                 Text(
-                                  '${log.changeType.toString().split('.').last.toUpperCase()}',
+                                  log.changeType.toString().split('.').last.toUpperCase(),
                                   style: TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.bold,
@@ -161,8 +161,8 @@ class _FabricLoggingDebugWidgetState extends State<FabricLoggingDebugWidget> {
                 ),
       floatingActionButton: FloatingActionButton(
         onPressed: _loadLogs,
-        child: Icon(Icons.refresh),
         tooltip: 'Refresh logs',
+        child: Icon(Icons.refresh),
       ),
     );
   }

@@ -8,6 +8,8 @@ import '../../backend/fetch_suppliers.dart';
 import '../common/simple_color_dropdown.dart';
 import '../common/simple_category_dropdown.dart';
 import 'components/supplier_dropdown.dart';
+import '../../utils/log_helper.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class ProductVariantInput {
   String size;
@@ -269,6 +271,25 @@ Future<void> _saveProduct() async {
         .update(productData);
     await Future.delayed(const Duration(milliseconds: 300));
 
+    // Log product edit
+    try {
+      await addLog(
+        collection: 'productLogs',
+        createdBy: FirebaseAuth.instance.currentUser?.uid ?? 'unknown',
+        remarks: 'Edited product',
+        changeType: 'edit',
+        extraData: {
+          'productId': docId,
+          'quantity': productData['variants']?.fold(0, (sum, v) => sum + (v['quantityInStock'] ?? 0)) ?? 0,
+          'price': productData['price'] ?? 0.0,
+          'supplierID': productData['supplierID'],
+          'notes': productData['notes'],
+        },
+      );
+    } catch (e) {
+      print('Failed to log product edit: $e');
+    }
+
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -315,6 +336,42 @@ Future<void> _saveProduct() async {
     }
   }
 }
+  /// Edit Product (future-proof stub for logging)
+  Future<void> _editProduct(String productId, Map<String, dynamic> updatedFields) async {
+    try {
+      await FirebaseFirestore.instance.collection('products').doc(productId).update(updatedFields);
+      await addLog(
+        collection: 'productLogs',
+        createdBy: FirebaseAuth.instance.currentUser?.uid ?? 'anonymous',
+        remarks: 'Edited product',
+        changeType: 'edit',
+        extraData: {
+          'productId': productId,
+          'updatedFields': updatedFields,
+        },
+      );
+    } catch (e) {
+      print('Failed to log product edit: $e');
+    }
+  }
+
+  /// Delete Product (future-proof stub for logging)
+  Future<void> _deleteProduct(String productId) async {
+    try {
+      await FirebaseFirestore.instance.collection('products').doc(productId).delete();
+      await addLog(
+        collection: 'productLogs',
+        createdBy: FirebaseAuth.instance.currentUser?.uid ?? 'anonymous',
+        remarks: 'Deleted product',
+        changeType: 'delete',
+        extraData: {
+          'productId': productId,
+        },
+      );
+    } catch (e) {
+      print('Failed to log product deletion: $e');
+    }
+  }
   @override
   Widget build(BuildContext context) {
     return Column(

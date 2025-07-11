@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../backend/fetch_profit.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../utils/log_helper.dart';
 
 class TransactionDashboardPage extends StatefulWidget {
   const TransactionDashboardPage({Key? key}) : super(key: key);
@@ -1390,5 +1391,42 @@ class _TransactionDashboardPageState extends State<TransactionDashboardPage> {
         ),
       ],
     );
+  }
+
+  /// Edit Transaction (future-proof stub for logging)
+  Future<void> _editTransaction(String transactionId, Map<String, dynamic> updatedFields) async {
+    try {
+      await FirebaseFirestore.instance.collection('transactions').doc(transactionId).update(updatedFields);
+      await addLog(
+        collection: 'transactionLogs',
+        createdBy: FirebaseAuth.instance.currentUser?.uid ?? 'anonymous',
+        remarks: 'Edited transaction',
+        changeType: 'edit',
+        extraData: {
+          'transactionId': transactionId,
+          'updatedFields': updatedFields,
+        },
+      );
+    } catch (e) {
+      print('Failed to log transaction edit: $e');
+    }
+  }
+
+  /// Delete Transaction (future-proof stub for logging)
+  Future<void> _deleteTransaction(String transactionId) async {
+    try {
+      await FirebaseFirestore.instance.collection('transactions').doc(transactionId).delete();
+      await addLog(
+        collection: 'transactionLogs',
+        createdBy: FirebaseAuth.instance.currentUser?.uid ?? 'anonymous',
+        remarks: 'Deleted transaction',
+        changeType: 'delete',
+        extraData: {
+          'transactionId': transactionId,
+        },
+      );
+    } catch (e) {
+      print('Failed to log transaction deletion: $e');
+    }
   }
 }

@@ -9,6 +9,7 @@ import 'package:flutter/foundation.dart';
 import '../../models/product.dart';
 import '../../models/product_image.dart';
 import '../../backend/fetch_suppliers.dart';
+import '../../utils/log_helper.dart';
 
 // Import modular components
 import 'components/product_image_upload.dart';
@@ -472,6 +473,25 @@ class _AddProductModalState extends State<AddProductModal>
           print('DEBUG: ERROR saving product images: $e');
           print('DEBUG: Stack trace: $stackTrace');
         }
+      }
+
+      // Log product creation
+      try {
+        await addLog(
+          collection: 'productLogs',
+          createdBy: userId,
+          remarks: 'Created product',
+          changeType: 'add',
+          extraData: {
+            'productId': productRef.id,
+            'quantity': int.tryParse(_stockController.text) ?? 0,
+            'price': double.tryParse(_priceController.text) ?? 0.0,
+            'supplierID': _selectedSupplierID,
+            'notes': _notesController.text,
+          },
+        );
+      } catch (e) {
+        print('Failed to log product creation: $e');
       }
 
       if (mounted) {

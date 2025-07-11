@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../../utils/log_helper.dart';
 
 class EditSupplierModal extends StatefulWidget {
   final Map<String, dynamic> supplierData;
@@ -122,6 +124,23 @@ class _EditSupplierModalState extends State<EditSupplierModal> with SingleTicker
           .doc(widget.supplierId)
           .update(supplierData);
 
+      // Log supplier edit
+      try {
+        await addLog(
+          collection: 'supplierLogs',
+          createdBy: FirebaseAuth.instance.currentUser?.uid ?? 'unknown',
+          remarks: 'Edited supplier',
+          changeType: 'edit',
+          extraData: {
+            'supplierId': widget.supplierId,
+            'relatedEntityId': null,
+            'notes': supplierData['notes'],
+          },
+        );
+      } catch (e) {
+        print('Failed to log supplier edit: $e');
+      }
+
       // 4. Show SnackBar with Undo
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -187,6 +206,43 @@ class _EditSupplierModalState extends State<EditSupplierModal> with SingleTicker
           _isSubmitting = false;
         });
       }
+    }
+  }
+
+  /// Edit Supplier (future-proof stub for logging)
+  Future<void> _editSupplier(String supplierId, Map<String, dynamic> updatedFields) async {
+    try {
+      await FirebaseFirestore.instance.collection('suppliers').doc(supplierId).update(updatedFields);
+      await addLog(
+        collection: 'supplierLogs',
+        createdBy: FirebaseAuth.instance.currentUser?.uid ?? 'anonymous',
+        remarks: 'Edited supplier',
+        changeType: 'edit',
+        extraData: {
+          'supplierId': supplierId,
+          'updatedFields': updatedFields,
+        },
+      );
+    } catch (e) {
+      print('Failed to log supplier edit: $e');
+    }
+  }
+
+  /// Delete Supplier (future-proof stub for logging)
+  Future<void> _deleteSupplier(String supplierId) async {
+    try {
+      await FirebaseFirestore.instance.collection('suppliers').doc(supplierId).delete();
+      await addLog(
+        collection: 'supplierLogs',
+        createdBy: FirebaseAuth.instance.currentUser?.uid ?? 'anonymous',
+        remarks: 'Deleted supplier',
+        changeType: 'delete',
+        extraData: {
+          'supplierId': supplierId,
+        },
+      );
+    } catch (e) {
+      print('Failed to log supplier deletion: $e');
     }
   }
 
@@ -599,5 +655,21 @@ class _EditSupplierModalState extends State<EditSupplierModal> with SingleTicker
         ),
       ],
     );
+  }
+
+  Future<void> addLog({
+    required String collection,
+    required String createdBy,
+    required String remarks,
+    required String changeType,
+    Map<String, dynamic>? extraData,
+  }) async {
+    await FirebaseFirestore.instance.collection(collection).add({
+      'createdBy': createdBy,
+      'remarks': remarks,
+      'changeType': changeType,
+      'extraData': extraData,
+      'timestamp': FieldValue.serverTimestamp(),
+    });
   }
 }

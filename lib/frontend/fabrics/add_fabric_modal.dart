@@ -10,6 +10,7 @@ import '../../backend/fetch_suppliers.dart';
 import '../../backend/add_supplier_fabric.dart';
 import '../../services/fabric_operations_service.dart';
 import '../common/simple_color_dropdown.dart';
+import '../../utils/log_helper.dart';
 
 class AddFabricModal extends StatefulWidget {
   const AddFabricModal({super.key});
@@ -393,6 +394,21 @@ void _submitForm() async {
         remarks: _reasonsController.text.trim().isEmpty 
             ? 'Initial fabric added to inventory' 
             : _reasonsController.text.trim(),
+      );
+
+      // Log the add operation in fabricLogs
+      await addLog(
+        collection: 'fabricLogs',
+        createdBy: FirebaseAuth.instance.currentUser?.uid ?? 'anonymous',
+        remarks: 'Added fabric "$fabricName"',
+        changeType: 'add',
+        extraData: {
+          'fabricId': fabricId,
+          'quantity': quantity,
+          'pricePerUnit': double.tryParse(_expenseController.text) ?? 0.0,
+          'supplierID': _selectedSupplierId,
+          'notes': _reasonsController.text.trim(),
+        },
       );
 
       // If a supplier is selected, create the supplier-fabric relationship using backend service
@@ -1845,5 +1861,42 @@ void _submitForm() async {
         ),
       ],
     );
+  }
+
+  /// Edit Fabric (future-proof stub for logging)
+  Future<void> _editFabric(String fabricId, Map<String, dynamic> updatedFields) async {
+    try {
+      await FirebaseFirestore.instance.collection('fabrics').doc(fabricId).update(updatedFields);
+      await addLog(
+        collection: 'fabricLogs',
+        createdBy: FirebaseAuth.instance.currentUser?.uid ?? 'anonymous',
+        remarks: 'Edited fabric',
+        changeType: 'edit',
+        extraData: {
+          'fabricId': fabricId,
+          'updatedFields': updatedFields,
+        },
+      );
+    } catch (e) {
+      print('Failed to log fabric edit: $e');
+    }
+  }
+
+  /// Delete Fabric (future-proof stub for logging)
+  Future<void> _deleteFabric(String fabricId) async {
+    try {
+      await FirebaseFirestore.instance.collection('fabrics').doc(fabricId).delete();
+      await addLog(
+        collection: 'fabricLogs',
+        createdBy: FirebaseAuth.instance.currentUser?.uid ?? 'anonymous',
+        remarks: 'Deleted fabric',
+        changeType: 'delete',
+        extraData: {
+          'fabricId': fabricId,
+        },
+      );
+    } catch (e) {
+      print('Failed to log fabric deletion: $e');
+    }
   }
 }

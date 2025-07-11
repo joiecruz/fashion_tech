@@ -38,9 +38,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../models/customer.dart';
 import '../customers/add_customer_modal.dart';
 import '../common/simple_category_dropdown.dart';
+import '../../utils/log_helper.dart';
 
 class AddJobOrderModal extends StatefulWidget {
-  const AddJobOrderModal({Key? key}) : super(key: key);
+  const AddJobOrderModal({super.key});
 
   @override
   State<AddJobOrderModal> createState() => _AddJobOrderModalState();
@@ -79,7 +80,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
   bool _isUpcycled = false;
   String _jobStatus = 'Open'; // Changed default status to Open
   String _selectedCategory = 'uncategorized'; // Add category field
-  List<FormProductVariant> _variants = [];
+  final List<FormProductVariant> _variants = [];
 
   List<Map<String, dynamic>> _userFabrics = [];
   bool _loadingFabrics = true;
@@ -94,7 +95,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
   bool _isSaving = false;
 
   // Track expanded/collapsed state for each section
-  Map<String, bool> _sectionExpanded = {
+  final Map<String, bool> _sectionExpanded = {
     'Basic Information': true,  // Start with this section expanded
     'Timeline': true,          // Timeline is also critical - expand by default
     'Assignment & Quantities': false,
@@ -1465,7 +1466,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
           items: _customers.map<DropdownMenuItem<Customer>>((Customer customer) {
             return DropdownMenuItem<Customer>(
               value: customer,
-              child: Container(
+              child: SizedBox(
                 width: double.infinity,
                 child: Text(
                   customer.fullName,
@@ -1943,6 +1944,28 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
         });
       }
 
+      // Log job order creation
+      try {
+        await addLog(
+          collection: 'jobOrderLogs',
+          createdBy: FirebaseAuth.instance.currentUser?.uid ?? 'anonymous',
+          remarks: 'Created job order',
+          changeType: 'add',
+          extraData: {
+            'jobOrderId': jobOrderRef.id,
+            'status': _jobStatus,
+            'quantityChanged': int.tryParse(_quantityController.text) ?? 0,
+            'notes': _specialInstructionsController.text,
+            'customerId': _selectedCustomer?.id,
+            'productId': 'default_product_id',
+            'price': double.tryParse(_priceController.text) ?? 0.0,
+            'dueDate': _dueDateController.text,
+          },
+        );
+      } catch (e) {
+        print('Failed to log job order creation: $e');
+      }
+
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
@@ -1984,7 +2007,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
                     ],
                   ),
                 );
-              }).toList(),
+              }),
             ],
           ),
           actions: [
@@ -2014,6 +2037,45 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
           _isSaving = false;
         });
       }
+    }
+  }
+
+  /// Edit JobOrder (future-proof stub for logging)
+  Future<void> _editJobOrder(String jobOrderId, Map<String, dynamic> updatedFields) async {
+    try {
+      await FirebaseFirestore.instance.collection('jobOrders').doc(jobOrderId).update(updatedFields);
+      // Log job order edit
+      await addLog(
+        collection: 'jobOrderLogs',
+        createdBy: FirebaseAuth.instance.currentUser?.uid ?? 'anonymous',
+        remarks: 'Edited job order',
+        changeType: 'edit',
+        extraData: {
+          'jobOrderId': jobOrderId,
+          'updatedFields': updatedFields,
+        },
+      );
+    } catch (e) {
+      print('Failed to log job order edit: $e');
+    }
+  }
+
+  /// Delete JobOrder (future-proof stub for logging)
+  Future<void> _deleteJobOrder(String jobOrderId) async {
+    try {
+      await FirebaseFirestore.instance.collection('jobOrders').doc(jobOrderId).delete();
+      // Log job order deletion
+      await addLog(
+        collection: 'jobOrderLogs',
+        createdBy: FirebaseAuth.instance.currentUser?.uid ?? 'anonymous',
+        remarks: 'Deleted job order',
+        changeType: 'delete',
+        extraData: {
+          'jobOrderId': jobOrderId,
+        },
+      );
+    } catch (e) {
+      print('Failed to log job order deletion: $e');
     }
   }
 

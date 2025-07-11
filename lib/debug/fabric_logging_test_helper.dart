@@ -190,6 +190,8 @@ class FabricLoggingTestHelper {
 
 // Widget to run tests from the UI
 class FabricLoggingTestWidget extends StatefulWidget {
+  const FabricLoggingTestWidget({super.key});
+
   @override
   _FabricLoggingTestWidgetState createState() => _FabricLoggingTestWidgetState();
 }
@@ -212,6 +214,11 @@ class _FabricLoggingTestWidgetState extends State<FabricLoggingTestWidget> {
           children: [
             ElevatedButton(
               onPressed: _isRunning ? null : _runTests,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+                padding: EdgeInsets.symmetric(vertical: 12),
+              ),
               child: _isRunning 
                   ? Row(
                       mainAxisSize: MainAxisSize.min,
@@ -226,11 +233,6 @@ class _FabricLoggingTestWidgetState extends State<FabricLoggingTestWidget> {
                       ],
                     )
                   : Text('Run Tests'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue,
-                foregroundColor: Colors.white,
-                padding: EdgeInsets.symmetric(vertical: 12),
-              ),
             ),
             SizedBox(height: 16),
             Expanded(

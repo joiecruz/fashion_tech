@@ -11,7 +11,7 @@ class EditProductBackend {
     // Convert any DateTime/String/Timestamp fields to Timestamp for Firestore compatibility
     final Map<String, dynamic> dataToUpdate = Map.from(updatedData);
 
-    Timestamp? _toTimestamp(dynamic value) {
+    Timestamp? toTimestamp(dynamic value) {
       if (value == null) return null;
       if (value is Timestamp) return value;
       if (value is DateTime) return Timestamp.fromDate(value);
@@ -23,10 +23,10 @@ class EditProductBackend {
     }
 
     if (dataToUpdate['createdAt'] != null) {
-      dataToUpdate['createdAt'] = _toTimestamp(dataToUpdate['createdAt']);
+      dataToUpdate['createdAt'] = toTimestamp(dataToUpdate['createdAt']);
     }
     if (dataToUpdate['updatedAt'] != null) {
-      dataToUpdate['updatedAt'] = _toTimestamp(dataToUpdate['updatedAt']);
+      dataToUpdate['updatedAt'] = toTimestamp(dataToUpdate['updatedAt']);
     }
 
     try {

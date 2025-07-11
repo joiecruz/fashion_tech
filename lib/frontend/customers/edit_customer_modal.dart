@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/customer.dart';
 import '../../services/customer_service.dart';
+import '../../utils/log_helper.dart'; // Updated import for log helper
 
 class EditCustomerModal extends StatefulWidget {
   final Customer customer;
@@ -116,6 +118,15 @@ class _EditCustomerModalState extends State<EditCustomerModal> {
       final success = await _customerService.updateCustomer(widget.customer.id, updatedCustomer);
 
       if (success) {
+        // Log the edit operation
+        await _editCustomer(widget.customer.id, {
+          'fullName': updatedCustomer.fullName,
+          'contactNum': updatedCustomer.contactNum,
+          'email': updatedCustomer.email,
+          'address': updatedCustomer.address,
+          'notes': updatedCustomer.notes,
+        });
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -164,6 +175,25 @@ class _EditCustomerModalState extends State<EditCustomerModal> {
           _isLoading = false;
         });
       }
+    }
+  }
+
+  /// Edit Customer (future-proof stub for logging)
+  Future<void> _editCustomer(String customerId, Map<String, dynamic> updatedFields) async {
+    try {
+      await FirebaseFirestore.instance.collection('customers').doc(customerId).update(updatedFields);
+      await addLog(
+        collection: 'customerLogs',
+        createdBy: FirebaseAuth.instance.currentUser?.uid ?? 'anonymous',
+        remarks: 'Edited customer',
+        changeType: 'edit',
+        extraData: {
+          'customerId': customerId,
+          'updatedFields': updatedFields,
+        },
+      );
+    } catch (e) {
+      print('Failed to log customer edit: $e');
     }
   }
 

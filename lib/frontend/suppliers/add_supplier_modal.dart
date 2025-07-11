@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../utils/log_helper.dart';
 
 class AddSupplierModal extends StatefulWidget {
   const AddSupplierModal({Key? key}) : super(key: key);
@@ -126,6 +127,23 @@ class _AddSupplierModalState extends State<AddSupplierModal>
       };
 
       await FirebaseFirestore.instance.collection('suppliers').add(supplierData);
+
+      // Log supplier creation
+      try {
+        await addLog(
+          collection: 'supplierLogs',
+          createdBy: FirebaseAuth.instance.currentUser?.uid ?? 'unknown',
+          remarks: 'Created supplier',
+          changeType: 'add',
+          extraData: {
+            'supplierId': supplierData['id'] ?? '',
+            'relatedEntityId': null,
+            'notes': _notesController.text,
+          },
+        );
+      } catch (e) {
+        print('Failed to log supplier creation: $e');
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
