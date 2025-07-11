@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fashion_tech/frontend/transactions/transaction_dashboard_page.dart';
-import 'package:fashion_tech/frontend/logs/productLogs.dart';
-import 'package:fashion_tech/frontend/logs/jobOrderLogs.dart';
 
 class HomeDashboard extends StatefulWidget {
   const HomeDashboard({super.key});
@@ -175,8 +173,6 @@ class _HomeDashboardState extends State<HomeDashboard> {
               // Modularized sections:
               StatsRow(currentUserId: _currentUserId),
               const SizedBox(height: 24),
-              LogsButtons(),
-              const SizedBox(height: 18),
               RecentActivitySection(currentUserId: _currentUserId),
               const SizedBox(height: 18),
               ProfitCheckerSection(
@@ -272,108 +268,540 @@ class StatsRow extends StatelessWidget {
   }
 }
 
-class LogsButtons extends StatelessWidget {
-  const LogsButtons({super.key});
+class RecentActivitySection extends StatelessWidget {
+  final String? currentUserId;
+  const RecentActivitySection({required this.currentUserId, super.key});
+
+  void _showLogsModal(BuildContext context, String? userId) {
+    if (userId == null) return;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.85,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        builder: (context, scrollController) => LogsTabView(userId: userId, scrollController: scrollController),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        ElevatedButton(
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const ProductLogsPage()),
-            );
-          },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.blue[600],
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-            elevation: 0,
+    if (currentUserId == null) {
+      return const SizedBox.shrink();
+    }
+    return FutureBuilder<List<_UnifiedLogEntry>>(
+      future: _fetchRecentLogs(currentUserId!),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final logs = snapshot.data ?? [];
+        return modernCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  sectionTitle('Recent Activity', Icons.timeline),
+                  const Spacer(),
+                  TextButton.icon(
+                    onPressed: () => _showLogsModal(context, currentUserId),
+                    icon: const Icon(Icons.open_in_new, size: 18, color: Colors.deepPurple),
+                    label: const Text('View More', style: TextStyle(color: Colors.deepPurple, fontWeight: FontWeight.w600)),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      minimumSize: Size(0, 0),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              if (logs.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Icon(Icons.info_outline, size: 48, color: Colors.grey[400]),
+                        const SizedBox(height: 16),
+                        const Text('No recent activity.', style: TextStyle(color: Colors.black54)),
+                      ],
+                    ),
+                  ),
+                )
+              else
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    // Calculate how many logs can fit based on available height (min 8, but more if space allows)
+                    int maxLogs = (constraints.maxHeight / 54).floor(); // 54px per row (approx)
+                    maxLogs = maxLogs < 8 ? 8 : maxLogs;
+                    return Column(
+                      children: logs.take(maxLogs).map((log) => Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4.0),
+                        child: ActivityRow(
+                          icon: log.icon,
+                          color: log.color,
+                          text: log.description,
+                          time: log.timeAgo,
+                        ),
+                      )).toList(),
+                    );
+                  },
+                ),
+            ],
           ),
-          child: const Text('Product Logs'),
-        ),
-        SizedBox(height: 8),
-        ElevatedButton(
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const JobOrderLogsPage()),
-            );
-          },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.blue[600],
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-            elevation: 0,
-          ),
-          child: const Text('Job Order Logs'),
-        ),
-      ],
+        );
+      },
     );
   }
 }
 
-class RecentActivitySection extends StatelessWidget {
-  final String? currentUserId;
-  const RecentActivitySection({required this.currentUserId, super.key});
+class LogsTabView extends StatefulWidget {
+  final String userId;
+  final ScrollController scrollController;
+  const LogsTabView({required this.userId, required this.scrollController, super.key});
+
+  @override
+  State<LogsTabView> createState() => _LogsTabViewState();
+}
+
+class _LogsTabViewState extends State<LogsTabView> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  final List<String> _tabs = [
+    'Fabric Logs',
+    'Product Logs',
+    'Job Order Logs',
+    'Transaction Logs',
+    'Supplier Logs',
+    'Customer Logs',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: _tabs.length, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return modernCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          sectionTitle('Recent Activity', Icons.timeline),
-          const SizedBox(height: 8),
-          StreamBuilder<QuerySnapshot>(
-            stream: currentUserId != null 
-                ? FirebaseFirestore.instance
-                    .collection('activity')
-                    .where('createdBy', isEqualTo: currentUserId)
-                    .limit(5)
-                    .snapshots()
-                : const Stream.empty(),
-            builder: (context, snapshot) {
-              if (snapshot.hasError) {
-                return const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 16),
-                  child: Text('No recent activity.', style: TextStyle(color: Colors.black54)),
-                );
-              }
-              final activities = snapshot.data?.docs ?? [];
-              if (activities.isEmpty) {
-                return const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 16),
-                  child: Text('No recent activity.', style: TextStyle(color: Colors.black54)),
-                );
-              }
-              activities.sort((a, b) {
-                final aTime = (a.data() as Map<String, dynamic>)['timestamp'];
-                final bTime = (b.data() as Map<String, dynamic>)['timestamp'];
-                if (aTime == null && bTime == null) return 0;
-                if (aTime == null) return 1;
-                if (bTime == null) return -1;
-                return bTime.compareTo(aTime);
-              });
-              return Column(
-                children: activities.map((doc) {
-                  return ActivityRow(
-                    icon: _activityIcon(doc['type']),
-                    color: Colors.deepPurple,
-                    text: doc['description'] ?? '',
-                    time: _timeAgo(doc['timestamp']),
-                  );
-                }).toList(),
-              );
-            },
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x22000000),
+            blurRadius: 16,
+            offset: Offset(0, -2),
           ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 16, left: 18, right: 18, bottom: 0),
+            child: Row(
+              children: [
+                const Text('All Logs', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.close, color: Colors.black54),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+          ),
+          TabBar(
+            controller: _tabController,
+            isScrollable: true,
+            labelColor: Colors.deepPurple,
+            unselectedLabelColor: Colors.black54,
+            indicatorColor: Colors.deepPurple,
+            tabs: _tabs.map((t) => Tab(text: t)).toList(),
+          ),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                LogsTable(logType: 'fabricLogs', userId: widget.userId, scrollController: widget.scrollController),
+                LogsTable(logType: 'productLogs', userId: widget.userId, scrollController: widget.scrollController),
+                LogsTable(logType: 'jobOrderLogs', userId: widget.userId, scrollController: widget.scrollController),
+                LogsTable(logType: 'transactionLogs', userId: widget.userId, scrollController: widget.scrollController),
+                LogsTable(logType: 'supplierLogs', userId: widget.userId, scrollController: widget.scrollController),
+                LogsTable(logType: 'customerLogs', userId: widget.userId, scrollController: widget.scrollController),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class LogsTable extends StatelessWidget {
+  final String logType;
+  final String userId;
+  final ScrollController scrollController;
+  const LogsTable({required this.logType, required this.userId, required this.scrollController, super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<QuerySnapshot>(
+      future: FirebaseFirestore.instance
+          .collection(logType)
+          .where('createdBy', isEqualTo: userId)
+          .orderBy('createdAt', descending: true)
+          .limit(50)
+          .get(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final docs = snapshot.data?.docs ?? [];
+        if (docs.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.info_outline, size: 48, color: Colors.grey[400]),
+                const SizedBox(height: 16),
+                const Text('No logs found.', style: TextStyle(color: Colors.black54)),
+              ],
+            ),
+          );
+        }
+        // Table columns based on logType
+        List<DataColumn> columns = [
+          const DataColumn(label: Text('Date')),
+          const DataColumn(label: Text('Remarks')),
+        ];
+        if (logType == 'productLogs' || logType == 'jobOrderLogs') {
+          columns.add(const DataColumn(label: Text('Change Type')));
+          columns.add(const DataColumn(label: Text('Qty')));
+        }
+        if (logType == 'productLogs') {
+          columns.add(const DataColumn(label: Text('Supplier ID')));
+        }
+        if (logType == 'fabricLogs' || logType == 'supplierLogs') {
+          columns.add(const DataColumn(label: Text('Supplier ID')));
+        }
+        if (logType == 'customerLogs') {
+          columns.add(const DataColumn(label: Text('Customer ID')));
+        }
+        return Scrollbar(
+          controller: scrollController,
+          child: SingleChildScrollView(
+            controller: scrollController,
+            scrollDirection: Axis.horizontal,
+            child: DataTable(
+              columns: columns,
+              rows: docs.map((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                final date = (data['createdAt'] as Timestamp?)?.toDate();
+                List<DataCell> cells = [
+                  DataCell(Text(date != null ? _formatTimeAgo(date, DateTime.now()) : '')),
+                  DataCell(Text(data['remarks']?.toString() ?? '')),
+                ];
+                if (logType == 'productLogs' || logType == 'jobOrderLogs') {
+                  cells.add(DataCell(Text(data['changeType']?.toString() ?? '')));
+                  cells.add(DataCell(Text(data['quantityChanged']?.toString() ?? '')));
+                }
+                if (logType == 'productLogs') {
+                  cells.add(DataCell(Text(data['supplierID']?.toString() ?? '')));
+                }
+                if (logType == 'fabricLogs' || logType == 'supplierLogs') {
+                  cells.add(DataCell(Text(data['supplierID']?.toString() ?? '')));
+                }
+                if (logType == 'customerLogs') {
+                  cells.add(DataCell(Text(data['customerID']?.toString() ?? '')));
+                }
+                return DataRow(cells: cells);
+              }).toList(),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// Remove duplicate and unused imports
+// import 'package:fashion_tech/frontend/logs/productLogs.dart';
+// import 'package:fashion_tech/frontend/logs/jobOrderLogs.dart';
+
+// Move _UnifiedLogEntry, _fetchRecentLogs, and _formatTimeAgo to top-level
+class _UnifiedLogEntry {
+  final String description;
+  final DateTime? date;
+  final IconData icon;
+  final Color color;
+  final String timeAgo;
+  _UnifiedLogEntry({
+    required this.description,
+    required this.date,
+    required this.icon,
+    required this.color,
+    required this.timeAgo,
+  });
+}
+
+Future<List<_UnifiedLogEntry>> _fetchRecentLogs(String userId) async {
+  final firestore = FirebaseFirestore.instance;
+  final now = DateTime.now();
+  List<_UnifiedLogEntry> allLogs = [];
+  // Fabric Logs
+  final fabricLogs = await firestore
+      .collection('fabricLogs')
+      .where('createdBy', isEqualTo: userId)
+      .orderBy('createdAt', descending: true)
+      .limit(5)
+      .get();
+  allLogs.addAll(fabricLogs.docs.map((doc) {
+    final data = doc.data();
+    final date = (data['createdAt'] as Timestamp?)?.toDate();
+    return _UnifiedLogEntry(
+      description: 'Fabric: ${data['remarks'] ?? ''}',
+      date: date,
+      icon: Icons.checkroom,
+      color: Colors.pink,
+      timeAgo: _formatTimeAgo(date, now),
+    );
+  }));
+  // Product Logs
+  final productLogs = await firestore
+      .collection('productLogs')
+      .where('createdBy', isEqualTo: userId)
+      .orderBy('createdAt', descending: true)
+      .limit(5)
+      .get();
+  allLogs.addAll(productLogs.docs.map((doc) {
+    final data = doc.data();
+    final date = (data['createdAt'] as Timestamp?)?.toDate();
+    return _UnifiedLogEntry(
+      description: 'Product: ${data['remarks'] ?? ''}',
+      date: date,
+      icon: Icons.inventory_2,
+      color: Colors.indigo,
+      timeAgo: _formatTimeAgo(date, now),
+    );
+  }));
+  // Job Order Logs
+  final jobOrderLogs = await firestore
+      .collection('jobOrderLogs')
+      .where('createdBy', isEqualTo: userId)
+      .orderBy('createdAt', descending: true)
+      .limit(5)
+      .get();
+  allLogs.addAll(jobOrderLogs.docs.map((doc) {
+    final data = doc.data();
+    final date = (data['createdAt'] as Timestamp?)?.toDate();
+    return _UnifiedLogEntry(
+      description: 'Job Order: ${data['remarks'] ?? ''}',
+      date: date,
+      icon: Icons.assignment_turned_in,
+      color: Colors.deepPurple,
+      timeAgo: _formatTimeAgo(date, now),
+    );
+  }));
+  // Transaction Logs
+  final transactionLogs = await firestore
+      .collection('transactionLogs')
+      .where('createdBy', isEqualTo: userId)
+      .orderBy('createdAt', descending: true)
+      .limit(5)
+      .get();
+  allLogs.addAll(transactionLogs.docs.map((doc) {
+    final data = doc.data();
+    final date = (data['createdAt'] as Timestamp?)?.toDate();
+    return _UnifiedLogEntry(
+      description: 'Transaction: ${data['remarks'] ?? ''}',
+      date: date,
+      icon: Icons.swap_horiz,
+      color: Colors.green,
+      timeAgo: _formatTimeAgo(date, now),
+    );
+  }));
+  // Customer Logs
+  final customerLogs = await firestore
+      .collection('customerLogs')
+      .where('createdBy', isEqualTo: userId)
+      .orderBy('createdAt', descending: true)
+      .limit(5)
+      .get();
+  allLogs.addAll(customerLogs.docs.map((doc) {
+    final data = doc.data();
+    final date = (data['createdAt'] as Timestamp?)?.toDate();
+    return _UnifiedLogEntry(
+      description: 'Customer: ${data['remarks'] ?? ''}',
+      date: date,
+      icon: Icons.person,
+      color: Colors.teal,
+      timeAgo: _formatTimeAgo(date, now),
+    );
+  }));
+  // Supplier Logs
+  final supplierLogs = await firestore
+      .collection('supplierLogs')
+      .where('createdBy', isEqualTo: userId)
+      .orderBy('createdAt', descending: true)
+      .limit(5)
+      .get();
+  allLogs.addAll(supplierLogs.docs.map((doc) {
+    final data = doc.data();
+    final date = (data['createdAt'] as Timestamp?)?.toDate();
+    return _UnifiedLogEntry(
+      description: 'Supplier: ${data['remarks'] ?? ''}',
+      date: date,
+      icon: Icons.local_shipping,
+      color: Colors.orange,
+      timeAgo: _formatTimeAgo(date, now),
+    );
+  }));
+  allLogs.sort((a, b) {
+    if (a.date == null && b.date == null) return 0;
+    if (a.date == null) return 1;
+    if (b.date == null) return -1;
+    return b.date!.compareTo(a.date!);
+  });
+  return allLogs;
+}
+
+String _formatTimeAgo(DateTime? date, DateTime now) {
+  if (date == null) return '';
+  final diff = now.difference(date);
+  if (diff.inMinutes < 1) return 'just now';
+  if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+  if (diff.inHours < 24) return '${diff.inHours}h ago';
+  if (diff.inDays == 1) return 'Yesterday';
+  return '${diff.inDays}d ago';
+}
+
+// Remove duplicate widget/function definitions for modernStatCard, modernCard, sectionTitle, ActivityRow, _activityIcon, _timeAgo
+
+Widget modernStatCard({
+  required IconData icon,
+  required Color color,
+  required String value,
+  required String label,
+  required Gradient gradient,
+}) {
+  return Container(
+    decoration: BoxDecoration(
+      gradient: gradient,
+      borderRadius: BorderRadius.circular(18),
+      boxShadow: [
+        BoxShadow(
+          color: color.withOpacity(0.08),
+          blurRadius: 12,
+          offset: const Offset(0, 4),
+        ),
+      ],
+    ),
+    padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 18),
+    child: Column(
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.13),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          padding: const EdgeInsets.all(10),
+          child: Icon(icon, size: 28, color: color),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          value,
+          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: color),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 13, color: Colors.black54, fontWeight: FontWeight.w500),
+        ),
+      ],
+    ),
+  );
+}
+
+Widget modernCard({required Widget child}) {
+  return Container(
+    width: double.infinity,
+    margin: const EdgeInsets.symmetric(vertical: 4),
+    padding: const EdgeInsets.all(18),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.grey.withOpacity(0.07),
+          blurRadius: 8,
+          offset: const Offset(0, 4),
+        ),
+      ],
+    ),
+    child: child,
+  );
+}
+
+Widget sectionTitle(String title, IconData icon) {
+  return Row(
+    children: [
+      Icon(icon, color: Colors.deepPurple, size: 20),
+      const SizedBox(width: 8),
+      Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+    ],
+  );
+}
+
+/// Helper widget for activity row
+class ActivityRow extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String text;
+  final String time;
+
+  const ActivityRow({
+    required this.icon,
+    required this.color,
+    required this.text,
+    required this.time,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6.0),
+      child: Row(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.13),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: color, size: 18),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(text, style: const TextStyle(fontSize: 14)),
+          ),
+          const SizedBox(width: 8),
+          Text(time, style: const TextStyle(fontSize: 11, color: Colors.black45)),
         ],
       ),
     );
@@ -599,145 +1027,4 @@ class FabricInsightsSection extends StatelessWidget {
       ),
     );
   }
-}
-
-// Helper widgets and functions moved to top-level for modular widgets
-Widget modernStatCard({
-  required IconData icon,
-  required Color color,
-  required String value,
-  required String label,
-  required Gradient gradient,
-}) {
-  return Container(
-    decoration: BoxDecoration(
-      gradient: gradient,
-      borderRadius: BorderRadius.circular(18),
-      boxShadow: [
-        BoxShadow(
-          color: color.withOpacity(0.08),
-          blurRadius: 12,
-          offset: const Offset(0, 4),
-        ),
-      ],
-    ),
-    padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 18),
-    child: Column(
-      children: [
-        Container(
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.13),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          padding: const EdgeInsets.all(10),
-          child: Icon(icon, size: 28, color: color),
-        ),
-        const SizedBox(height: 10),
-        Text(
-          value,
-          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: color),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: const TextStyle(fontSize: 13, color: Colors.black54, fontWeight: FontWeight.w500),
-        ),
-      ],
-    ),
-  );
-}
-
-Widget modernCard({required Widget child}) {
-  return Container(
-    width: double.infinity,
-    margin: const EdgeInsets.symmetric(vertical: 4),
-    padding: const EdgeInsets.all(18),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.grey.withOpacity(0.07),
-          blurRadius: 8,
-          offset: const Offset(0, 4),
-        ),
-      ],
-    ),
-    child: child,
-  );
-}
-
-Widget sectionTitle(String title, IconData icon) {
-  return Row(
-    children: [
-      Icon(icon, color: Colors.deepPurple, size: 20),
-      const SizedBox(width: 8),
-      Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-    ],
-  );
-}
-
-/// Helper widget for activity row
-class ActivityRow extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final String text;
-  final String time;
-
-  const ActivityRow({
-    required this.icon,
-    required this.color,
-    required this.text,
-    required this.time,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6.0),
-      child: Row(
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.13),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(icon, color: color, size: 18),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(text, style: const TextStyle(fontSize: 14)),
-          ),
-          const SizedBox(width: 8),
-          Text(time, style: const TextStyle(fontSize: 11, color: Colors.black45)),
-        ],
-      ),
-    );
-  }
-}
-
-IconData _activityIcon(String? type) {
-  switch (type) {
-    case 'fabric':
-      return Icons.checkroom;
-    case 'product':
-      return Icons.inventory_2;
-    case 'order':
-      return Icons.assignment_turned_in;
-    default:
-      return Icons.timeline;
-  }
-}
-
-String _timeAgo(Timestamp? timestamp) {
-  if (timestamp == null) return '';
-  final now = DateTime.now();
-  final date = timestamp.toDate();
-  final diff = now.difference(date);
-  if (diff.inDays > 0) return '${diff.inDays}d ago';
-  if (diff.inHours > 0) return '${diff.inHours}h ago';
-  if (diff.inMinutes > 0) return '${diff.inMinutes}m ago';
-  return 'just now';
 }

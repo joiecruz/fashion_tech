@@ -26,7 +26,7 @@ class _ProductLogsPageState extends State<ProductLogsPage> {
   Future<void> _fetchLogs() async {
     setState(() => _loading = true);
     final snapshot = await FirebaseFirestore.instance
-        .collection('inventoryLogs')
+        .collection('productLogs')
         .where('createdBy', isEqualTo: userId)
         .orderBy('createdAt', descending: true)
         .get();
