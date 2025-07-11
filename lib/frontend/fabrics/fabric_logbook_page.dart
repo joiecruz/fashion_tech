@@ -9,6 +9,7 @@ import '../../services/fabric_operations_service.dart';
 import '../../services/fabric_log_service.dart';
 import '../../models/fabric_log.dart';
 import '../common/gradient_search_bar.dart';
+import '../../utils/log_helper.dart';
 
 class FabricLogbookPage extends StatefulWidget {
   const FabricLogbookPage({super.key});
@@ -198,32 +199,28 @@ class _FabricLogbookPageState extends State<FabricLogbookPage>
   }
 
   void _applyFilters() {
-    final query = _searchController.text.toLowerCase();
-    
-    final filtered = _allFabrics.where((fabric) {
+    setState(() {
+      _filteredFabrics = _allFabrics.where((fabric) {
+        // Exclude soft-deleted fabrics
+        if (fabric['deletedAt'] != null) return false;
       final name = (fabric['name'] ?? '').toString().toLowerCase();
       final type = (fabric['type'] ?? '').toString().toLowerCase();
       final color = (fabric['color'] ?? '').toString().toLowerCase();
       final quantity = fabric['quantity'] ?? 0;
       final isUpcycled = fabric['isUpcycled'] ?? false;
 
-      final matchesSearch = query.isEmpty ||
-          name.contains(query) ||
-          type.contains(query) ||
-          color.contains(query);
+      final matchesSearch = _searchController.text.isEmpty ||
+          name.contains(_searchController.text.toLowerCase()) ||
+          type.contains(_searchController.text.toLowerCase()) ||
+          color.contains(_searchController.text.toLowerCase());
 
-      final matchesType = _selectedType == 'All' || type == _selectedType.toLowerCase();
-      final matchesUpcycled = !_showUpcycledOnly || isUpcycled;
-      final matchesLowStock = !_showLowStockOnly || quantity < 5;
+      final matchesType = _selectedType == 'All' || (fabric['type']?.toLowerCase() == _selectedType.toLowerCase());
+      final matchesUpcycled = !_showUpcycledOnly || (fabric['isUpcycled'] == true);
+      final matchesLowStock = !_showLowStockOnly || ((fabric['quantity'] ?? 0) < 5);
 
-      return matchesSearch && matchesType && matchesUpcycled && matchesLowStock;
+      return matchesType && matchesUpcycled && matchesLowStock && matchesSearch;
     }).toList();
-
-    if (mounted) {
-      setState(() {
-        _filteredFabrics = filtered;
-      });
-    }
+    });
   }
 
   @override
@@ -234,53 +231,69 @@ class _FabricLogbookPageState extends State<FabricLogbookPage>
     super.dispose();
   }
 
-Future<void> _deleteFabricById(String fabricId, String? fabricCreatedBy) async {
+Future<void> _deleteFabricById(String fabricId, String? createdBy) async {
   try {
-    // Check if user owns this fabric
-    if (fabricCreatedBy != _currentUserId) {
+    await FirebaseFirestore.instance
+        .collection('fabrics')
+        .doc(fabricId)
+        .update({'deletedAt': Timestamp.now()});
+    if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(
             children: [
-              const Icon(Icons.warning, color: Colors.white, size: 16),
+              const Icon(Icons.delete, color: Colors.white, size: 16),
               const SizedBox(width: 8),
-              const Expanded(
-                child: Text('You can only delete fabrics you created!'),
-              ),
+              const Text('Fabric marked as deleted.'),
             ],
           ),
-          backgroundColor: Colors.orange.shade600,
+          backgroundColor: Colors.red.shade600,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+    // Optionally: Add logging here (will be handled next)
+  } catch (e) {
+    print('Error soft deleting fabric: $e');
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.error_outline, color: Colors.white, size: 16),
+              const SizedBox(width: 8),
+              const Text('Failed to delete fabric.'),
+            ],
+          ),
+          backgroundColor: Colors.red.shade600,
           duration: const Duration(seconds: 3),
         ),
       );
-      return;
     }
-
-    // Delete fabric using the operations service with logging
-    await FabricOperationsService.deleteFabric(
-      fabricId: fabricId,
-      deletedBy: FirebaseAuth.instance.currentUser?.uid ?? 'anonymous',
-      remarks: 'Fabric deleted from inventory by owner',
-    );
-    
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(Icons.check_circle, color: Colors.white, size: 16),
-            const SizedBox(width: 8),
-            const Text('Your fabric deleted successfully!'),
-          ],
-        ),
-        backgroundColor: Colors.green.shade600,
-      ),
-    );
-  } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Failed to delete fabric: $e'), backgroundColor: Colors.red),
-    );
   }
 }
+
+  // Soft delete fabric by setting deletedAt field and log the operation
+  Future<void> _softDeleteFabricById(String fabricId, String? createdBy) async {
+    try {
+      await FirebaseFirestore.instance.collection('fabrics').doc(fabricId).update({
+        'deletedAt': Timestamp.now(),
+        'lastEdited': Timestamp.now(),
+      });
+      await addLog(
+        collection: 'fabricLogs',
+        createdBy: createdBy ?? FirebaseAuth.instance.currentUser?.uid ?? 'anonymous',
+        remarks: 'Soft deleted fabric',
+        changeType: 'delete',
+        extraData: {
+          'fabricId': fabricId,
+          'deletedAt': Timestamp.now(),
+        },
+      );
+    } catch (e) {
+      print('Failed to soft delete fabric: $e');
+    }
+  }
 
   bool _isBase64Image(String str) {
     return str.startsWith('data:image/') || (str.isNotEmpty && !str.startsWith('http'));
@@ -1467,10 +1480,10 @@ Future<void> _deleteFabricById(String fabricId, String? fabricCreatedBy) async {
                 ],
               ),
             ),
-          )
+          ),
         );
-        }
-    );
+      },
+    );    
   }
 
   Widget _buildEnhancedFallbackSwatch(String? color) {

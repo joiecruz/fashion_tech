@@ -1882,21 +1882,30 @@ void _submitForm() async {
     }
   }
 
-  /// Delete Fabric (future-proof stub for logging)
-  Future<void> _deleteFabric(String fabricId) async {
+  /// Soft Delete Fabric (sets deletedAt and logs operation)
+  Future<void> _softDeleteFabric(String fabricId) async {
     try {
-      await FirebaseFirestore.instance.collection('fabrics').doc(fabricId).delete();
+      await FirebaseFirestore.instance.collection('fabrics').doc(fabricId).update({
+        'deletedAt': Timestamp.now(),
+        'lastEdited': Timestamp.now(),
+      });
       await addLog(
         collection: 'fabricLogs',
         createdBy: FirebaseAuth.instance.currentUser?.uid ?? 'anonymous',
-        remarks: 'Deleted fabric',
+        remarks: 'Soft deleted fabric',
         changeType: 'delete',
         extraData: {
           'fabricId': fabricId,
         },
       );
     } catch (e) {
-      print('Failed to log fabric deletion: $e');
+      print('Failed to log fabric soft deletion: $e');
     }
+  }
+
+  /// Delete Fabric (future-proof stub for logging)
+  Future<void> _deleteFabric(String fabricId) async {
+    // Use soft delete instead of hard delete
+    await _softDeleteFabric(fabricId);
   }
 }
