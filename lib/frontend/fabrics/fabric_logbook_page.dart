@@ -1184,120 +1184,33 @@ Future<void> _deleteFabricById(String fabricId, String? fabricCreatedBy) async {
                                   ),
                               ],
                             ),
-                            // Show most recent fabric log remarks if available - WITH DEBUG INFO
-                            FutureBuilder<List<FabricLog>>(
-                              future: FabricLogService.getRecentFabricLogs(fabric['id'], limit: 1),
-                              builder: (context, snapshot) {
-                                // Always show the container with debug info
-                                return Column(
+                            // Show most recent fabric log remarks if available - REPLACE WITH FABRIC NOTES
+                            if (fabric['notes'] != null && (fabric['notes'] as String).trim().isNotEmpty) ...[
+                              const SizedBox(height: 8),
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[50],
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: Colors.grey.shade200),
+                                ),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const SizedBox(height: 8),
-                                    Container(
-                                      padding: const EdgeInsets.all(8),
-                                      decoration: BoxDecoration(
-                                        color: Colors.grey[50],
-                                        borderRadius: BorderRadius.circular(8),
-                                        border: Border.all(color: Colors.grey.shade200),
-                                      ),
-                                      child: Row(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Icon(
-                                            snapshot.hasData && snapshot.data!.isNotEmpty
-                                                ? _getLogIcon(snapshot.data!.first.changeType)
-                                                : Icons.info_outline,
-                                            size: 14,
-                                            color: snapshot.hasData && snapshot.data!.isNotEmpty
-                                                ? _getLogIconColor(snapshot.data!.first.changeType)
-                                                : Colors.blue.shade600,
-                                          ),
-                                          const SizedBox(width: 6),
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                              children: [
-                                                // Debug: Show connection status
-                                                if (snapshot.connectionState == ConnectionState.waiting)
-                                                  Text(
-                                                    'Loading logs...',
-                                                    style: TextStyle(
-                                                      fontSize: 11,
-                                                      color: Colors.orange[600],
-                                                      fontWeight: FontWeight.w500,
-                                                    ),
-                                                  )
-                                                else if (snapshot.hasError)
-                                                  Text(
-                                                    'Error loading logs: ${snapshot.error}',
-                                                    style: TextStyle(
-                                                      fontSize: 11,
-                                                      color: Colors.red[600],
-                                                      fontWeight: FontWeight.w500,
-                                                    ),
-                                                  )
-                                                else if (snapshot.hasData && snapshot.data!.isNotEmpty)
-                                                  Text(
-                                                    'Latest: ${_getChangeTypeText(snapshot.data!.first.changeType)} ${snapshot.data!.first.quantityChanged} units',
-                                                    style: TextStyle(
-                                                      fontSize: 11,
-                                                      color: _getLogIconColor(snapshot.data!.first.changeType),
-                                                      fontWeight: FontWeight.w500,
-                                                    ),
-                                                  )
-                                                else
-                                                  Text(
-                                                    'No logs found for this fabric',
-                                                    style: TextStyle(
-                                                      fontSize: 11,
-                                                      color: Colors.grey[600],
-                                                      fontWeight: FontWeight.w500,
-                                                    ),
-                                                  ),
-                                                const SizedBox(height: 4),
-                                                // Always show remarks section with default text
-                                                if (snapshot.hasData && snapshot.data!.isNotEmpty)
-                                                  () {
-                                                    final remarks = snapshot.data!.first.remarks;
-                                                    final displayText = remarks != null && remarks.trim().isNotEmpty
-                                                        ? 'DB Remarks: $remarks'
-                                                        : 'DB Remarks: (No remarks in database)';
-                                                    
-                                                    return Text(
-                                                      displayText.length > 80 
-                                                          ? '${displayText.substring(0, 80)}...'
-                                                          : displayText,
-                                                      style: TextStyle(
-                                                        fontSize: 12,
-                                                        color: Colors.grey[700],
-                                                        fontStyle: FontStyle.italic,
-                                                        height: 1.3,
-                                                      ),
-                                                      maxLines: 2,
-                                                      overflow: TextOverflow.ellipsis,
-                                                    );
-                                                  }()
-                                                else
-                                                  Text(
-                                                    'Default: Testing remarks display - Fabric ID: ${fabric['id']}',
-                                                    style: TextStyle(
-                                                      fontSize: 12,
-                                                      color: Colors.grey[700],
-                                                      fontStyle: FontStyle.italic,
-                                                      height: 1.3,
-                                                    ),
-                                                    maxLines: 2,
-                                                    overflow: TextOverflow.ellipsis,
-                                                  ),
-                                              ],
-                                            ),
-                                          ),
-                                        ],
+                                    Icon(Icons.sticky_note_2_outlined, size: 16, color: Colors.blue[400]),
+                                    const SizedBox(width: 6),
+                                    Expanded(
+                                      child: Text(
+                                        fabric['notes'],
+                                        style: const TextStyle(fontSize: 13, color: Colors.black87),
+                                        maxLines: 4,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
                                   ],
-                                );
-                              },
-                            ),
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ),
