@@ -36,6 +36,8 @@ class _HomeDashboardState extends State<HomeDashboard> {
   }
 
   Future<String> _getSupplierName(String supplierID) async {
+    if (_currentUserId == null) return '';
+    
     try {
       final doc = await FirebaseFirestore.instance
           .collection('suppliers')
@@ -43,7 +45,10 @@ class _HomeDashboardState extends State<HomeDashboard> {
           .get();
       if (doc.exists) {
         final data = doc.data();
-        return data?['supplierName'] ?? 'Unknown Supplier';
+        // Only return supplier name if it belongs to current user
+        if (data?['createdBy'] == _currentUserId) {
+          return data?['supplierName'] ?? 'Unknown Supplier';
+        }
       }
       return '';
     } catch (e) {
@@ -53,33 +58,83 @@ class _HomeDashboardState extends State<HomeDashboard> {
   // Add this method inside _HomeDashboardState:
   Future<int> _getTotalStock() async {
     if (_currentUserId == null) return 0;
-    
     try {
       final snapshot = await FirebaseFirestore.instance
           .collection('products')
           .where('createdBy', isEqualTo: _currentUserId)
           .where('deletedAt', isNull: true)
           .get();
-          
       int totalStock = 0;
       for (var doc in snapshot.docs) {
         final data = doc.data();
-        final qty = data['stock'];
-        if (qty != null) {
-          totalStock += (qty as num).toInt();
+        // If product uses variants, sum their stock
+        final productId = doc.id;
+        final variantsSnapshot = await FirebaseFirestore.instance
+            .collection('productVariants')
+            .where('productID', isEqualTo: productId)
+            .get();
+        if (variantsSnapshot.docs.isNotEmpty) {
+          for (var variantDoc in variantsSnapshot.docs) {
+            final variantData = variantDoc.data();
+            final qty = variantData['quantityInStock'];
+            if (qty != null) {
+              totalStock += (qty as num).toInt();
+            }
+          }
+        } else {
+          // Fallback to 'quantity' field if no variants
+          final qty = data['quantity'];
+          if (qty != null) {
+            totalStock += (qty as num).toInt();
+          }
         }
       }
       return totalStock;
     } catch (e) {
-      // Don't show error for empty data or permission issues
-      print('Note: Could not load total stock (this is normal for new users): $e');
       return 0;
+    }
+  }
+
+  Future<double> _getProjectedIncome() async {
+    if (_currentUserId == null) return 0.0;
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('products')
+          .where('createdBy', isEqualTo: _currentUserId)
+          .where('deletedAt', isNull: true)
+          .get();
+      double total = 0.0;
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        final price = data['price'];
+        final productId = doc.id;
+        final variantsSnapshot = await FirebaseFirestore.instance
+            .collection('productVariants')
+            .where('productID', isEqualTo: productId)
+            .get();
+        if (variantsSnapshot.docs.isNotEmpty) {
+          for (var variantDoc in variantsSnapshot.docs) {
+            final variantData = variantDoc.data();
+            final qty = variantData['quantityInStock'];
+            if (qty != null && price != null) {
+              total += (qty as num).toDouble() * (price as num).toDouble();
+            }
+          }
+        } else {
+          final qty = data['quantity'];
+          if (qty != null && price != null) {
+            total += (qty as num).toDouble() * (price as num).toDouble();
+          }
+        }
+      }
+      return total;
+    } catch (e) {
+      return 0.0;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-      print("In home dashboard");
     return Scaffold(
       backgroundColor: const Color(0xFFF6F7FB),
       body: SafeArea(
@@ -142,7 +197,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
                             }
                           }
                         }
-                        return _modernStatCard(
+                        return modernStatCard(
                           icon: Icons.checkroom,
                           color: Colors.deepPurple,
                           value: '${totalYards.toStringAsFixed(1)} yds',
@@ -168,7 +223,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
                           : const Stream.empty(),
                       builder: (context, snapshot) {
                         int totalProducts = (snapshot.hasData && !snapshot.hasError) ? snapshot.data!.docs.length : 0;
-                        return _modernStatCard(
+                        return modernStatCard(
                           icon: Icons.inventory_2,
                           color: Colors.indigo,
                           value: '$totalProducts items',
@@ -227,11 +282,11 @@ class _HomeDashboardState extends State<HomeDashboard> {
                                 ),
 
               // Recent Activity
-              _modernCard(
+              modernCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _sectionTitle('Recent Activity', Icons.timeline),
+                    sectionTitle('Recent Activity', Icons.timeline),
                     const SizedBox(height: 8),
                     StreamBuilder<QuerySnapshot>(
                       stream: _currentUserId != null 
@@ -249,7 +304,6 @@ class _HomeDashboardState extends State<HomeDashboard> {
                             child: Text('No recent activity.', style: TextStyle(color: Colors.black54)),
                           );
                         }
-                        
                         final activities = snapshot.data?.docs ?? [];
                         if (activities.isEmpty) {
                           return const Padding(
@@ -257,7 +311,6 @@ class _HomeDashboardState extends State<HomeDashboard> {
                             child: Text('No recent activity.', style: TextStyle(color: Colors.black54)),
                           );
                         }
-                        
                         // Sort activities by timestamp on client side to avoid index issues
                         activities.sort((a, b) {
                           final aTime = (a.data() as Map<String, dynamic>)['timestamp'];
@@ -267,10 +320,9 @@ class _HomeDashboardState extends State<HomeDashboard> {
                           if (bTime == null) return -1;
                           return bTime.compareTo(aTime);
                         });
-                        
                         return Column(
                           children: activities.map((doc) {
-                            return _ActivityRow(
+                            return ActivityRow(
                               icon: _activityIcon(doc['type']),
                               color: Colors.deepPurple,
                               text: doc['description'] ?? '',
@@ -286,18 +338,19 @@ class _HomeDashboardState extends State<HomeDashboard> {
               const SizedBox(height: 18),
 
               // Replace your Profit Checker card section with this:
-              _modernCard(
+              modernCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _sectionTitle('Profit Checker', Icons.attach_money),
+                    sectionTitle('Profit Checker', Icons.attach_money),
                     const SizedBox(height: 8),
                     FutureBuilder<int>(
                       future: _getTotalStock(),
                       builder: (context, stockSnapshot) {
-                        return ValueListenableBuilder<double>(
-                          valueListenable: ProductInventoryPage.potentialValueNotifier,
-                          builder: (context, projectedIncome, _) {
+                        return FutureBuilder<double>(
+                          future: _getProjectedIncome(),
+                          builder: (context, incomeSnapshot) {
+                            final projectedIncome = incomeSnapshot.data ?? 0.0;
                             return Row(
                               children: [
                                 Expanded(
@@ -372,11 +425,11 @@ class _HomeDashboardState extends State<HomeDashboard> {
                 ),
               ),
               // Fabric Insights
-              _modernCard(
+              modernCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _sectionTitle('Fabric Insights', Icons.insights),
+                    sectionTitle('Fabric Insights', Icons.insights),
                     const SizedBox(height: 8),
                     StreamBuilder<QuerySnapshot>(
                       stream: _currentUserId != null 
@@ -390,7 +443,6 @@ class _HomeDashboardState extends State<HomeDashboard> {
                         if (snapshot.connectionState == ConnectionState.waiting) {
                           return const Center(child: CircularProgressIndicator());
                         }
-                        
                         if (snapshot.hasError) {
                           // Don't show error for new users or permission issues
                           return const Padding(
@@ -398,14 +450,12 @@ class _HomeDashboardState extends State<HomeDashboard> {
                             child: Text('Start adding fabrics to see insights here.', style: TextStyle(color: Colors.black54)),
                           );
                         }
-                        
                         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                           return const Padding(
                             padding: EdgeInsets.symmetric(vertical: 16),
                             child: Text('No fabric data found.', style: TextStyle(color: Colors.black54)),
                           );
                         }
-                        
                         // Sort on client side to avoid index issues
                         final fabrics = snapshot.data!.docs.toList();
                         fabrics.sort((a, b) {
@@ -413,7 +463,6 @@ class _HomeDashboardState extends State<HomeDashboard> {
                           final bQty = (b.data() as Map<String, dynamic>)['quantity'] ?? 0;
                           return (bQty as num).compareTo(aQty as num);
                         });
-                        
                         return Column(
                           children: fabrics.map((doc) {
                             final fabric = doc.data() as Map<String, dynamic>;
@@ -504,7 +553,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
 }
 
 // Modern stat card with gradient and icon
-Widget _modernStatCard({
+Widget modernStatCard({
   required IconData icon,
   required Color color,
   required String value,
@@ -550,7 +599,7 @@ Widget _modernStatCard({
 }
 
 // Modern card wrapper
-Widget _modernCard({required Widget child, Color? color}) {
+Widget modernCard({required Widget child, Color? color}) {
   return Container(
     margin: const EdgeInsets.only(bottom: 4),
     decoration: BoxDecoration(
@@ -570,7 +619,7 @@ Widget _modernCard({required Widget child, Color? color}) {
 }
 
 // Section title with icon
-Widget _sectionTitle(String title, IconData icon) {
+Widget sectionTitle(String title, IconData icon) {
   return Row(
     children: [
       Icon(icon, color: Colors.deepPurple[400], size: 20),
@@ -588,13 +637,13 @@ Widget _sectionTitle(String title, IconData icon) {
 }
 
 /// Helper widget for activity row
-class _ActivityRow extends StatelessWidget {
+class ActivityRow extends StatelessWidget {
   final IconData icon;
   final Color color;
   final String text;
   final String time;
 
-  const _ActivityRow({
+  const ActivityRow({
     required this.icon,
     required this.color,
     required this.text,

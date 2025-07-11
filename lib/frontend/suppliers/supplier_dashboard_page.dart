@@ -831,7 +831,7 @@ class _SupplierDashboardPageState extends State<SupplierDashboardPage>
                                 onPressed: () {
                                   // TODO: Implement email functionality
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('Email ${supplier['supplierName']} feature coming soon!')),
+                                    SnackBar(content: Text('Email \\${supplier['supplierName']} feature coming soon!')),
                                   );
                                 },
                                 style: ElevatedButton.styleFrom(

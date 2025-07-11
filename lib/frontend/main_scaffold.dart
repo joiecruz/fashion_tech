@@ -66,41 +66,38 @@ class _MainScaffoldState extends State<MainScaffold> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.notifications_none),
+          onPressed: () {
+            showModalBottomSheet(
+              context: context,
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+              ),
+              isScrollControlled: true,
+              builder: (context) => const NotificationsModal(),
+            );
+          },
+        ),
         title: Text(
           _currentTitle,
-          style: const TextStyle(fontWeight: FontWeight.bold),
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 18),
         ),
         centerTitle: true,
         elevation: 0,
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_none),
-            onPressed: () {
-              showModalBottomSheet(
-                context: context,
-                shape: const RoundedRectangleBorder(
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
-                ),
-                isScrollControlled: true,
-                builder: (context) => const NotificationsModal(),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (context) => const SettingsPage()),
-              );
-            },
-          ),
           PopupMenuButton<String>(
+            offset: const Offset(0, 40), // Position dropdown below the icon
             onSelected: (value) async {
               if (value == 'profile') {
                 Navigator.of(context).push(
                   MaterialPageRoute(builder: (context) => const ProfilePage()),
+                );
+              } else if (value == 'settings') {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (context) => const SettingsPage()),
                 );
               } else if (value == 'logout') {
                 await LoginBackend.signOut();
@@ -115,6 +112,16 @@ class _MainScaffoldState extends State<MainScaffold> {
                     Icon(Icons.account_circle, size: 18),
                     SizedBox(width: 8),
                     Text('View Profile'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem<String>(
+                value: 'settings',
+                child: Row(
+                  children: [
+                    Icon(Icons.settings, size: 18),
+                    SizedBox(width: 8),
+                    Text('Settings'),
                   ],
                 ),
               ),

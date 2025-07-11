@@ -345,7 +345,7 @@ class _AddCustomerModalState extends State<AddCustomerModal> {
                             onFieldSubmitted: (_) => _emailFocus.requestFocus(),
                             keyboardType: TextInputType.phone,
                             decoration: InputDecoration(
-                              hintText: 'Enter phone number (e.g., +1234567890)',
+                              hintText: 'Enter phone number (e.g., 09123456789, +639123456789, 9123456789)',
                               filled: true,
                               fillColor: Colors.grey.shade50,
                               border: OutlineInputBorder(
@@ -367,17 +367,17 @@ class _AddCustomerModalState extends State<AddCustomerModal> {
                             ),
                             validator: (value) {
                               if (value != null && value.trim().isNotEmpty) {
-                                // Remove all non-digit characters for validation
-                                String cleanedValue = value.replaceAll(RegExp(r'[^0-9]'), '');
-                                
-                                // Check if it's a valid mobile number format
-                                if (cleanedValue.length < 10 || cleanedValue.length > 15) {
-                                  return 'Phone number must be between 10-15 digits';
-                                }
-                                
-                                // Check for valid mobile number patterns (starts with common mobile prefixes)
-                                if (!RegExp(r'^(\+?1)?[6-9]\d{9}$|^\+?[1-9]\d{7,14}$').hasMatch(cleanedValue)) {
-                                  return 'Please enter a valid mobile number';
+                                String cleanedValue = value.trim();
+                                // Accepts formats: 09xxxxxxxxx, +63xxxxxxxxxx, 9xxxxxxxxx
+                                final patterns = [
+                                  r'^09\d{9}$',           // 09xxxxxxxxx
+                                  r'^\+63\d{10}$',       // +639xxxxxxxxx
+                                  r'^9\d{9}$',            // 9xxxxxxxxx
+                                  r'^\d{10,15}$',         // 10-15 digits (international)
+                                ];
+                                bool matches = patterns.any((p) => RegExp(p).hasMatch(cleanedValue));
+                                if (!matches) {
+                                  return 'Enter a valid phone number (e.g., 09123456789, +639123456789, 9123456789)';
                                 }
                               }
                               return null;

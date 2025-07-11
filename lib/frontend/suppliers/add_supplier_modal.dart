@@ -94,13 +94,34 @@ class _AddSupplierModalState extends State<AddSupplierModal>
 
     try {
       final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser == null) {
+        // Not logged in, do not proceed
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.error_outline, color: Colors.white, size: 16),
+                const SizedBox(width: 8),
+                Text('You must be logged in to add a supplier.'),
+              ],
+            ),
+            backgroundColor: Colors.red[600],
+            duration: const Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+        );
+        setState(() { _isSubmitting = false; });
+        return;
+      }
       final supplierData = {
         'supplierName': _supplierNameController.text.trim(),
         'contactNum': _contactNumController.text.trim(),
         'location': _locationController.text.trim().isEmpty ? null : _locationController.text.trim(),
         'email': _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
         'notes': _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
-        'createdBy': currentUser?.uid ?? 'anonymous', // ERDv8 requirement
+        'createdBy': currentUser.uid, // Always set to current user
         'createdAt': FieldValue.serverTimestamp(),
       };
 

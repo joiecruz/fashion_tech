@@ -1078,18 +1078,20 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
                                           Text(
                                             product['name'],
                                             style: const TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.w600,
                                               color: Colors.black87,
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 16,
                                             ),
                                           ),
-                                          Text(
-                                            _getCategoryDisplayName(product['category']),
-                                            style: TextStyle(
-                                              fontSize: 14,
-                                              color: Colors.grey[600],
+                                          if (product['categoryID'] != null && product['categoryID'].toString().isNotEmpty)
+                                            Text(
+                                              _getCategoryDisplayName(product['categoryID']),
+                                              style: TextStyle(
+                                                color: Colors.blue[700],
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w500,
+                                              ),
                                             ),
-                                          ),
                                         ],
                                       ),
                                     ),
@@ -1097,82 +1099,23 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
                                     Column(
                                       crossAxisAlignment: CrossAxisAlignment.end,
                                       children: [
-                                        Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            if (product['isUpcycled'])
-                                              Container(
-                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                                decoration: BoxDecoration(
-                                                  color: Colors.green[100],
-                                                  borderRadius: BorderRadius.circular(12),
-                                                ),
-                                                child: Text(
-                                                  'Upcycled',
-                                                  style: TextStyle(
-                                                    fontSize: 10,
-                                                    fontWeight: FontWeight.w600,
-                                                    color: Colors.green[700],
-                                                  ),
-                                                ),
-                                              ),
-                                            if (product['isMade'] == true)
-                                              Container(
-                                                margin: EdgeInsets.only(left: product['isUpcycled'] ? 4 : 0),
-                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                                decoration: BoxDecoration(
-                                                  color: Colors.blue[100],
-                                                  borderRadius: BorderRadius.circular(12),
-                                                ),
-                                                child: Text(
-                                                  'Made',
-                                                  style: TextStyle(
-                                                    fontSize: 10,
-                                                    fontWeight: FontWeight.w600,
-                                                    color: Colors.blue[700],
-                                                  ),
-                                                ),
-                                              ),
-                                          ],
-                                        ),
-                                        if (product['lowStock']) ...[
-                                          const SizedBox(height: 4),
+                                        if (product['lowStock'])
                                           Container(
                                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                             decoration: BoxDecoration(
                                               color: Colors.red[50],
-                                              borderRadius: BorderRadius.circular(12),
+                                              borderRadius: BorderRadius.circular(8),
                                               border: Border.all(color: Colors.red[200]!),
                                             ),
                                             child: Text(
                                               'Low Stock',
                                               style: TextStyle(
-                                                fontSize: 10,
+                                                fontSize: 11,
                                                 fontWeight: FontWeight.w600,
                                                 color: Colors.red[700],
                                               ),
                                             ),
                                           ),
-                                        ],
-                                        if ((product['stock'] ?? 0) == 0) ...[
-                                          const SizedBox(height: 4),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                            decoration: BoxDecoration(
-                                              color: Colors.grey[100],
-                                              borderRadius: BorderRadius.circular(12),
-                                              border: Border.all(color: Colors.grey[300]!),
-                                            ),
-                                            child: Text(
-                                              'Out of Stock',
-                                              style: TextStyle(
-                                                fontSize: 10,
-                                                fontWeight: FontWeight.w600,
-                                                color: Colors.grey[700],
-                                              ),
-                                            ),
-                                          ),
-                                        ],
                                       ],
                                     ),
                                   ],
@@ -1185,9 +1128,8 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
                                         ? '${product['description'].toString().substring(0, 60)}...'
                                         : product['description'].toString(),
                                     style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey[700],
                                       fontStyle: FontStyle.italic,
+                                      color: Colors.grey[700],
                                     ),
                                   ),
                                 ] else if (product['notes'] != null && product['notes'].toString().trim().isNotEmpty) ...[
@@ -1197,9 +1139,8 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
                                         ? '${product['notes'].toString().substring(0, 60)}...'
                                         : product['notes'].toString(),
                                     style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey[700],
                                       fontStyle: FontStyle.italic,
+                                      color: Colors.grey[700],
                                     ),
                                   ),
                                 ],
@@ -1224,7 +1165,7 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                'Total Value: ₱${(product['price'] * product['stock']).toStringAsFixed(2)}',
+                                'Total Value: ₱${(product['price'] * (product['totalStock'] ?? 0)).toStringAsFixed(2)}',
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: Colors.grey[600],
@@ -1241,7 +1182,7 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
                               border: Border.all(color: Colors.blue[200]!),
                             ),
                             child: Text(
-                              'Stock: ${product['stock']}',
+                              'Stock: ${product['totalStock'] ?? 0}',
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
@@ -1276,18 +1217,15 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
                               runSpacing: 4,
                               children: product['variants'].take(3).map<Widget>((variant) {
                                 return Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                                   decoration: BoxDecoration(
                                     color: Colors.grey[100],
                                     borderRadius: BorderRadius.circular(8),
                                     border: Border.all(color: Colors.grey[300]!),
                                   ),
                                   child: Text(
-                                    '${variant['size']} - ${variant['color']} (${variant['quantityInStock']})',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey[700],
-                                    ),
+                                    'Size: 	${variant['size'] ?? '-'} | Color: ${variant['color'] ?? '-'} | Stock: ${variant['quantityInStock'] ?? 0}',
+                                    style: TextStyle(fontSize: 12, color: Colors.grey[800]),
                                   ),
                                 );
                               }).toList(),
@@ -1297,11 +1235,7 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
                                 padding: const EdgeInsets.only(top: 4),
                                 child: Text(
                                   '+${product['variants'].length - 3} more variants',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey[600],
-                                    fontStyle: FontStyle.italic,
-                                  ),
+                                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                                 ),
                               ),
                           ],
@@ -1330,79 +1264,67 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
                               child: ElevatedButton.icon(
                                 onPressed: canSell
                                     ? () async {
-                                        final result = await showModalBottomSheet(
+                                        final result = await showModalBottomSheet<bool>(
                                           context: context,
                                           isScrollControlled: true,
+                                          backgroundColor: Colors.transparent,
                                           builder: (context) => SellModal(product: product, variants: product['variants']),
                                         );
-                                        if (result != null) {
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            SnackBar(content: Text('Sold ${result['quantity']} item(s)!'), backgroundColor: Colors.green),
-                                          );
+                                        if (result == true) {
                                           await _loadProducts(isRefresh: true);
                                         }
                                       }
                                     : null,
+                                icon: const Icon(Icons.sell, size: 16),
+                                label: const Text('Sell', style: TextStyle(fontWeight: FontWeight.w600)),
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: canSell ? Colors.blue[600] : Colors.grey[400],
+                                  backgroundColor: canSell ? Colors.blue[600] : Colors.grey[300],
                                   foregroundColor: Colors.white,
                                   padding: const EdgeInsets.symmetric(vertical: 12),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                 ),
-                                icon: const Icon(Icons.attach_money, size: 16),
-                                label: const Text('Sell', style: TextStyle(fontWeight: FontWeight.w600)),
                               ),
                             ),
                           ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: OutlinedButton.icon(
-                            onPressed: () async {
-                              final result = await showModalBottomSheet<bool>(
-                                context: context,
-                                isScrollControlled: true,
-                                backgroundColor: Colors.transparent,
-                                builder: (context) => Container(
-                                  margin: const EdgeInsets.only(top: 100),
-                                  height: MediaQuery.of(context).size.height - 100,
-                                  decoration: const BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                                  ),
-                                  child: EditProductModal(productData: product),
-                                ),
-                              );
-                              if (result == true) {
-                                _selectedCategory = 'All';
-                                _showUpcycledOnly = false;
-                                _showLowStockOnly = false;
-                                _hideOutOfStock = false;
-                                _searchController.clear();
-                                await _loadProducts(isRefresh: true);
-                              }
-                            },
+                              onPressed: () async {
+                                final result = await showModalBottomSheet<bool>(
+                                  context: context,
+                                  isScrollControlled: true,
+                                  backgroundColor: Colors.transparent,
+                                  builder: (context) => EditProductModal(productData: product),
+                                );
+                                if (result == true) {
+                                  await _loadProducts(isRefresh: true);
+                                }
+                              },
+                              icon: const Icon(Icons.edit, size: 16),
+                              label: const Text('Edit', style: TextStyle(fontWeight: FontWeight.w600)),
                               style: OutlinedButton.styleFrom(
-                                foregroundColor: Colors.black87,
+                                foregroundColor: Colors.blue[700],
                                 padding: const EdgeInsets.symmetric(vertical: 12),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(8),
                                 ),
-                                side: BorderSide(color: Colors.grey[300]!),
+                                side: BorderSide(color: Colors.blue[200]!),
                               ),
-                              icon: const Icon(Icons.edit, size: 16),
-                              label: const Text('Edit', style: TextStyle(fontWeight: FontWeight.w600)),
                             ),
                           ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: OutlinedButton.icon(
                               onPressed: () {
+                                // TODO: Implement job orders navigation
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Job Orders for ${product['name']} feature coming soon!')),
+                                  SnackBar(content: Text('Job Orders feature coming soon!')),
                                 );
                               },
+                              icon: const Icon(Icons.assignment, size: 16),
+                              label: const Text('Job Orders', style: TextStyle(fontWeight: FontWeight.w600)),
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: Colors.black87,
                                 padding: const EdgeInsets.symmetric(vertical: 12),
@@ -1411,8 +1333,6 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
                                 ),
                                 side: BorderSide(color: Colors.grey[300]!),
                               ),
-                              icon: const Icon(Icons.work, size: 16),
-                              label: const Text('Job Orders', style: TextStyle(fontWeight: FontWeight.w600)),
                             ),
                           ),
                         ],
@@ -1424,7 +1344,7 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
             ),
           ),
         );
-      },
+        },
     );
   }
 }
