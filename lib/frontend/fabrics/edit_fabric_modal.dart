@@ -315,7 +315,12 @@ class _EditFabricModalState extends State<EditFabricModal> {
         'isUpcycled': _isUpcycled,
         'swatchImageURL': _swatchImageUrl,
         'lastEdited': Timestamp.now(),
+        'supplierID': _selectedSupplierId, // Add supplier update
+        'notes': _notesController.text.trim().isEmpty ? null : _notesController.text.trim(), // Add notes update
+        'deletedAt': null, // Always set deletedAt to null for active fabrics
       };
+      // Ensure deletedAt is set to null for active fabrics
+      updatedData['deletedAt'] = null;
 
       // 3. Update Firestore
       await FirebaseFirestore.instance

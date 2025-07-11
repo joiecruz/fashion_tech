@@ -383,6 +383,7 @@ void _submitForm() async {
         'createdBy': FirebaseAuth.instance.currentUser?.uid ?? 'anonymous', // ERDv8 requirement
         'createdAt': Timestamp.now(),
         'lastEdited': Timestamp.now(),
+        'deletedAt': null, // Ensure deletedAt is set to null on creation
       };
       
       // Add fabric using the operations service with logging
