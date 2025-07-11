@@ -7,7 +7,6 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../backend/fetch_suppliers.dart';
 import '../common/simple_color_dropdown.dart';
-import 'package:fashion_tech/utils/log_helper.dart';
 
 class EditFabricModal extends StatefulWidget {
   final Map<String, dynamic> fabric;
@@ -328,19 +327,6 @@ class _EditFabricModalState extends State<EditFabricModal> {
           .collection('fabrics')
           .doc(widget.fabricId)
           .update(updatedData);
-
-      // 3b. Log the edit operation
-      await addLog(
-        collection: 'fabricLogs',
-        createdBy: 'system', // Replace with actual user ID if available
-        remarks: 'Edited fabric',
-        changeType: 'edit',
-        extraData: {
-          'fabricId': widget.fabricId,
-          ...updatedData,
-          'prevData': prevData,
-        },
-      );
 
       // 4. Show SnackBar with Undo
       if (mounted) {
