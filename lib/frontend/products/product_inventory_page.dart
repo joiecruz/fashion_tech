@@ -1324,7 +1324,7 @@ class _ProductInventoryPageState extends State<ProductInventoryPage>
                                 );
                               },
                               icon: const Icon(Icons.assignment, size: 16),
-                              label: const Text('Job Orders', style: TextStyle(fontWeight: FontWeight.w600)),
+                              label: const Text('Jobs', style: TextStyle(fontWeight: FontWeight.w600)),
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: Colors.black87,
                                 padding: const EdgeInsets.symmetric(vertical: 12),
