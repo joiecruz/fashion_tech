@@ -376,13 +376,13 @@ return FutureBuilder<QuerySnapshot>(
           .where('createdBy', isEqualTo: userId)
           .where('deletedAt', isNull: true)
           .orderBy(orderByField, descending: true)
-          .limit(2)
+          .limit(1)
           .get()
       : FirebaseFirestore.instance
           .collection(collection)
           .where('createdBy', isEqualTo: userId)
           .orderBy(orderByField, descending: true)
-          .limit(2)
+          .limit(1)
           .get(),
 
           
