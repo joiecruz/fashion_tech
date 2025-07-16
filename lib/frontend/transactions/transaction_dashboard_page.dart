@@ -218,23 +218,36 @@ class _TransactionDashboardPageState extends State<TransactionDashboardPage> {
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final netProfit = ((_totalSales ?? 0) - (_totalExpenses ?? 0));
-    final screenWidth = MediaQuery.of(context).size.width;
-    final horizontalPadding = screenWidth < 400 ? 10.0 : 20.0;
+@override
+Widget build(BuildContext context) {
+  final netProfit = ((_totalSales ?? 0) - (_totalExpenses ?? 0));
+  final screenWidth = MediaQuery.of(context).size.width;
+  final horizontalPadding = screenWidth < 400 ? 10.0 : 20.0;
 
-    return Scaffold(
-      backgroundColor: Colors.grey[50],
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: EdgeInsets.only(
-                left: horizontalPadding,
-                right: horizontalPadding,
-                top: 18,
-                bottom: 120, // Add bottom padding to keep content above floating nav bar
-              ),
+  return Scaffold(
+    backgroundColor: Colors.grey[50],
+    appBar: AppBar(
+      backgroundColor: Colors.white,
+      elevation: 1,
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back, color: Colors.black),
+        onPressed: () => Navigator.of(context).maybePop(),
+      ),
+      title: const Text(
+        'Transaction Dashboard',
+        style: TextStyle(color: Colors.black),
+      ),
+      centerTitle: true,
+    ),
+    body: _isLoading
+        ? const Center(child: CircularProgressIndicator())
+        : SingleChildScrollView(
+            padding: EdgeInsets.only(
+              left: horizontalPadding,
+              right: horizontalPadding,
+              top: 18,
+              bottom: 120, // Add bottom padding to keep content above floating nav bar
+            ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -986,101 +999,141 @@ class _TransactionDashboardPageState extends State<TransactionDashboardPage> {
     );
   }
 
-  // Add Expense to Database
-  Future<void> _addExpense() async {
-    final amount = double.tryParse(_expenseAmountController.text);
-    final description = _expenseDescriptionController.text.trim();
+Future<String> getNextManualIncomeId() async {
+  const prefix = 'manualIncome_';
+  final snap = await FirebaseFirestore.instance
+      .collection('manualIncome')
+      .where('jobOrderID', isGreaterThanOrEqualTo: prefix)
+      .where('jobOrderID', isLessThan: '${prefix}z')
+      .orderBy('jobOrderID', descending: true)
+      .limit(1)
+      .get();
 
-    if (amount == null || amount <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid amount')),
-      );
-      return;
-    }
+  if (snap.docs.isEmpty) {
+    return '${prefix}01';
+  }
+  final lastId = snap.docs.first['jobOrderID'] as String? ?? '';
+  final number = int.tryParse(lastId.replaceFirst(prefix, '')) ?? 0;
+  final nextNumber = (number + 1).toString().padLeft(2, '0');
+  return '$prefix$nextNumber';
+}
 
-    if (description.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a description')),
-      );
-      return;
-    }
+Future<String> getNextManualExpenseId() async {
+  const prefix = 'manualExpense_';
+  final snap = await FirebaseFirestore.instance
+      .collection('manualExpenses')
+      .where('jobOrderID', isGreaterThanOrEqualTo: prefix)
+      .where('jobOrderID', isLessThan: '${prefix}z')
+      .orderBy('jobOrderID', descending: true)
+      .limit(1)
+      .get();
 
-    try {
-      await FirebaseFirestore.instance.collection('manualExpenses').add({
-        'amount': amount,
-        'description': description,
-        'createdBy': userId,
-        'createdAt': FieldValue.serverTimestamp(),
-        'type': 'expense',
-      });
+  if (snap.docs.isEmpty) {
+    return '${prefix}01';
+  }
+  final lastId = snap.docs.first['jobOrderID'] as String? ?? '';
+  final number = int.tryParse(lastId.replaceFirst(prefix, '')) ?? 0;
+  final nextNumber = (number + 1).toString().padLeft(2, '0');
+  return '$prefix$nextNumber';
+}
 
-      _expenseAmountController.clear();
-      _expenseDescriptionController.clear();
-      Navigator.pop(context);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Expense added successfully'),
-          backgroundColor: Colors.green,
-        ),
-      );
+Future<void> _addExpense() async {
+  final amount = double.tryParse(_expenseAmountController.text);
+  final description = _expenseDescriptionController.text.trim();
 
-      // Refresh data
-      _loadProfit();
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error adding expense: $e')),
-      );
-    }
+  if (amount == null || amount <= 0) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Please enter a valid amount')),
+    );
+    return;
   }
 
-  // Add Income to Database
-  Future<void> _addIncome() async {
-    final amount = double.tryParse(_incomeAmountController.text);
-    final description = _incomeDescriptionController.text.trim();
-
-    if (amount == null || amount <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid amount')),
-      );
-      return;
-    }
-
-    if (description.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a description')),
-      );
-      return;
-    }
-
-    try {
-      await FirebaseFirestore.instance.collection('manualIncome').add({
-        'amount': amount,
-        'description': description,
-        'createdBy': userId,
-        'createdAt': FieldValue.serverTimestamp(),
-        'type': 'income',
-      });
-
-      _incomeAmountController.clear();
-      _incomeDescriptionController.clear();
-      Navigator.pop(context);
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Income added successfully'),
-          backgroundColor: Colors.green,
-        ),
-      );
-
-      // Refresh data
-      _loadProfit();
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error adding income: $e')),
-      );
-    }
+  if (description.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Please enter a description')),
+    );
+    return;
   }
+
+  try {
+    final jobOrderID = await getNextManualExpenseId();
+    await FirebaseFirestore.instance.collection('manualExpenses').add({
+      'amount': amount,
+      'description': description,
+      'createdBy': userId,
+      'createdAt': FieldValue.serverTimestamp(),
+      'type': 'expense',
+      'jobOrderID': jobOrderID,
+    });
+
+    _expenseAmountController.clear();
+    _expenseDescriptionController.clear();
+    Navigator.pop(context);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Expense added successfully'),
+        backgroundColor: Colors.green,
+      ),
+    );
+
+    // Refresh data
+    _loadProfit();
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Error adding expense: $e')),
+    );
+  }
+}
+Future<void> _addIncome() async {
+  final amount = double.tryParse(_incomeAmountController.text);
+  final description = _incomeDescriptionController.text.trim();
+
+  if (amount == null || amount <= 0) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Please enter a valid amount')),
+    );
+    return;
+  }
+
+  if (description.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Please enter a description')),
+    );
+    return;
+  }
+
+  try {
+    final jobOrderID = await getNextManualIncomeId();
+    await FirebaseFirestore.instance.collection('manualIncome').add({
+      'amount': amount,
+      'description': description,
+      'createdBy': userId,
+      'createdAt': FieldValue.serverTimestamp(),
+      'type': 'income',
+      'jobOrderID': jobOrderID,
+    });
+
+    _incomeAmountController.clear();
+    _incomeDescriptionController.clear();
+    Navigator.pop(context);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Income added successfully'),
+        backgroundColor: Colors.green,
+      ),
+    );
+
+    // Refresh data
+    _loadProfit();
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Error adding income: $e')),
+    );
+  }
+}
 
   Widget _buildBigStatCard({
     required IconData icon,
