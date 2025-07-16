@@ -14,7 +14,7 @@ class JobOrderActions {
   });
 
   // Mark job order as done with product handling
-  Future<bool> markJobOrderAsDone(String jobOrderID, String jobOrderName, Map<String, dynamic> jobOrderData) async {
+  Future<void> markJobOrderAsDone(String jobOrderID, String jobOrderName, Map<String, dynamic> jobOrderData) async {
     print('[DEBUG] Starting mark as done process for job order: $jobOrderID');
     
     try {
@@ -34,7 +34,7 @@ class JobOrderActions {
           Colors.orange[600]!,
           Icons.warning,
         );
-        return false;
+        return;
       }
 
       // Step 2: Show product handling dialog BEFORE marking as done
@@ -49,7 +49,7 @@ class JobOrderActions {
       
       if (productResult == null) {
         print('[DEBUG] User cancelled product handling dialog');
-        return false; // Return false to indicate cancellation
+        return;
       }
 
       print('[DEBUG] User selected product action: ${productResult.action}');
@@ -73,7 +73,7 @@ class JobOrderActions {
           Colors.red[600]!,
           Icons.error_outline,
         );
-        return false;
+        return;
       }
 
       // Step 4: Mark job order as done in database
@@ -112,8 +112,6 @@ class JobOrderActions {
         Icons.check_circle,
       );
 
-      return true; // Return true to indicate success
-
     } catch (e) {
       print('[ERROR] Failed to mark job order as done: $e');
       _showSnackBar(
@@ -121,7 +119,6 @@ class JobOrderActions {
         Colors.red[600]!,
         Icons.error_outline,
       );
-      return false; // Return false to indicate failure
     }
   }
 
@@ -160,9 +157,9 @@ class JobOrderActions {
       final detailData = detail.data() as Map<String, dynamic>;
       final quantity = (detailData['quantity'] ?? 0) as int;
       
-      // Skip if somehow we get 0 quantity
+      // Validate quantity before creating variant
       if (quantity <= 0) {
-        print('[WARNING] Skipping variant with 0 quantity for detail: ${detail.id}');
+        print('[WARNING] Skipping variant with invalid quantity: $quantity for detail: ${detail.id}');
         continue;
       }
       
@@ -171,7 +168,7 @@ class JobOrderActions {
         'productID': linkedProductID,
         'size': detailData['size'] ?? '',
         'colorID': detailData['color'] ?? '',
-        'quantityInStock': quantity, // Use quantity from jobOrderDetails
+        'quantityInStock': quantity, // Use validated quantity
         'createdAt': Timestamp.now(),
         'updatedAt': Timestamp.now(),
         'sourceJobOrderID': jobOrderID,
@@ -209,22 +206,18 @@ class JobOrderActions {
       final originalProductID = jobOrderData['productID'];
       final originalProductInfo = this.productData[originalProductID] ?? {};
 
-      // Calculate total stock from jobOrderDetails quantities
-      int totalStock = 0;
-      
-      for (final detail in jobOrderDetails) {
-        final detailData = detail.data() as Map<String, dynamic>;
-        final quantity = (detailData['quantity'] ?? 0) as int;
-        
-        if (quantity <= 0) {
-          throw Exception('JobOrderDetail has invalid quantity: ${detail.id} (quantity: $quantity)');
-        }
-        
-        totalStock += quantity;
-        print('[DEBUG] JobOrderDetail quantity - ID: ${detail.id}, quantity: $quantity');
-      }
+      // Calculate total stock from all variants with validation
+      final totalStock = jobOrderDetails.fold<int>(
+        0,
+        (sum, detail) {
+          final detailData = detail.data() as Map<String, dynamic>;
+          final quantity = (detailData['quantity'] ?? 0) as int;
+          print('[DEBUG] Adding variant quantity: $quantity');
+          return sum + quantity;
+        },
+      );
 
-      print('[DEBUG] Total stock calculated from jobOrderDetails: $totalStock');
+      print('[DEBUG] Total stock calculated: $totalStock');
 
       if (totalStock <= 0) {
         throw Exception('Total stock must be greater than 0 to create product');
@@ -244,12 +237,11 @@ class JobOrderActions {
       
       for (final detail in jobOrderDetails) {
         final detailData = detail.data() as Map<String, dynamic>;
-        final variantQuantity = (detailData['quantity'] ?? 0) as int;
+        final quantity = (detailData['quantity'] ?? 0) as int;
         
-        // Skip if somehow we get 0 quantity
-        if (variantQuantity <= 0) {
-          print('[WARNING] Skipping variant with 0 quantity for detail: ${detail.id}');
-          continue;
+        // Validate quantity before creating variant
+        if (quantity <= 0) {
+          throw Exception('Variant quantity must be greater than 0 for detail: ${detail.id}');
         }
         
         final variantRef = FirebaseFirestore.instance.collection('productVariants').doc();
@@ -259,28 +251,23 @@ class JobOrderActions {
           'productID': productRef.id,
           'size': detailData['size'] ?? '',
           'colorID': detailData['color'] ?? '',
-          'quantityInStock': variantQuantity, // Use quantity from jobOrderDetails
+          'quantityInStock': quantity, // Use validated quantity
           'createdAt': Timestamp.now(),
           'updatedAt': Timestamp.now(),
           'sourceJobOrderID': jobOrderID,
           'sourceJobOrderDetailID': detail.id,
         };
         
-        print('[DEBUG] Creating variant with quantity: $variantQuantity for size: ${detailData['size']}, color: ${detailData['color']}');
+        print('[DEBUG] Creating variant with quantity: $quantity for size: ${detailData['size']}, color: ${detailData['color']}');
         batch.set(variantRef, variantData);
       }
       
       // Create the product with all required fields
-      final specialInstructions = jobOrderData['specialInstructions']?.toString().trim() ?? '';
-      final productNotes = specialInstructions.isNotEmpty 
-          ? specialInstructions 
-          : 'Created from job order: $jobOrderName';
-      
       final newProductData = {
         'name': jobOrderName,
-        'notes': productNotes,
+        'notes': 'Created from job order: $jobOrderName',
         'price': unitPrice,
-        'categoryID': productResult.categoryID ?? jobOrderData['category'] ?? originalProductInfo['category'] ?? 'uncategorized',
+        'categoryID': productResult.categoryID ?? jobOrderData['category'] ?? originalProductInfo['category'] ?? 'custom',
         'isUpcycled': originalProductInfo['isUpcycled'] ?? jobOrderData['isUpcycled'] ?? false,
         'isMade': true,
         'createdBy': jobOrderData['createdBy'] ?? jobOrderData['assignedTo'] ?? 'unknown',
@@ -402,9 +389,9 @@ class JobOrderActions {
       final detailData = detail.data() as Map<String, dynamic>;
       final quantity = (detailData['quantity'] ?? 0) as int;
       
-      // Skip if somehow we get 0 quantity
+      // Validate quantity before creating variant
       if (quantity <= 0) {
-        print('[WARNING] Skipping variant with 0 quantity for detail: ${detail.id}');
+        print('[WARNING] Skipping variant with invalid quantity: $quantity for detail: ${detail.id}');
         continue;
       }
       
@@ -413,7 +400,7 @@ class JobOrderActions {
         'productID': selectedProductID,
         'size': detailData['size'] ?? '',
         'colorID': detailData['color'] ?? '',
-        'quantityInStock': quantity, // Use quantity from jobOrderDetails
+        'quantityInStock': quantity, // Use validated quantity
         'createdAt': Timestamp.now(),
         'updatedAt': Timestamp.now(),
         'sourceJobOrderID': jobOrderID,

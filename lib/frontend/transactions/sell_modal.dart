@@ -216,15 +216,18 @@ class _SellModalState extends State<SellModal> {
                       pricePerItem: price,
                       userId: userId,
                     );
-                    Navigator.of(context).pop({
-                      'price': price,
-                      'quantity': quantity,
-                      'sellAll': _sellAll,
-                    });
+                    if (mounted) {
+                      // If the parent expects a result, handle it there. Otherwise, just pop.
+                      Navigator.of(context).pop();
+                      // Or, if you want to return details, make sure the parent expects a Map:
+                      // Navigator.of(context).pop({'price': price, 'quantity': quantity, 'sellAll': _sellAll});
+                    }
                   } catch (e) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Sell failed: $e'), backgroundColor: Colors.red),
-                    );
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Sell failed: $e'), backgroundColor: Colors.red),
+                      );
+                    }
                   }
                 },
               ),

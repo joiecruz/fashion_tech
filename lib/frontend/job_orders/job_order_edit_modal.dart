@@ -1485,21 +1485,12 @@ class _JobOrderEditModalState extends State<JobOrderEditModal>
 
             // Trigger the mark as done process (which includes product conversion)
             // This will update the status to 'Done' internally if successful
-            final success = await jobOrderActions.markJobOrderAsDone(
+            await jobOrderActions.markJobOrderAsDone(
               widget.jobOrderId,
               updatedJobOrderData['name'] ?? 'Unnamed Job Order',
               updatedJobOrderData,
             );
-            
-            if (success) {
-              print('[DEBUG] Product conversion completed successfully - job order marked as done');
-            } else {
-              print('[DEBUG] Product conversion was cancelled or failed');
-              // User cancelled or conversion failed - revert status and keep modal open
-              _jobStatus = _originalJobStatus;
-              setState(() => _saving = false);
-              return; // Exit early without showing notification or closing modal
-            }
+            print('[DEBUG] Product conversion completed - markJobOrderAsDone returned (void)');
             
           } else {
             print('[WARNING] No job order details found for product conversion');

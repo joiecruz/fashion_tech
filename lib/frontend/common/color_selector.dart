@@ -25,6 +25,7 @@ class ColorSelector extends StatefulWidget {
 class _ColorSelectorState extends State<ColorSelector> {
   List<ColorModel.Color> _availableColors = [];
   bool _isLoading = true;
+  bool _loadFailed = false;
 
   @override
   void initState() {
@@ -36,6 +37,7 @@ class _ColorSelectorState extends State<ColorSelector> {
     try {
       setState(() {
         _isLoading = true;
+        _loadFailed = false;
       });
 
       // Initialize default colors if needed
@@ -54,6 +56,7 @@ class _ColorSelectorState extends State<ColorSelector> {
       setState(() {
         _availableColors = colors;
         _isLoading = false;
+        _loadFailed = false;
       });
 
       // Find selected color if we have an ID
@@ -69,6 +72,16 @@ class _ColorSelectorState extends State<ColorSelector> {
       print('[ERROR] Failed to load colors: $e');
       setState(() {
         _isLoading = false;
+        _loadFailed = true;
+        // Fallback: provide a static color list if loading fails
+        _availableColors = [
+          ColorModel.Color(id: 'Black', name: 'Black', hexCode: '#000000', createdBy: 'SYSTEM_DEFAULT'),
+          ColorModel.Color(id: 'White', name: 'White', hexCode: '#FFFFFF', createdBy: 'SYSTEM_DEFAULT'),
+          ColorModel.Color(id: 'Red', name: 'Red', hexCode: '#FF0000', createdBy: 'SYSTEM_DEFAULT'),
+          ColorModel.Color(id: 'Blue', name: 'Blue', hexCode: '#0000FF', createdBy: 'SYSTEM_DEFAULT'),
+          ColorModel.Color(id: 'Green', name: 'Green', hexCode: '#00FF00', createdBy: 'SYSTEM_DEFAULT'),
+          ColorModel.Color(id: 'Yellow', name: 'Yellow', hexCode: '#FFFF00', createdBy: 'SYSTEM_DEFAULT'),
+        ];
       });
     }
   }
@@ -110,6 +123,18 @@ class _ColorSelectorState extends State<ColorSelector> {
 
   @override
   Widget build(BuildContext context) {
+    // Debug: print available color IDs and selected value
+    print('[ColorSelector] available IDs: '
+      + _availableColors.map((c) => c.id).join(', ')
+      + ' | selected: '
+      + (widget.selectedColorId ?? 'null'));
+
+    String? dropdownValue = widget.selectedColorId;
+    // If the selected value is not in the available list, set to null
+    if (dropdownValue != null && !_availableColors.any((c) => c.id == dropdownValue)) {
+      dropdownValue = null;
+    }
+
     if (_isLoading) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -158,12 +183,13 @@ class _ColorSelectorState extends State<ColorSelector> {
           const SizedBox(height: 8),
         ],
         DropdownButtonFormField<String>(
-          value: widget.selectedColorId,
+          key: ValueKey(dropdownValue), // Ensure unique key for state
+          value: dropdownValue,
           decoration: InputDecoration(
             border: const OutlineInputBorder(),
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             hintText: 'Select a color',
-            errorText: widget.isRequired && widget.selectedColorId == null 
+            errorText: widget.isRequired && dropdownValue == null 
                 ? 'Color is required' 
                 : null,
           ),

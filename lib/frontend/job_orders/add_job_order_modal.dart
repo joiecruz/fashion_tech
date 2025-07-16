@@ -37,11 +37,9 @@ import 'widgets/fabric_suppliers_section.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../models/customer.dart';
 import '../customers/add_customer_modal.dart';
-import '../common/simple_category_dropdown.dart';
-import '../../utils/log_helper.dart';
 
 class AddJobOrderModal extends StatefulWidget {
-  const AddJobOrderModal({super.key});
+  const AddJobOrderModal({Key? key}) : super(key: key);
 
   @override
   State<AddJobOrderModal> createState() => _AddJobOrderModalState();
@@ -78,9 +76,9 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
   bool _loadingCustomers = true;
   
   bool _isUpcycled = false;
-  String _jobStatus = 'Open'; // Changed default status to Open
-  String _selectedCategory = 'uncategorized'; // Add category field
-  final List<FormProductVariant> _variants = [];
+  String _jobStatus = 'In Progress';
+  String _selectedCategory = 'custom'; // Add category field
+  List<FormProductVariant> _variants = [];
 
   List<Map<String, dynamic>> _userFabrics = [];
   bool _loadingFabrics = true;
@@ -91,11 +89,8 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
 
   Map<String, double> _fabricAllocated = {};
 
-  // Spam protection for CRUD operations
-  bool _isSaving = false;
-
   // Track expanded/collapsed state for each section
-  final Map<String, bool> _sectionExpanded = {
+  Map<String, bool> _sectionExpanded = {
     'Basic Information': true,  // Start with this section expanded
     'Timeline': true,          // Timeline is also critical - expand by default
     'Assignment & Quantities': false,
@@ -856,15 +851,14 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
           icon: Icons.recycling,
         ),
         const SizedBox(height: 16),
-        SimpleCategoryDropdown(
-          selectedCategory: _selectedCategory,
-          onChanged: (value) {
-            setState(() {
-              _selectedCategory = value ?? 'uncategorized';
-            });
-          },
-          validator: (value) {
-            if (value == null || value.isEmpty) {
+        _buildDropdownField(
+          value: _selectedCategory,
+          label: 'Product Category',
+          icon: Icons.category,
+          items: ['top', 'bottom', 'dress', 'outerwear', 'accessories', 'shoes', 'custom'],
+          onChanged: (val) => setState(() => _selectedCategory = val ?? 'custom'),
+          validator: (val) {
+            if (val == null || val.isEmpty) {
               return 'Please select a category';
             }
             return null;
@@ -875,11 +869,11 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
           value: _jobStatus,
           label: 'Job Status',
           icon: Icons.flag,
-          items: ['Open', 'In Progress', 'Done', 'Cancelled', 'Archived'],
+          items: ['Open', 'In Progress', 'Done'],
           onChanged: (val) => setState(() => _jobStatus = val ?? 'In Progress'),
           validator: (val) {
             if (val?.isEmpty ?? true) return 'Job status is required';
-            if (!['Open', 'In Progress', 'Done', 'Cancelled', 'Archived'].contains(val)) {
+            if (!['Open', 'In Progress', 'Done'].contains(val)) {
               return 'Please select a valid status';
             }
             return null;
@@ -1059,9 +1053,9 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
 
   Widget _buildSaveButton() {
     return ElevatedButton(
-      onPressed: _isSaving ? null : _saveJobOrder, // Disable when saving to prevent spam
+      onPressed: _saveJobOrder,
       style: ElevatedButton.styleFrom(
-        backgroundColor: _isSaving ? Colors.grey : Colors.green,
+        backgroundColor: Colors.green,
         foregroundColor: Colors.white,
         minimumSize: const Size.fromHeight(56),
         shape: RoundedRectangleBorder(
@@ -1072,34 +1066,15 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          if (_isSaving) ...[
-            SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-              ),
+          Icon(Icons.save, size: 20),
+          SizedBox(width: 8),
+          Text(
+            'Save Job Order',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
             ),
-            SizedBox(width: 8),
-            Text(
-              'Saving...',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ] else ...[
-            Icon(Icons.save, size: 20),
-            SizedBox(width: 8),
-            Text(
-              'Save Job Order',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
+          ),
         ],
       ),
     );
@@ -1466,7 +1441,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
           items: _customers.map<DropdownMenuItem<Customer>>((Customer customer) {
             return DropdownMenuItem<Customer>(
               value: customer,
-              child: SizedBox(
+              child: Container(
                 width: double.infinity,
                 child: Text(
                   customer.fullName,
@@ -1801,13 +1776,6 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
   /// - Fabric quantities are decremented based on total yardageUsed across all variants
   /// - Validation prevents job order creation if insufficient fabric inventory
   Future<void> _saveJobOrder() async {
-    // Prevent spam clicking
-    if (_isSaving) return;
-    
-    setState(() {
-      _isSaving = true;
-    });
-
     try {
       // Validate the form first
       final errors = _validateForm();
@@ -1838,7 +1806,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
             : FieldValue.serverTimestamp(), // custom field (not in ERDv9)
         'price': double.tryParse(_priceController.text) ?? 0.0, // Add price field
         'isUpcycled': _isUpcycled, // Add upcycled flag
-        'categoryID': _selectedCategory, // ERDv9: Store categoryID instead of category
+        'category': _selectedCategory, // Add category field
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
@@ -1878,7 +1846,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
           'size': variant.size, // required
           'color': colorString, // ERDv9: color field is string from fabric, not colorID FK
           'notes': '', // ERDv9: notes field (optional)
-          'quantity': variant.quantity, // Add quantity field for job order details
+          // Note: quantity is not in ERDv9 JOBORDERDETAIL schema
           'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
         });
@@ -1944,28 +1912,6 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
         });
       }
 
-      // Log job order creation
-      try {
-        await addLog(
-          collection: 'jobOrderLogs',
-          createdBy: FirebaseAuth.instance.currentUser?.uid ?? 'anonymous',
-          remarks: 'Created job order',
-          changeType: 'add',
-          extraData: {
-            'jobOrderId': jobOrderRef.id,
-            'status': _jobStatus,
-            'quantityChanged': int.tryParse(_quantityController.text) ?? 0,
-            'notes': _specialInstructionsController.text,
-            'customerId': _selectedCustomer?.id,
-            'productId': 'default_product_id',
-            'price': double.tryParse(_priceController.text) ?? 0.0,
-            'dueDate': _dueDateController.text,
-          },
-        );
-      } catch (e) {
-        print('Failed to log job order creation: $e');
-      }
-
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
@@ -2007,7 +1953,7 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
                     ],
                   ),
                 );
-              }),
+              }).toList(),
             ],
           ),
           actions: [
@@ -2030,52 +1976,6 @@ class _AddJobOrderModalState extends State<AddJobOrderModal>
           actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
         ),
       );
-    } finally {
-      // Always reset the saving state
-      if (mounted) {
-        setState(() {
-          _isSaving = false;
-        });
-      }
-    }
-  }
-
-  /// Edit JobOrder (future-proof stub for logging)
-  Future<void> _editJobOrder(String jobOrderId, Map<String, dynamic> updatedFields) async {
-    try {
-      await FirebaseFirestore.instance.collection('jobOrders').doc(jobOrderId).update(updatedFields);
-      // Log job order edit
-      await addLog(
-        collection: 'jobOrderLogs',
-        createdBy: FirebaseAuth.instance.currentUser?.uid ?? 'anonymous',
-        remarks: 'Edited job order',
-        changeType: 'edit',
-        extraData: {
-          'jobOrderId': jobOrderId,
-          'updatedFields': updatedFields,
-        },
-      );
-    } catch (e) {
-      print('Failed to log job order edit: $e');
-    }
-  }
-
-  /// Delete JobOrder (future-proof stub for logging)
-  Future<void> _deleteJobOrder(String jobOrderId) async {
-    try {
-      await FirebaseFirestore.instance.collection('jobOrders').doc(jobOrderId).delete();
-      // Log job order deletion
-      await addLog(
-        collection: 'jobOrderLogs',
-        createdBy: FirebaseAuth.instance.currentUser?.uid ?? 'anonymous',
-        remarks: 'Deleted job order',
-        changeType: 'delete',
-        extraData: {
-          'jobOrderId': jobOrderId,
-        },
-      );
-    } catch (e) {
-      print('Failed to log job order deletion: $e');
     }
   }
 

@@ -246,6 +246,7 @@ Future<void> _saveProduct() async {
     final Map<String, dynamic> productData = {
       'name': _nameController.text.trim(),
       'price': double.tryParse(_priceController.text) ?? 0,
+      // 'stock' is not set directly; it will be calculated from variants
       'categoryID': _selectedCategory, // ERDv9: Changed from 'category' to 'categoryID'
       'supplierID': _selectedSupplierID, // ERDv9: Use supplierID instead of supplier name
       'notes': _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
@@ -259,6 +260,7 @@ Future<void> _saveProduct() async {
       }).toList(),
       'acquisitionDate': _acquisitionDate,
       'updatedAt': DateTime.now(),
+      'stock': _variants.fold(0, (sum, v) => sum + (v.quantityInStock)), // ERDv9: stock is sum of variant quantities
     };
 
     if (widget.productData['createdAt'] != null) {
@@ -269,6 +271,47 @@ Future<void> _saveProduct() async {
         .collection('products')
         .doc(docId)
         .update(productData);
+    // --- Update productVariants collection to match edited variants ---
+    final variantsCollection = FirebaseFirestore.instance.collection('productVariants');
+    // Fetch existing variants for this product
+    final existingVariantsSnapshot = await variantsCollection.where('productID', isEqualTo: docId).get();
+    final existingVariantDocs = existingVariantsSnapshot.docs;
+    // Build a map for quick lookup
+    final Map<String, QueryDocumentSnapshot> existingByKey = {
+      for (var doc in existingVariantDocs)
+        (doc['size'] ?? '') + '_' + (doc['colorID'] ?? doc['color'] ?? ''): doc
+    };
+    // Track which keys are still present
+    final Set<String> updatedKeys = {};
+    for (final v in _variants) {
+      final key = v.size + '_' + v.color;
+      updatedKeys.add(key);
+      final match = existingByKey[key];
+      if (match != null) {
+        // Update existing variant
+        await variantsCollection.doc(match.id).update({
+          'size': v.size,
+          'colorID': v.color,
+          'quantityInStock': v.quantityInStock,
+          'productID': docId,
+        });
+      } else {
+        // Add new variant
+        await variantsCollection.add({
+          'size': v.size,
+          'colorID': v.color,
+          'quantityInStock': v.quantityInStock,
+          'productID': docId,
+        });
+      }
+    }
+    // Delete variants that were removed
+    for (final doc in existingVariantDocs) {
+      final key = (doc['size'] ?? '') + '_' + (doc['colorID'] ?? doc['color'] ?? '');
+      if (!updatedKeys.contains(key)) {
+        await variantsCollection.doc(doc.id).delete();
+      }
+    }
     await Future.delayed(const Duration(milliseconds: 300));
 
     // Log product edit
@@ -374,217 +417,569 @@ Future<void> _saveProduct() async {
   }
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // Header
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-          child: Row(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: () => Navigator.of(context).pop(),
-              ),
-              const SizedBox(width: 8),
-              const Text(
-                'Edit Product',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
-              ),
-            ],
-          ),
+    return SafeArea(
+      child: Container(
+        margin: const EdgeInsets.only(top: 100),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
-        // Body
-        Expanded(
-          child: Form(
-            key: _formKey,
-            child: SingleChildScrollView(
-              controller: _scrollController,
-              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-              physics: const BouncingScrollPhysics(),
-              padding: EdgeInsets.fromLTRB(
-                20,
-                20,
-                20,
-                MediaQuery.of(context).viewInsets.bottom + 100,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Fixed Header
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+              child: Row(
                 children: [
-                // Product Image Upload
-                Card(
-                  elevation: 3,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back),
+                    onPressed: () => Navigator.of(context).pop(),
                   ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Edit Product',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            // Scrollable Form Content
+            Expanded(
+              child: SingleChildScrollView(
+                controller: _scrollController,
+                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                physics: const BouncingScrollPhysics(),
+                child: Form(
+                  key: _formKey,
                   child: Padding(
-                    padding: const EdgeInsets.all(20),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.image,
-                              color: Colors.orange[600],
-                              size: 24,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Product Image',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.grey[800],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        GestureDetector(
-                          onTap: _uploading ? null : _pickImage,
-                          child: Container(
-                            width: double.infinity,
-                            height: (_productImage != null || _productImageUrl != null) ? 220 : 160,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: (_productImage != null || _productImageUrl != null)
-                                    ? Colors.orange[300]!
-                                    : Colors.grey[300]!,
-                                width: 2,
-                                style: BorderStyle.solid,
-                              ),
-                              color: (_productImage != null || _productImageUrl != null)
-                                  ? Colors.orange[50]
-                                  : Colors.grey[50],
-                            ),
-                            child: Stack(
+                        // Product Image Upload
+                        Card(
+                          elevation: 3,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(20),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Positioned.fill(child: _buildImagePreview()),
-                                if (_productImage != null || _productImageUrl != null)
-                                  Positioned(
-                                    top: 8,
-                                    right: 8,
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        color: Colors.black54,
-                                        borderRadius: BorderRadius.circular(20),
-                                      ),
-                                      child: IconButton(
-                                        icon: const Icon(Icons.edit, color: Colors.white, size: 18),
-                                        onPressed: _pickImage,
-                                        padding: const EdgeInsets.all(4),
-                                        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.image,
+                                      color: Colors.orange[600],
+                                      size: 24,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Product Image',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.grey[800],
                                       ),
                                     ),
-                                  ),
-                                if (_productImageUrl != null && !_uploading)
-                                  Positioned(
-                                    bottom: 8,
-                                    left: 8,
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: Colors.green,
-                                        borderRadius: BorderRadius.circular(12),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+                                GestureDetector(
+                                  onTap: _uploading ? null : _pickImage,
+                                  child: Container(
+                                    width: double.infinity,
+                                    height: (_productImage != null || _productImageUrl != null) ? 220 : 160,
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: (_productImage != null || _productImageUrl != null)
+                                            ? Colors.orange[300]!
+                                            : Colors.grey[300]!,
+                                        width: 2,
+                                        style: BorderStyle.solid,
                                       ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: const [
-                                          Icon(Icons.check, color: Colors.white, size: 14),
-                                          SizedBox(width: 4),
+                                      color: (_productImage != null || _productImageUrl != null)
+                                          ? Colors.orange[50]
+                                          : Colors.grey[50],
+                                    ),
+                                    child: Stack(
+                                      children: [
+                                        Positioned.fill(child: _buildImagePreview()),
+                                        if (_productImage != null || _productImageUrl != null)
+                                          Positioned(
+                                            top: 8,
+                                            right: 8,
+                                            child: Container(
+                                              decoration: BoxDecoration(
+                                                color: Colors.black54,
+                                                borderRadius: BorderRadius.circular(20),
+                                              ),
+                                              child: IconButton(
+                                                icon: const Icon(Icons.edit, color: Colors.white, size: 18),
+                                                onPressed: _pickImage,
+                                                padding: const EdgeInsets.all(4),
+                                                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                                              ),
+                                            ),
+                                          ),
+                                        if (_productImageUrl != null && !_uploading)
+                                          Positioned(
+                                            bottom: 8,
+                                            left: 8,
+                                            child: Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                              decoration: BoxDecoration(
+                                                color: Colors.green,
+                                                borderRadius: BorderRadius.circular(12),
+                                              ),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: const [
+                                                  Icon(Icons.check, color: Colors.white, size: 14),
+                                                  SizedBox(width: 4),
+                                                  Text(
+                                                    'Uploaded',
+                                                    style: TextStyle(color: Colors.white, fontSize: 12),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                if (_productImageUrl != null || _productImage != null)
+                                  Text(
+                                    'Tap the image to change or re-upload. The image will be shown in product listings.',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.grey[500],
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  )
+                                else
+                                  Text(
+                                    'Upload a product image. Photos from your camera will be automatically compressed for storage.',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.grey[500],
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        // Product Name
+                        Card(
+                          elevation: 2,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Product Name',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.grey[800],
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                TextFormField(
+                                  controller: _nameController,
+                                  focusNode: _nameFocus,
+                                  textInputAction: TextInputAction.next,
+                                  onFieldSubmitted: (_) => _priceFocus.requestFocus(),
+                                  decoration: InputDecoration(
+                                    hintText: 'Enter product name',
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: BorderSide(color: Colors.grey[300]!),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: BorderSide(color: Colors.blue[600]!),
+                                    ),
+                                  ),
+                                  validator: (value) {
+                                    if (value == null || value.trim().isEmpty) {
+                                      return 'Please enter a product name';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        // Price and Category Row
+                        IntrinsicHeight(
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              // Price
+                              Expanded(
+                                child: Card(
+                                  elevation: 2,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(16),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          'Price (₱)',
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.grey[800],
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Flexible(
+                                          child: TextFormField(
+                                            controller: _priceController,
+                                            focusNode: _priceFocus,
+                                            textInputAction: TextInputAction.next,
+                                            onFieldSubmitted: (_) => _stockFocus.requestFocus(),
+                                            keyboardType: TextInputType.numberWithOptions(decimal: true),
+                                            decoration: InputDecoration(
+                                              hintText: '0.00',
+                                              border: OutlineInputBorder(
+                                                borderRadius: BorderRadius.circular(8),
+                                                borderSide: BorderSide(color: Colors.grey[300]!),
+                                              ),
+                                              focusedBorder: OutlineInputBorder(
+                                                borderRadius: BorderRadius.circular(8),
+                                                borderSide: BorderSide(color: Colors.blue[600]!),
+                                              ),
+                                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                            ),
+                                            validator: (value) {
+                                              if (value == null || value.trim().isEmpty) {
+                                                return 'Enter price';
+                                              }
+                                              final price = double.tryParse(value);
+                                              if (price == null || price <= 0) {
+                                                return 'Enter valid price';
+                                              }
+                                              return null;
+                                            },
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              // Category
+                              Expanded(
+                                child: Card(
+                                  elevation: 2,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(16),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          'Category',
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.grey[800],
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Flexible(
+                                          child: SimpleCategoryDropdown(
+                                            selectedCategory: _selectedCategory,
+                                            onChanged: (value) {
+                                              setState(() {
+                                                _selectedCategory = value ?? 'uncategorized';
+                                              });
+                                            },
+                                            isRequired: true,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        // Supplier Dropdown
+                        SupplierDropdown(
+                          selectedSupplierID: _selectedSupplierID,
+                          suppliers: _suppliers,
+                          loadingSuppliers: _loadingSuppliers,
+                          onSupplierChanged: (value) {
+                            setState(() {
+                              _selectedSupplierID = value;
+                              // Update the text controller for backward compatibility
+                              if (value != null && value.isNotEmpty) {
+                                final selectedSupplier = _suppliers.firstWhere(
+                                  (supplier) => supplier['id'] == value,
+                                  orElse: () => {},
+                                );
+                                if (selectedSupplier.isNotEmpty) {
+                                  _supplierController.text = selectedSupplier['name'] ?? '';
+                                }
+                              } else {
+                                _supplierController.text = '';
+                              }
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        // Acquisition Date
+                        Card(
+                          elevation: 2,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Acquisition Date',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.grey[800],
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                InkWell(
+                                  onTap: () async {
+                                    final selectedDate = await showDatePicker(
+                                      context: context,
+                                      initialDate: _acquisitionDate ?? DateTime.now(),
+                                      firstDate: DateTime(2000),
+                                      lastDate: DateTime.now(),
+                                      builder: (context, child) {
+                                        return Theme(
+                                          data: Theme.of(context).copyWith(
+                                            colorScheme: ColorScheme.light(primary: Colors.blue[600]!),
+                                          ),
+                                          child: child!,
+                                        );
+                                      },
+                                    );
+                                    if (selectedDate != null) {
+                                      setState(() {
+                                        _acquisitionDate = selectedDate;
+                                      });
+                                    }
+                                  },
+                                  child: Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                                    decoration: BoxDecoration(
+                                      border: Border.all(color: Colors.grey[300]!),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.calendar_today, size: 20, color: Colors.grey[600]),
+                                        const SizedBox(width: 12),
+                                        Text(
+                                          _acquisitionDate != null
+                                              ? '${_acquisitionDate!.day}/${_acquisitionDate!.month}/${_acquisitionDate!.year}'
+                                              : 'Select date',
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            color: _acquisitionDate != null ? Colors.black87 : Colors.grey[600],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        // Additional Notes
+                        Card(
+                          elevation: 2,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Additional Notes - Optional',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.grey[800],
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                TextFormField(
+                                  controller: _notesController,
+                                  focusNode: _notesFocus,
+                                  textInputAction: TextInputAction.done,
+                                  maxLines: 3,
+                                  decoration: InputDecoration(
+                                    hintText: 'Any additional notes, purchase details, condition, etc.',
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: BorderSide(color: Colors.grey[300]!),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: BorderSide(color: Colors.blue[600]!),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        // Product Properties
+                        Card(
+                          elevation: 2,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Product Properties',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.grey[800],
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                // Upcycled Switch
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.recycling,
+                                      color: Colors.green[600],
+                                      size: 24,
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          const Text(
+                                            'Upcycled Product',
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
                                           Text(
-                                            'Uploaded',
-                                            style: TextStyle(color: Colors.white, fontSize: 12),
+                                            'Made from recycled materials',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey[600],
+                                            ),
                                           ),
                                         ],
                                       ),
                                     ),
-                                  ),
+                                    Switch(
+                                      value: _isUpcycled,
+                                      onChanged: (value) {
+                                        setState(() {
+                                          _isUpcycled = value;
+                                        });
+                                      },
+                                      activeColor: Colors.green[600],
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+                                // Made Switch
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.handyman,
+                                      color: Colors.blue[600],
+                                      size: 24,
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          const Text(
+                                            'Made Product',
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                          Text(
+                                            'Product is ready for sale',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey[600],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Switch(
+                                      value: _isMade,
+                                      onChanged: (value) {
+                                        setState(() {
+                                          _isMade = value;
+                                        });
+                                      },
+                                      activeColor: Colors.blue[600],
+                                    ),
+                                  ],
+                                ),
                               ],
                             ),
                           ),
                         ),
-                        const SizedBox(height: 8),
-                        if (_productImageUrl != null || _productImage != null)
-                          Text(
-                            'Tap the image to change or re-upload. The image will be shown in product listings.',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.grey[500],
-                            ),
-                            textAlign: TextAlign.center,
-                          )
-                        else
-                          Text(
-                            'Upload a product image. Photos from your camera will be automatically compressed for storage.',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.grey[500],
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                // Product Name
-                Card(
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Product Name',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey[800],
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        TextFormField(
-                          controller: _nameController,
-                          focusNode: _nameFocus,
-                          textInputAction: TextInputAction.next,
-                          onFieldSubmitted: (_) => _priceFocus.requestFocus(),
-                          decoration: InputDecoration(
-                            hintText: 'Enter product name',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(color: Colors.grey[300]!),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(color: Colors.blue[600]!),
-                            ),
-                          ),
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return 'Please enter a product name';
-                            }
-                            return null;
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                // Price and Category Row
-                IntrinsicHeight(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // Price
-                      Expanded(
-                        child: Card(
+                        const SizedBox(height: 16),
+                        // Product Variants Section
+                        Card(
                           elevation: 2,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -593,541 +988,210 @@ Future<void> _saveProduct() async {
                             padding: const EdgeInsets.all(16),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
                               children: [
-                                Text(
-                                  'Price (₱)',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.grey[800],
-                                  ),
+                                Row(
+                                  children: [
+                                    Text(
+                                      'Product Variants',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.grey[800],
+                                      ),
+                                    ),
+                                    const Spacer(),
+                                    TextButton.icon(
+                                      onPressed: () {
+                                        setState(() {
+                                          _variants.add(ProductVariantInput(
+                                            size: SizeUtils.sizeOptions.first,
+                                            color: 'Black',
+                                            quantityInStock: 0,
+                                          ));
+                                        });
+                                      },
+                                      icon: const Icon(Icons.add, size: 18),
+                                      label: const Text('Add Variant'),
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(height: 8),
-                                Flexible(
-                                  child: TextFormField(
-                                    controller: _priceController,
-                                    focusNode: _priceFocus,
-                                    textInputAction: TextInputAction.next,
-                                    onFieldSubmitted: (_) => _stockFocus.requestFocus(),
-                                    keyboardType: TextInputType.numberWithOptions(decimal: true),
-                                    decoration: InputDecoration(
-                                      hintText: '0.00',
-                                      border: OutlineInputBorder(
+                                const SizedBox(height: 16),
+                                if (_variants.isEmpty)
+                                  Container(
+                                    padding: const EdgeInsets.all(16),
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey[100],
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(color: Colors.grey[300]!),
+                                    ),
+                                    child: const Center(
+                                      child: Text(
+                                        'No variants added yet.\nAdd variants to specify size, color, and stock quantities.',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(color: Colors.grey),
+                                      ),
+                                    ),
+                                  )
+                                else
+                                  ..._variants.asMap().entries.map((entry) {
+                                    final index = entry.key;
+                                    final variant = entry.value;
+                                    return Container(
+                                      margin: const EdgeInsets.only(bottom: 12),
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: Colors.blue[50],
                                         borderRadius: BorderRadius.circular(8),
-                                        borderSide: BorderSide(color: Colors.grey[300]!),
+                                        border: Border.all(color: Colors.blue[200]!),
                                       ),
-                                      focusedBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: BorderSide(color: Colors.blue[600]!),
-                                      ),
-                                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                                    ),
-                                    validator: (value) {
-                                      if (value == null || value.trim().isEmpty) {
-                                        return 'Enter price';
-                                      }
-                                      final price = double.tryParse(value);
-                                      if (price == null || price <= 0) {
-                                        return 'Enter valid price';
-                                      }
-                                      return null;
-                                    },
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      // Category
-                      Expanded(
-                        child: Card(
-                          elevation: 2,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  'Category',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.grey[800],
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Flexible(
-                                  child: SimpleCategoryDropdown(
-                                    selectedCategory: _selectedCategory,
-                                    onChanged: (value) {
-                                      setState(() {
-                                        _selectedCategory = value ?? 'uncategorized';
-                                      });
-                                    },
-                                    isRequired: true,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                // Supplier Dropdown
-                SupplierDropdown(
-                  selectedSupplierID: _selectedSupplierID,
-                  suppliers: _suppliers,
-                  loadingSuppliers: _loadingSuppliers,
-                  onSupplierChanged: (value) {
-                    setState(() {
-                      _selectedSupplierID = value;
-                      // Update the text controller for backward compatibility
-                      if (value != null && value.isNotEmpty) {
-                        final selectedSupplier = _suppliers.firstWhere(
-                          (supplier) => supplier['id'] == value,
-                          orElse: () => {},
-                        );
-                        if (selectedSupplier.isNotEmpty) {
-                          _supplierController.text = selectedSupplier['name'] ?? '';
-                        }
-                      } else {
-                        _supplierController.text = '';
-                      }
-                    });
-                  },
-                ),
-                const SizedBox(height: 16),
-                // Acquisition Date
-                Card(
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Acquisition Date',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey[800],
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        InkWell(
-                          onTap: () async {
-                            final selectedDate = await showDatePicker(
-                              context: context,
-                              initialDate: _acquisitionDate ?? DateTime.now(),
-                              firstDate: DateTime(2000),
-                              lastDate: DateTime.now(),
-                              builder: (context, child) {
-                                return Theme(
-                                  data: Theme.of(context).copyWith(
-                                    colorScheme: ColorScheme.light(primary: Colors.blue[600]!),
-                                  ),
-                                  child: child!,
-                                );
-                              },
-                            );
-                            if (selectedDate != null) {
-                              setState(() {
-                                _acquisitionDate = selectedDate;
-                              });
-                            }
-                          },
-                          child: Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-                            decoration: BoxDecoration(
-                              border: Border.all(color: Colors.grey[300]!),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(Icons.calendar_today, size: 20, color: Colors.grey[600]),
-                                const SizedBox(width: 12),
-                                Text(
-                                  _acquisitionDate != null
-                                      ? '${_acquisitionDate!.day}/${_acquisitionDate!.month}/${_acquisitionDate!.year}'
-                                      : 'Select date',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    color: _acquisitionDate != null ? Colors.black87 : Colors.grey[600],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                // Additional Notes
-                Card(
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Additional Notes - Optional',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey[800],
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        TextFormField(
-                          controller: _notesController,
-                          focusNode: _notesFocus,
-                          textInputAction: TextInputAction.done,
-                          maxLines: 3,
-                          decoration: InputDecoration(
-                            hintText: 'Any additional notes, purchase details, condition, etc.',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(color: Colors.grey[300]!),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(color: Colors.blue[600]!),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                // Product Properties
-                Card(
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Product Properties',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey[800],
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        // Upcycled Switch
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.recycling,
-                              color: Colors.green[600],
-                              size: 24,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Upcycled Product',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  Text(
-                                    'Made from recycled materials',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey[600],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Switch(
-                              value: _isUpcycled,
-                              onChanged: (value) {
-                                setState(() {
-                                  _isUpcycled = value;
-                                });
-                              },
-                              activeColor: Colors.green[600],
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        // Made Switch
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.handyman,
-                              color: Colors.blue[600],
-                              size: 24,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Made Product',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  Text(
-                                    'Product is ready for sale',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey[600],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Switch(
-                              value: _isMade,
-                              onChanged: (value) {
-                                setState(() {
-                                  _isMade = value;
-                                });
-                              },
-                              activeColor: Colors.blue[600],
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                // Product Variants Section
-                Card(
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Text(
-                              'Product Variants',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.grey[800],
-                              ),
-                            ),
-                            const Spacer(),
-                            TextButton.icon(
-                              onPressed: () {
-                                setState(() {
-                                  _variants.add(ProductVariantInput(
-                                    size: SizeUtils.sizeOptions.first,
-                                    color: 'Black', // Default color that should be available
-                                    quantityInStock: 0,
-                                  ));
-                                });
-                              },
-                              icon: const Icon(Icons.add, size: 18),
-                              label: const Text('Add Variant'),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        if (_variants.isEmpty)
-                          Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: Colors.grey[100],
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: Colors.grey[300]!),
-                            ),
-                            child: const Center(
-                              child: Text(
-                                'No variants added yet.\nAdd variants to specify size, color, and stock quantities.',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(color: Colors.grey),
-                              ),
-                            ),
-                          )
-                        else
-                          ..._variants.asMap().entries.map((entry) {
-                            final index = entry.key;
-                            final variant = entry.value;
-                            return Container(
-                              margin: const EdgeInsets.only(bottom: 12),
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: Colors.blue[50],
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: Colors.blue[200]!),
-                              ),
-                              child: Column(
-                                children: [
-                                  Row(
-                                    children: [
-                                      Text(
-                                        'Variant ${index + 1}',
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 14,
-                                        ),
-                                      ),
-                                      const Spacer(),
-                                      IconButton(
-                                        icon: const Icon(Icons.delete, color: Colors.red, size: 20),
-                                        onPressed: () {
-                                          setState(() {
-                                            _variants.removeAt(index);
-                                          });
-                                        },
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Row(
-                                    children: [
-                                      // Size Dropdown
-                                      Expanded(
-                                        child: DropdownButtonFormField<String>(
-                                          value: variant.size,
-                                          decoration: const InputDecoration(
-                                            labelText: 'Size',
-                                            border: OutlineInputBorder(),
+                                      child: Column(
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Text(
+                                                'Variant ${index + 1}',
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 14,
+                                                ),
+                                              ),
+                                              const Spacer(),
+                                              IconButton(
+                                                icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                                                onPressed: () {
+                                                  setState(() {
+                                                    _variants.removeAt(index);
+                                                  });
+                                                },
+                                              ),
+                                            ],
                                           ),
-                                          items: SizeUtils.buildSizeDropdownItems(showDescriptions: true),
-                                          onChanged: (value) {
-                                            setState(() {
-                                              _variants[index].size = value!;
-                                            });
-                                          },
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      // Color Dropdown
-                                      Expanded(
-                                        child: SimpleColorDropdown(
-                                          selectedColor: variant.color,
-                                          onChanged: (value) {
-                                            setState(() {
-                                              _variants[index].color = value ?? 'Black';
-                                            });
-                                          },
-                                          isRequired: true,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Row(
-                                    children: [
-                                      // Quantity
-                                      Expanded(
-                                        child: TextFormField(
-                                          initialValue: variant.quantityInStock.toString(),
-                                          decoration: const InputDecoration(
-                                            labelText: 'Quantity in Stock',
-                                            border: OutlineInputBorder(),
+                                          const SizedBox(height: 8),
+                                          Row(
+                                            mainAxisAlignment: MainAxisAlignment.start,
+                                            crossAxisAlignment: CrossAxisAlignment.center,
+                                            children: [
+                                              Expanded(
+                                                child: DropdownButtonFormField<String>(
+                                                  value: variant.size,
+                                                  decoration: InputDecoration(
+                                                    labelText: 'Size',
+                                                    border: OutlineInputBorder(
+                                                      borderRadius: BorderRadius.circular(12),
+                                                    ),
+                                                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 18),
+                                                    filled: true,
+                                                    fillColor: Colors.white,
+                                                  ),
+                                                  isExpanded: true,
+                                                  items: SizeUtils.buildSizeDropdownItems(showDescriptions: true),
+                                                  selectedItemBuilder: (context) => SizeUtils.buildConstrainedSizeSelectedItems(
+                                                    context,
+                                                    compact: true,
+                                                    maxWidth: 140,
+                                                  ),
+                                                  onChanged: (value) {
+                                                    setState(() {
+                                                      _variants[index].size = value!;
+                                                    });
+                                                  },
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Expanded(
+                                                child: SimpleColorDropdown(
+                                                  selectedColor: variant.color,
+                                                  onChanged: (value) {
+                                                    setState(() {
+                                                      _variants[index].color = value ?? 'Black';
+                                                    });
+                                                  },
+                                                  isRequired: true,
+                                                ),
+                                              ),
+                                            ],
                                           ),
-                                          keyboardType: TextInputType.number,
-                                          validator: (value) {
-                                            if (value == null || value.trim().isEmpty) {
-                                              return 'Required';
-                                            }
-                                            final qty = int.tryParse(value);
-                                            if (qty == null || qty < 0) {
-                                              return 'Valid qty';
-                                            }
-                                            return null;
-                                          },
-                                          onChanged: (value) {
-                                            final qty = int.tryParse(value) ?? 0;
-                                            setState(() {
-                                              _variants[index].quantityInStock = qty;
-                                            });
-                                          },
-                                        ),
+                                          const SizedBox(height: 8),
+                                          Row(
+                                            children: [
+                                              // Quantity
+                                              Expanded(
+                                                child: TextFormField(
+                                                  initialValue: variant.quantityInStock.toString(),
+                                                  decoration: const InputDecoration(
+                                                    labelText: 'Quantity in Stock',
+                                                    border: OutlineInputBorder(),
+                                                  ),
+                                                  keyboardType: TextInputType.number,
+                                                  validator: (value) {
+                                                    if (value == null || value.trim().isEmpty) {
+                                                      return 'Required';
+                                                    }
+                                                    final qty = int.tryParse(value);
+                                                    if (qty == null || qty < 0) {
+                                                      return 'Valid qty';
+                                                    }
+                                                    return null;
+                                                  },
+                                                  onChanged: (value) {
+                                                    final qty = int.tryParse(value) ?? 0;
+                                                    setState(() {
+                                                      _variants[index].quantityInStock = qty;
+                                                    });
+                                                  },
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
                                       ),
-                                    ],
-                                  ),
-                                ],
+                                    );
+                                  }).toList(),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+                        // Save Button
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: _isLoading ? null : _saveProduct,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue[600],
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
                               ),
-                            );
-                          }).toList(),
+                              elevation: 2,
+                            ),
+                            icon: _isLoading
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                    ),
+                                  )
+                                : const Icon(Icons.save, size: 20),
+                            label: Text(
+                              _isLoading ? 'Saving...' : 'Save Changes',
+                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
                       ],
                     ),
                   ),
                 ),
-                const SizedBox(height: 32),
-                // Save Button
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: _isLoading ? null : _saveProduct,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue[600],
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      elevation: 2,
-                    ),
-                    icon: _isLoading
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                            ),
-                          )
-                        : const Icon(Icons.save, size: 20),
-                    label: Text(
-                      _isLoading ? 'Saving...' : 'Save Changes',
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                ],
               ),
             ),
-          ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }

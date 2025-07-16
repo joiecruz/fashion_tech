@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../utils/size_utils.dart';
 import '../../common/color_selector.dart';
+import '../../common/simple_color_dropdown.dart';
 
 class ProductVariantInput {
   String size;
@@ -20,6 +21,16 @@ class ProductVariantsSection extends StatelessWidget {
   final Function(int) onRemoveVariant;
   final Function(int, String, String, int) onUpdateVariant;
 
+  // Add a static fallback color list (should match ColorSelector fallback)
+  static const List<String> fallbackColorIds = [
+    'Black',
+    'White',
+    'Red',
+    'Blue',
+    'Green',
+    'Yellow'
+  ];
+
   const ProductVariantsSection({
     super.key,
     required this.variants,
@@ -27,6 +38,11 @@ class ProductVariantsSection extends StatelessWidget {
     required this.onRemoveVariant,
     required this.onUpdateVariant,
   });
+
+  String getDefaultColorId() {
+    // Use the first fallback color as default
+    return fallbackColorIds.first;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -57,7 +73,7 @@ class ProductVariantsSection extends StatelessWidget {
                   onPressed: () {
                     onAddVariant(ProductVariantInput(
                       size: SizeUtils.sizeOptions.first,
-                      color: 'Black', // Default color that should be available
+                      color: getDefaultColorId(), // Use valid color ID
                       quantityInStock: 0,
                     ));
                   },
@@ -96,6 +112,7 @@ class ProductVariantsSection extends StatelessWidget {
                     border: Border.all(color: Colors.blue[200]!),
                   ),
                   child: Column(
+                    mainAxisSize: MainAxisSize.min, // Prevent overflow
                     children: [
                       Row(
                         children: [
@@ -114,35 +131,80 @@ class ProductVariantsSection extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          // Size Dropdown
-                          Expanded(
-                            child: DropdownButtonFormField<String>(
-                              value: variant.size,
-                              decoration: const InputDecoration(
-                                labelText: 'Size',
-                                border: OutlineInputBorder(),
+                      // Use IntrinsicHeight to allow dropdowns to open over modal
+                      IntrinsicHeight(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Size Dropdown
+                            Expanded(
+                              flex: 2, // Give more space to the size dropdown
+                              child: SizedBox(
+                                width: 180, // Set a fixed width for both fields
+                                child: DropdownButtonFormField<String>(
+                                  value: variant.size,
+                                  isExpanded: true,
+                                  menuMaxHeight: 350, // Prevents dropdown from overflowing modal
+                                  decoration: InputDecoration(
+                                    filled: true,
+                                    fillColor: Colors.grey.shade50,
+                                    labelText: 'Size',
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: BorderSide.none,
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: BorderSide(color: Colors.grey.shade200),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: BorderSide(color: Colors.blue.shade400, width: 2),
+                                    ),
+                                    errorBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: BorderSide(color: Colors.red.shade400, width: 2),
+                                    ),
+                                    focusedErrorBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: BorderSide(color: Colors.red.shade400, width: 2),
+                                    ),
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                    hintText: 'Select a size',
+                                  ),
+                                  items: SizeUtils.buildSizeDropdownItems(showDescriptions: true),
+                                  selectedItemBuilder: (context) => SizeUtils.buildConstrainedSizeSelectedItems(
+                                    context,
+                                    compact: true,
+                                    maxWidth: 160, // Increased width for logo/label
+                                  ),
+                                  validator: (value) => value == null || value.isEmpty ? 'Please select a size' : null,
+                                  onChanged: (value) {
+                                    onUpdateVariant(index, value!, variant.color, variant.quantityInStock);
+                                  },
+                                ),
                               ),
-                              items: SizeUtils.buildSizeDropdownItems(showDescriptions: true),
-                              onChanged: (value) {
-                                onUpdateVariant(index, value!, variant.color, variant.quantityInStock);
-                              },
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          // Color Selector
-                          Expanded(
-                            child: ColorSelector(
-                              selectedColorId: variant.color,
-                              onColorSelected: (colorId) {
-                                onUpdateVariant(index, variant.size, colorId ?? '', variant.quantityInStock);
-                              },
-                              isRequired: true,
-                              label: 'Color',
+                            const SizedBox(width: 8),
+                            // Color Dropdown (replace ColorSelector with SimpleColorDropdown)
+                            Expanded(
+                              child: SizedBox(
+                                width: 180, // Set a fixed width for both fields
+                                child: SimpleColorDropdown(
+                                  selectedColor: variant.color,
+                                  onChanged: (colorName) {
+                                    onUpdateVariant(index, variant.size, colorName ?? '', variant.quantityInStock);
+                                  },
+                                  isRequired: true,
+                                  validator: (val) {
+                                    if (val == null || val.isEmpty) return 'Please select a color';
+                                    return null;
+                                  },
+                                ),
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                       const SizedBox(height: 8),
                       Row(
