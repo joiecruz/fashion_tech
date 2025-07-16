@@ -9,6 +9,7 @@ class HomeDashboard extends StatefulWidget {
   @override
   State<HomeDashboard> createState() => _HomeDashboardState();
 }
+
 class _HomeDashboardState extends State<HomeDashboard> {
   String? _currentUserId;
 
@@ -25,7 +26,6 @@ class _HomeDashboardState extends State<HomeDashboard> {
         _currentUserId = user.uid;
       });
     } else {
-      // Redirect to login if no user
       WidgetsBinding.instance.addPostFrameCallback((_) {
         Navigator.of(context).pushReplacementNamed('/login');
       });
@@ -34,7 +34,6 @@ class _HomeDashboardState extends State<HomeDashboard> {
 
   Future<String> _getSupplierName(String supplierID) async {
     if (_currentUserId == null) return '';
-    
     try {
       final doc = await FirebaseFirestore.instance
           .collection('suppliers')
@@ -42,7 +41,6 @@ class _HomeDashboardState extends State<HomeDashboard> {
           .get();
       if (doc.exists) {
         final data = doc.data();
-        // Only return supplier name if it belongs to current user
         if (data?['createdBy'] == _currentUserId) {
           return data?['supplierName'] ?? 'Unknown Supplier';
         }
@@ -52,7 +50,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
       return '';
     }
   }
-  // Add this method inside _HomeDashboardState:
+
   Future<int> _getTotalStock() async {
     if (_currentUserId == null) return 0;
     try {
@@ -64,7 +62,6 @@ class _HomeDashboardState extends State<HomeDashboard> {
       int totalStock = 0;
       for (var doc in snapshot.docs) {
         final data = doc.data();
-        // If product uses variants, sum their stock
         final productId = doc.id;
         final variantsSnapshot = await FirebaseFirestore.instance
             .collection('productVariants')
@@ -79,7 +76,6 @@ class _HomeDashboardState extends State<HomeDashboard> {
             }
           }
         } else {
-          // Fallback to 'quantity' field if no variants
           final qty = data['quantity'];
           if (qty != null) {
             totalStock += (qty as num).toInt();
@@ -140,12 +136,11 @@ class _HomeDashboardState extends State<HomeDashboard> {
             left: 18,
             right: 18,
             top: 18,
-            bottom: 40, // Add bottom padding to ensure content is visible above main nav bar
+            bottom: 40,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header
               Padding(
                 padding: const EdgeInsets.only(bottom: 18),
                 child: Row(
@@ -170,7 +165,6 @@ class _HomeDashboardState extends State<HomeDashboard> {
                   ],
                 ),
               ),
-              // Modularized sections:
               StatsRow(currentUserId: _currentUserId),
               const SizedBox(height: 24),
               RecentActivitySection(currentUserId: _currentUserId),
@@ -193,8 +187,6 @@ class _HomeDashboardState extends State<HomeDashboard> {
   }
 }
 
-// --- Modularized Widgets ---
-
 class StatsRow extends StatelessWidget {
   final String? currentUserId;
   const StatsRow({required this.currentUserId, super.key});
@@ -205,7 +197,7 @@ class StatsRow extends StatelessWidget {
       children: [
         Expanded(
           child: StreamBuilder<QuerySnapshot>(
-            stream: currentUserId != null 
+            stream: currentUserId != null
                 ? FirebaseFirestore.instance
                     .collection('fabrics')
                     .where('createdBy', isEqualTo: currentUserId)
@@ -240,7 +232,7 @@ class StatsRow extends StatelessWidget {
         const SizedBox(width: 16),
         Expanded(
           child: StreamBuilder<QuerySnapshot>(
-            stream: currentUserId != null 
+            stream: currentUserId != null
                 ? FirebaseFirestore.instance
                     .collection('products')
                     .where('createdBy', isEqualTo: currentUserId)
@@ -272,92 +264,177 @@ class RecentActivitySection extends StatelessWidget {
   final String? currentUserId;
   const RecentActivitySection({required this.currentUserId, super.key});
 
-  void _showLogsModal(BuildContext context, String? userId) {
-    if (userId == null) return;
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.85,
-        minChildSize: 0.5,
-        maxChildSize: 0.95,
-        builder: (context, scrollController) => LogsTabView(userId: userId, scrollController: scrollController),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     if (currentUserId == null) {
       return const SizedBox.shrink();
     }
-    return FutureBuilder<List<_UnifiedLogEntry>>(
-      future: _fetchRecentLogs(currentUserId!),
+    return modernCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          sectionTitle('Recent Activity', Icons.timeline),
+          const SizedBox(height: 8),
+          _LogTypeList(
+            title: 'Product Logs',
+            icon: Icons.inventory_2,
+            color: Colors.indigo,
+            collection: 'products',
+            userId: currentUserId!,
+          ),
+          _LogTypeList(
+            title: 'Fabric Logs',
+            icon: Icons.checkroom,
+            color: Colors.pink,
+            collection: 'fabrics',
+            userId: currentUserId!,
+          ),
+          _LogTypeList(
+            title: 'Job Order Logs',
+            icon: Icons.assignment_turned_in,
+            color: Colors.deepPurple,
+            collection: 'jobOrders',
+            userId: currentUserId!,
+          ),
+          _LogTypeList(
+            title: 'Supplier Logs',
+            icon: Icons.local_shipping,
+            color: Colors.orange,
+            collection: 'suppliers',
+            userId: currentUserId!,
+          ),
+          _LogTypeList(
+            title: 'Customer Logs',
+            icon: Icons.person,
+            color: Colors.teal,
+            collection: 'customers',
+            userId: currentUserId!,
+          ),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: () {
+                showModalBottomSheet(
+                  context: context,
+                  isScrollControlled: true,
+                  backgroundColor: Colors.transparent,
+                  builder: (context) => DraggableScrollableSheet(
+                    expand: false,
+                    initialChildSize: 0.85,
+                    minChildSize: 0.5,
+                    maxChildSize: 0.95,
+                    builder: (context, scrollController) => LogsTabView(
+                      userId: currentUserId!,
+                      scrollController: scrollController,
+                    ),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.open_in_new, size: 18, color: Colors.deepPurple),
+              label: const Text(
+                'View More',
+                style: TextStyle(color: Colors.deepPurple, fontWeight: FontWeight.w600),
+              ),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                minimumSize: Size(0, 0),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LogTypeList extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final Color color;
+  final String collection;
+  final String userId;
+
+  const _LogTypeList({
+    required this.title,
+    required this.icon,
+    required this.color,
+    required this.collection,
+    required this.userId,
+    super.key,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    String orderByField = collection == 'products' ? 'updatedAt' : 'createdAt';
+
+return FutureBuilder<QuerySnapshot>(
+  future: collection == 'products'
+      ? FirebaseFirestore.instance
+          .collection(collection)
+          .where('createdBy', isEqualTo: userId)
+          .where('deletedAt', isNull: true)
+          .orderBy(orderByField, descending: true)
+          .limit(2)
+          .get()
+      : FirebaseFirestore.instance
+          .collection(collection)
+          .where('createdBy', isEqualTo: userId)
+          .orderBy(orderByField, descending: true)
+          .limit(2)
+          .get(),
+
+          
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: LinearProgressIndicator(),
+          );
         }
-        final logs = snapshot.data ?? [];
-        return modernCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  sectionTitle('Recent Activity', Icons.timeline),
-                  const Spacer(),
-                  TextButton.icon(
-                    onPressed: () => _showLogsModal(context, currentUserId),
-                    icon: const Icon(Icons.open_in_new, size: 18, color: Colors.deepPurple),
-                    label: const Text('View More', style: TextStyle(color: Colors.deepPurple, fontWeight: FontWeight.w600)),
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      minimumSize: Size(0, 0),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              if (logs.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Icon(Icons.info_outline, size: 48, color: Colors.grey[400]),
-                        const SizedBox(height: 16),
-                        const Text('No recent activity.', style: TextStyle(color: Colors.black54)),
-                      ],
-                    ),
-                  ),
-                )
-              else
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    // Calculate how many logs can fit based on available height (min 8, but more if space allows)
-                    int maxLogs = (constraints.maxHeight / 54).floor(); // 54px per row (approx)
-                    maxLogs = maxLogs < 8 ? 8 : maxLogs;
-                    return Column(
-                      children: logs.take(maxLogs).map((log) => Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4.0),
-                        child: ActivityRow(
-                          icon: log.icon,
-                          color: log.color,
-                          text: log.description,
-                          time: log.timeAgo,
-                        ),
-                      )).toList(),
-                    );
-                  },
+        final docs = snapshot.data?.docs ?? [];
+        if (docs.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              children: [
+                Icon(icon, color: color, size: 18),
+                const SizedBox(width: 8),
+                Text('$title: ', style: TextStyle(fontWeight: FontWeight.w600)),
+                const SizedBox(width: 8),
+                const Text('No recent logs.', style: TextStyle(color: Colors.black54)),
+              ],
+            ),
+          );
+        }
+        // Show name for all collections (products, suppliers, customers, etc.)
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, color: color, size: 18),
+                const SizedBox(width: 8),
+                Text('$title:', style: TextStyle(fontWeight: FontWeight.w600)),
+              ],
+            ),
+            ...docs.map((doc) {
+              final data = doc.data() as Map<String, dynamic>;
+                print('Product data: $data');
+              String name = data['name'] ?? data['supplierName'] ?? data['fullName'] ?? '';
+              return Padding(
+                padding: const EdgeInsets.only(left: 32, top: 2, bottom: 2),
+                child: Text(
+                  name,
+                  style: const TextStyle(fontSize: 13),
+                  overflow: TextOverflow.ellipsis,
                 ),
-            ],
-          ),
+              );
+            }),
+            
+            const SizedBox(height: 6),
+          ],
         );
       },
     );
@@ -377,11 +454,18 @@ class _LogsTabViewState extends State<LogsTabView> with SingleTickerProviderStat
   late TabController _tabController;
   final List<String> _tabs = [
     'Fabric Logs',
-    'Product Logs',
-    'Job Order Logs',
-    'Transaction Logs',
     'Supplier Logs',
     'Customer Logs',
+    'Product Logs',
+    'Job Order Logs',
+  ];
+
+  final List<String> _collections = [
+    'fabrics',
+    'suppliers',
+    'customers',
+    'products',
+    'jobOrders',
   ];
 
   @override
@@ -436,14 +520,13 @@ class _LogsTabViewState extends State<LogsTabView> with SingleTickerProviderStat
           Expanded(
             child: TabBarView(
               controller: _tabController,
-              children: [
-                LogsTable(logType: 'fabricLogs', userId: widget.userId, scrollController: widget.scrollController),
-                LogsTable(logType: 'productLogs', userId: widget.userId, scrollController: widget.scrollController),
-                LogsTable(logType: 'jobOrderLogs', userId: widget.userId, scrollController: widget.scrollController),
-                LogsTable(logType: 'transactionLogs', userId: widget.userId, scrollController: widget.scrollController),
-                LogsTable(logType: 'supplierLogs', userId: widget.userId, scrollController: widget.scrollController),
-                LogsTable(logType: 'customerLogs', userId: widget.userId, scrollController: widget.scrollController),
-              ],
+              children: List.generate(_collections.length, (i) {
+                return LogsTable(
+                  logType: _collections[i],
+                  userId: widget.userId,
+                  scrollController: widget.scrollController,
+                );
+              }),
             ),
           ),
         ],
@@ -451,22 +534,43 @@ class _LogsTabViewState extends State<LogsTabView> with SingleTickerProviderStat
     );
   }
 }
-
 class LogsTable extends StatelessWidget {
   final String logType;
   final String userId;
   final ScrollController scrollController;
-  const LogsTable({required this.logType, required this.userId, required this.scrollController, super.key});
+  const LogsTable({
+    required this.logType,
+    required this.userId,
+    required this.scrollController,
+    super.key,
+  });
 
   @override
   Widget build(BuildContext context) {
+    String userField = 'createdBy';
+    String orderByField = 'createdAt';
+    if (logType == 'salesLog') {
+      userField = 'soldBy';
+      orderByField = 'dateSold';
+    } else if (logType == 'products') {
+      orderByField = 'updatedAt';
+    }
+
+    final query = (logType == 'products')
+        ? FirebaseFirestore.instance
+            .collection(logType)
+            .where(userField, isEqualTo: userId)
+            .where('deletedAt', isNull: true)
+            .orderBy(orderByField, descending: true)
+            .limit(50)
+        : FirebaseFirestore.instance
+            .collection(logType)
+            .where(userField, isEqualTo: userId)
+            .orderBy(orderByField, descending: true)
+            .limit(50);
+
     return FutureBuilder<QuerySnapshot>(
-      future: FirebaseFirestore.instance
-          .collection(logType)
-          .where('createdBy', isEqualTo: userId)
-          .orderBy('createdAt', descending: true)
-          .limit(50)
-          .get(),
+      future: query.get(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -484,24 +588,45 @@ class LogsTable extends StatelessWidget {
             ),
           );
         }
-        // Table columns based on logType
+
         List<DataColumn> columns = [
           const DataColumn(label: Text('Date')),
-          const DataColumn(label: Text('Remarks')),
         ];
-        if (logType == 'productLogs' || logType == 'jobOrderLogs') {
-          columns.add(const DataColumn(label: Text('Change Type')));
-          columns.add(const DataColumn(label: Text('Qty')));
+        if (logType == 'fabrics') {
+          columns.addAll([
+            const DataColumn(label: Text('Name')),
+            const DataColumn(label: Text('Type')),
+            const DataColumn(label: Text('Color')),
+            const DataColumn(label: Text('Quantity')),
+          ]);
+        } else if (logType == 'suppliers') {
+          columns.addAll([
+            const DataColumn(label: Text('Supplier Name')),
+            const DataColumn(label: Text('Contact')),
+          ]);
+        } else if (logType == 'customers') {
+          columns.addAll([
+            const DataColumn(label: Text('Customer Name')),
+            const DataColumn(label: Text('Contact')),
+          ]);
+        } else if (logType == 'products') {
+          columns.addAll([
+            const DataColumn(label: Text('Product Name')),
+            const DataColumn(label: Text('Category')),
+            const DataColumn(label: Text('Price')),
+            const DataColumn(label: Text('Stock')),
+            const DataColumn(label: Text('Supplier')),
+            const DataColumn(label: Text('Updated At')),
+          ]);
+        } else if (logType == 'jobOrders') {
+          columns.addAll([
+            const DataColumn(label: Text('Job Name')),
+            const DataColumn(label: Text('Status')),
+          ]);
+        } else {
+          columns.add(const DataColumn(label: Text('Remarks')));
         }
-        if (logType == 'productLogs') {
-          columns.add(const DataColumn(label: Text('Supplier ID')));
-        }
-        if (logType == 'fabricLogs' || logType == 'supplierLogs') {
-          columns.add(const DataColumn(label: Text('Supplier ID')));
-        }
-        if (logType == 'customerLogs') {
-          columns.add(const DataColumn(label: Text('Customer ID')));
-        }
+
         return Scrollbar(
           controller: scrollController,
           child: SingleChildScrollView(
@@ -511,23 +636,54 @@ class LogsTable extends StatelessWidget {
               columns: columns,
               rows: docs.map((doc) {
                 final data = doc.data() as Map<String, dynamic>;
-                final date = (data['createdAt'] as Timestamp?)?.toDate();
+                DateTime? date;
+                if (logType == 'salesLog') {
+                  date = (data['dateSold'] as Timestamp?)?.toDate();
+                } else if (logType == 'products') {
+                  date = (data['updatedAt'] is Timestamp)
+                      ? (data['updatedAt'] as Timestamp).toDate()
+                      : null;
+                } else {
+                  date = (data['createdAt'] as Timestamp?)?.toDate();
+                }
                 List<DataCell> cells = [
                   DataCell(Text(date != null ? _formatTimeAgo(date, DateTime.now()) : '')),
-                  DataCell(Text(data['remarks']?.toString() ?? '')),
                 ];
-                if (logType == 'productLogs' || logType == 'jobOrderLogs') {
-                  cells.add(DataCell(Text(data['changeType']?.toString() ?? '')));
-                  cells.add(DataCell(Text(data['quantityChanged']?.toString() ?? '')));
-                }
-                if (logType == 'productLogs') {
-                  cells.add(DataCell(Text(data['supplierID']?.toString() ?? '')));
-                }
-                if (logType == 'fabricLogs' || logType == 'supplierLogs') {
-                  cells.add(DataCell(Text(data['supplierID']?.toString() ?? '')));
-                }
-                if (logType == 'customerLogs') {
-                  cells.add(DataCell(Text(data['customerID']?.toString() ?? '')));
+                if (logType == 'fabrics') {
+                  cells.addAll([
+                    DataCell(Text(data['name']?.toString() ?? '')),
+                    DataCell(Text(data['type']?.toString() ?? '')),
+                    DataCell(Text(data['color']?.toString() ?? '')),
+                    DataCell(Text(data['quantity']?.toString() ?? '')),
+                  ]);
+                } else if (logType == 'suppliers') {
+                  cells.addAll([
+                    DataCell(Text(data['supplierName']?.toString() ?? '')),
+                    DataCell(Text(data['contactNum']?.toString() ?? '')),
+                  ]);
+                } else if (logType == 'customers') {
+                  cells.addAll([
+                    DataCell(Text(data['fullName']?.toString() ?? '')),
+                    DataCell(Text(data['contactNum']?.toString() ?? '')),
+                  ]);
+                } else if (logType == 'products') {
+                  cells.addAll([
+                    DataCell(Text(data['name']?.toString() ?? '')),
+                    DataCell(Text(data['category']?.toString() ?? data['categoryID']?.toString() ?? '')),
+                    DataCell(Text(data['price']?.toString() ?? '')),
+                    DataCell(Text(data['stock']?.toString() ?? '')),
+                    DataCell(Text(data['supplier']?.toString() ?? data['supplierID']?.toString() ?? '')),
+                    DataCell(Text(
+                      date != null ? _formatTimeAgo(date, DateTime.now()) : '',
+                    )),
+                  ]);
+                } else if (logType == 'jobOrders') {
+                  cells.addAll([
+                    DataCell(Text(data['name']?.toString() ?? '')),
+                    DataCell(Text(data['status']?.toString() ?? '')),
+                  ]);
+                } else {
+                  cells.add(DataCell(Text(data['remarks']?.toString() ?? '')));
                 }
                 return DataRow(cells: cells);
               }).toList(),
@@ -538,148 +694,6 @@ class LogsTable extends StatelessWidget {
     );
   }
 }
-
-// Remove duplicate and unused imports
-// import 'package:fashion_tech/frontend/logs/productLogs.dart';
-// import 'package:fashion_tech/frontend/logs/jobOrderLogs.dart';
-
-// Move _UnifiedLogEntry, _fetchRecentLogs, and _formatTimeAgo to top-level
-class _UnifiedLogEntry {
-  final String description;
-  final DateTime? date;
-  final IconData icon;
-  final Color color;
-  final String timeAgo;
-  _UnifiedLogEntry({
-    required this.description,
-    required this.date,
-    required this.icon,
-    required this.color,
-    required this.timeAgo,
-  });
-}
-
-Future<List<_UnifiedLogEntry>> _fetchRecentLogs(String userId) async {
-  final firestore = FirebaseFirestore.instance;
-  final now = DateTime.now();
-  List<_UnifiedLogEntry> allLogs = [];
-  // Fabric Logs
-  final fabricLogs = await firestore
-      .collection('fabricLogs')
-      .where('createdBy', isEqualTo: userId)
-      .orderBy('createdAt', descending: true)
-      .limit(5)
-      .get();
-  allLogs.addAll(fabricLogs.docs.map((doc) {
-    final data = doc.data();
-    final date = (data['createdAt'] as Timestamp?)?.toDate();
-    return _UnifiedLogEntry(
-      description: 'Fabric: ${data['remarks'] ?? ''}',
-      date: date,
-      icon: Icons.checkroom,
-      color: Colors.pink,
-      timeAgo: _formatTimeAgo(date, now),
-    );
-  }));
-  // Product Logs
-  final productLogs = await firestore
-      .collection('productLogs')
-      .where('createdBy', isEqualTo: userId)
-      .orderBy('createdAt', descending: true)
-      .limit(5)
-      .get();
-  allLogs.addAll(productLogs.docs.map((doc) {
-    final data = doc.data();
-    final date = (data['createdAt'] as Timestamp?)?.toDate();
-    return _UnifiedLogEntry(
-      description: 'Product: ${data['remarks'] ?? ''}',
-      date: date,
-      icon: Icons.inventory_2,
-      color: Colors.indigo,
-      timeAgo: _formatTimeAgo(date, now),
-    );
-  }));
-  // Job Order Logs
-  final jobOrderLogs = await firestore
-      .collection('jobOrderLogs')
-      .where('createdBy', isEqualTo: userId)
-      .orderBy('createdAt', descending: true)
-      .limit(5)
-      .get();
-  allLogs.addAll(jobOrderLogs.docs.map((doc) {
-    final data = doc.data();
-    final date = (data['createdAt'] as Timestamp?)?.toDate();
-    return _UnifiedLogEntry(
-      description: 'Job Order: ${data['remarks'] ?? ''}',
-      date: date,
-      icon: Icons.assignment_turned_in,
-      color: Colors.deepPurple,
-      timeAgo: _formatTimeAgo(date, now),
-    );
-  }));
-  // Transaction Logs
-  final transactionLogs = await firestore
-      .collection('transactionLogs')
-      .where('createdBy', isEqualTo: userId)
-      .orderBy('createdAt', descending: true)
-      .limit(5)
-      .get();
-  allLogs.addAll(transactionLogs.docs.map((doc) {
-    final data = doc.data();
-    final date = (data['createdAt'] as Timestamp?)?.toDate();
-    return _UnifiedLogEntry(
-      description: 'Transaction: ${data['remarks'] ?? ''}',
-      date: date,
-      icon: Icons.swap_horiz,
-      color: Colors.green,
-      timeAgo: _formatTimeAgo(date, now),
-    );
-  }));
-  // Customer Logs
-  final customerLogs = await firestore
-      .collection('customerLogs')
-      .where('createdBy', isEqualTo: userId)
-      .orderBy('createdAt', descending: true)
-      .limit(5)
-      .get();
-  allLogs.addAll(customerLogs.docs.map((doc) {
-    final data = doc.data();
-    final date = (data['createdAt'] as Timestamp?)?.toDate();
-    return _UnifiedLogEntry(
-      description: 'Customer: ${data['remarks'] ?? ''}',
-      date: date,
-      icon: Icons.person,
-      color: Colors.teal,
-      timeAgo: _formatTimeAgo(date, now),
-    );
-  }));
-  // Supplier Logs
-  final supplierLogs = await firestore
-      .collection('supplierLogs')
-      .where('createdBy', isEqualTo: userId)
-      .orderBy('createdAt', descending: true)
-      .limit(5)
-      .get();
-  allLogs.addAll(supplierLogs.docs.map((doc) {
-    final data = doc.data();
-    final date = (data['createdAt'] as Timestamp?)?.toDate();
-    return _UnifiedLogEntry(
-      description: 'Supplier: ${data['remarks'] ?? ''}',
-      date: date,
-      icon: Icons.local_shipping,
-      color: Colors.orange,
-      timeAgo: _formatTimeAgo(date, now),
-    );
-  }));
-  allLogs.sort((a, b) {
-    if (a.date == null && b.date == null) return 0;
-    if (a.date == null) return 1;
-    if (b.date == null) return -1;
-    return b.date!.compareTo(a.date!);
-  });
-  return allLogs;
-}
-
 String _formatTimeAgo(DateTime? date, DateTime now) {
   if (date == null) return '';
   final diff = now.difference(date);
@@ -689,8 +703,6 @@ String _formatTimeAgo(DateTime? date, DateTime now) {
   if (diff.inDays == 1) return 'Yesterday';
   return '${diff.inDays}d ago';
 }
-
-// Remove duplicate widget/function definitions for modernStatCard, modernCard, sectionTitle, ActivityRow, _activityIcon, _timeAgo
 
 Widget modernStatCard({
   required IconData icon,
@@ -765,47 +777,6 @@ Widget sectionTitle(String title, IconData icon) {
       Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
     ],
   );
-}
-
-/// Helper widget for activity row
-class ActivityRow extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final String text;
-  final String time;
-
-  const ActivityRow({
-    required this.icon,
-    required this.color,
-    required this.text,
-    required this.time,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6.0),
-      child: Row(
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.13),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(icon, color: color, size: 18),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(text, style: const TextStyle(fontSize: 14)),
-          ),
-          const SizedBox(width: 8),
-          Text(time, style: const TextStyle(fontSize: 11, color: Colors.black45)),
-        ],
-      ),
-    );
-  }
 }
 
 class ProfitCheckerSection extends StatelessWidget {
@@ -916,7 +887,7 @@ class FabricInsightsSection extends StatelessWidget {
           sectionTitle('Fabric Insights', Icons.insights),
           const SizedBox(height: 8),
           StreamBuilder<QuerySnapshot>(
-            stream: currentUserId != null 
+            stream: currentUserId != null
                 ? FirebaseFirestore.instance
                     .collection('fabrics')
                     .where('createdBy', isEqualTo: currentUserId)
