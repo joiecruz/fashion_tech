@@ -31,17 +31,16 @@ class _SellModalState extends State<SellModal> {
     final double price = basePrice;
     final double totalPrice = price * quantity;
 
-    // Responsive modal height and scroll
+    // Responsive modal width
     final mediaQuery = MediaQuery.of(context);
-    final modalHeight = mediaQuery.size.height * 0.7;
     final modalWidth = mediaQuery.size.width * 0.95;
 
     return Container(
       width: modalWidth,
-      constraints: BoxConstraints(
-        maxHeight: modalHeight,
-        minHeight: 320,
+      constraints: const BoxConstraints(
         maxWidth: 500,
+        minHeight: 320,
+        maxHeight: 480, // Limit modal height for compact look
       ),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -60,11 +59,31 @@ class _SellModalState extends State<SellModal> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Sell "${widget.product['name'] ?? ''}"',
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
+            Row(
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.grey[200],
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+                    padding: const EdgeInsets.all(6),
+                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                    splashRadius: 18,
+                    onPressed: () => Navigator.of(context).maybePop(),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Sell "${widget.product['name'] ?? ''}"',
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 16),
             // Variant + Price Row
@@ -196,14 +215,20 @@ class _SellModalState extends State<SellModal> {
 
                   if (variantId == null || productId == null) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Product or variant is missing.'), backgroundColor: Colors.red),
+                      const SnackBar(
+                        content: Text('Product or variant is missing.'),
+                        backgroundColor: Colors.red,
+                      ),
                     );
                     return;
                   }
 
                   if (quantity <= 0 || price <= 0) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Enter valid price and quantity'), backgroundColor: Colors.red),
+                      const SnackBar(
+                        content: Text('Enter valid price and quantity'),
+                        backgroundColor: Colors.red,
+                      ),
                     );
                     return;
                   }
@@ -218,14 +243,17 @@ class _SellModalState extends State<SellModal> {
                     );
                     if (mounted) {
                       // If the parent expects a result, handle it there. Otherwise, just pop.
-                      Navigator.of(context).pop();
+                      Navigator.of(context).pop(true);
                       // Or, if you want to return details, make sure the parent expects a Map:
                       // Navigator.of(context).pop({'price': price, 'quantity': quantity, 'sellAll': _sellAll});
                     }
                   } catch (e) {
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Sell failed: $e'), backgroundColor: Colors.red),
+                        SnackBar(
+                          content: Text('Sell failed: $e'),
+                          backgroundColor: Colors.red,
+                        ),
                       );
                     }
                   }
